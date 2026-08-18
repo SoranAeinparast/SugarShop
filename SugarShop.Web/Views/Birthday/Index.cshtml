@@ -1,0 +1,65 @@
+﻿@using SugarShop.Domain.Entities.Sales
+@using MD.PersianDateTime
+@model List<BirthdayReminder>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>🎂 سالگردهای تولد من</h2>
+        <div>
+            <a asp-action="Create" class="btn btn-primary">➕ افزودن یادآوری جدید</a>
+            <a asp-controller="Profile" asp-action="Index" class="btn btn-secondary ms-2">🔙 بازگشت به داشبورد کاربری</a>
+        </div>
+    </div>
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">@TempData["Success"]</div>
+    }
+    <div class="card shadow-sm">
+        <div class="card-body">
+            @if (!Model.Any())
+            {
+                <div class="alert alert-info text-center">
+                    هنوز هیچ یادآوری ثبت نکرده‌اید.
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>نام</th>
+                                <th>نام خانوادگی</th>
+                                <th>تاریخ تولد (شمسی)</th>
+                                <th>عملیات</th>
+                            </tr>
+                        </thead>
+                       <tbody>
+                            @foreach (var item in Model)
+                            {
+                                <tr>
+                                    <td>@item.FirstName</td>
+                                    <td>@item.LastName</td>
+                                    <td>
+                                        @{
+                                            var persianDate = new PersianDateTime(item.BirthDate);
+                                            var dateString = persianDate.ToString("yyyy/MM/dd");
+                                        }
+                                        @dateString.ToPersianNumber()
+                                     </td>
+                                    <td>
+                                        <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-primary">✏️ ویرایش</a>
+                                        <form asp-action="Delete" method="post" style="display:inline;" onsubmit="return confirm('آیا از حذف این یادآوری اطمینان دارید؟');">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@item.Id" />
+                                            <button type="submit" class="btn btn-sm btn-danger">🗑️ حذف</button>
+                                        </form>
+                                     </td>
+                                 </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>

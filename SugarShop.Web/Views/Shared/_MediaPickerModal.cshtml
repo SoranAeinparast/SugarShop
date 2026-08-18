@@ -1,0 +1,261 @@
+@* Media Library Picker Modal - Shared Partial *@
+@* Usage: Include this partial once per page. Use .open-media-picker buttons with data-target (hidden input) and data-preview (img element) *@
+
+<div class="modal fade" id="mediaPickerModal" tabindex="-1" aria-labelledby="mediaPickerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="mediaPickerModalLabel">
+                    <i class="bi bi-images"></i> کتابخانه رسانه
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-8">
+                        <div class="input-group">
+                            <input type="text" id="mediaPickerSearch" class="form-control" placeholder="جستجو در کتابخانه..." />
+                            <button type="button" id="mediaPickerSearchBtn" class="btn btn-outline-primary">
+                                <i class="bi bi-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <select id="mediaPickerFileType" class="form-select">
+                            <option value="">همه انواع</option>
+                            <option value="image">تصاویر</option>
+                            <option value="video">ویدئو</option>
+                            <option value="document">اسناد</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">آپلود فایل جدید</label>
+                    <form id="mediaPickerUploadForm" enctype="multipart/form-data">
+                        @Html.AntiForgeryToken()
+                        <div class="input-group">
+                            <input type="file" id="mediaPickerFileInput" name="file" class="form-control" accept="image/*,video/*,.pdf,.doc,.docx" />
+                            <button type="button" id="mediaPickerUploadBtn" class="btn btn-success">
+                                <i class="bi bi-cloud-upload"></i> آپلود
+                            </button>
+                        </div>
+                    </form>
+                    <div id="mediaPickerUploadProgress" class="mt-2" style="display:none;">
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%;">در حال آپلود...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="mediaPickerGrid" class="row g-3" style="max-height: 500px; overflow-y: auto;">
+                    <div class="text-center text-muted py-5">
+                        <div class="spinner-border" role="status"></div>
+                        <p class="mt-2">در حال بارگذاری...</p>
+                    </div>
+                </div>
+
+                <div id="mediaPickerPagination" class="d-flex justify-content-center mt-4"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">انصراف</button>
+                <button type="button" id="mediaPickerConfirmBtn" class="btn btn-primary" disabled>
+                    <i class="bi bi-check-circle"></i> انتخاب
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .media-item {
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 3px solid transparent;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .media-item:hover {
+        border-color: #0d6efd;
+        transform: scale(1.02);
+    }
+    .media-item.selected {
+        border-color: #198754;
+        background-color: #d1e7dd;
+    }
+    .media-item img, .media-item video {
+        width: 100%;
+        height: 120px;
+        object-fit: cover;
+    }
+    .media-item .media-info {
+        padding: 8px;
+        font-size: 0.75rem;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+</style>
+
+<script>
+    (function() {
+        let currentPage = 1;
+        let selectedAsset = null;
+        let targetInput = null;
+        let targetPreview = null;
+        let targetDisplay = null;
+
+        function initMediaPicker() {
+            const modal = document.getElementById('mediaPickerModal');
+            if (!modal) return;
+
+            modal.addEventListener('show.bs.modal', function(event) {
+                const trigger = event.relatedTarget;
+                if (trigger) {
+                    targetInput = document.querySelector(trigger.dataset.target);
+                    targetPreview = document.querySelector(trigger.dataset.preview);
+                    targetDisplay = document.querySelector(trigger.dataset.display);
+                }
+                loadMediaItems(1);
+            });
+
+            document.getElementById('mediaPickerSearchBtn')?.addEventListener('click', () => loadMediaItems(1));
+            document.getElementById('mediaPickerSearch')?.addEventListener('keyup', (e) => {
+                if (e.key === 'Enter') loadMediaItems(1);
+            });
+            document.getElementById('mediaPickerFileType')?.addEventListener('change', () => loadMediaItems(1));
+
+            document.getElementById('mediaPickerConfirmBtn')?.addEventListener('click', confirmSelection);
+            document.getElementById('mediaPickerUploadBtn')?.addEventListener('click', uploadFile);
+        }
+
+        async function loadMediaItems(page) {
+            currentPage = page;
+            const search = document.getElementById('mediaPickerSearch')?.value || '';
+            const fileType = document.getElementById('mediaPickerFileType')?.value || '';
+            const grid = document.getElementById('mediaPickerGrid');
+            const pagination = document.getElementById('mediaPickerPagination');
+
+            grid.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border"></div><p class="mt-2">در حال بارگذاری...</p></div>';
+
+            try {
+                const url = `/Admin/MediaLibrary/PickerData?page=${page}&pageSize=24&search=${encodeURIComponent(search)}&fileType=${encodeURIComponent(fileType)}`;
+                const response = await fetch(url, { credentials: 'same-origin' });
+                if (!response.ok) throw new Error('Failed to load media');
+                const data = await response.json();
+
+                if (!data.assets || data.assets.length === 0) {
+                    grid.innerHTML = '<div class="col-12 text-center text-muted py-5"><i class="bi bi-inbox" style="font-size:3rem;"></i><p class="mt-3">هیچ فایلی یافت نشد. می‌توانید فایل جدید آپلود کنید.</p></div>';
+                    pagination.innerHTML = '';
+                    return;
+                }
+
+                grid.innerHTML = data.assets.map(asset => {
+                    const thumb = asset.thumbnailUrl || asset.fileUrl;
+                    const icon = asset.fileType === 'image' ? `<img src="${thumb}" alt="${asset.altText || asset.fileName}" loading="lazy"/>` :
+                                 asset.fileType === 'video' ? `<video src="${asset.fileUrl}" muted></video>` :
+                                 `<div class="d-flex align-items-center justify-content-center" style="height:120px;font-size:3rem;"><i class="bi bi-file-earmark"></i></div>`;
+                    return `
+                        <div class="col-3">
+                            <div class="media-item" data-asset-id="${asset.id}" data-asset-url="${asset.fileUrl}" data-asset-name="${asset.fileName}">
+                                ${icon}
+                                <div class="media-info">${asset.fileName}</div>
+                            </div>
+                        </div>`;
+                }).join('');
+
+                grid.querySelectorAll('.media-item').forEach(item => {
+                    item.addEventListener('click', () => selectMediaItem(item));
+                });
+
+                renderPagination(data.currentPage, data.totalPages, pagination);
+            } catch (err) {
+                grid.innerHTML = `<div class="col-12 text-center text-danger py-5"><i class="bi bi-exclamation-triangle" style="font-size:2rem;"></i><p class="mt-2">خطا در بارگذاری: ${err.message}</p></div>`;
+            }
+        }
+
+        function selectMediaItem(item) {
+            document.querySelectorAll('.media-item').forEach(el => el.classList.remove('selected'));
+            item.classList.add('selected');
+            selectedAsset = {
+                id: item.dataset.assetId,
+                url: item.dataset.assetUrl,
+                name: item.dataset.assetName
+            };
+            document.getElementById('mediaPickerConfirmBtn').disabled = false;
+        }
+
+        function confirmSelection() {
+            if (!selectedAsset || !targetInput) return;
+            targetInput.value = selectedAsset.url;
+            if (targetPreview) {
+                targetPreview.src = selectedAsset.url;
+                targetPreview.style.display = 'block';
+            }
+            if (targetDisplay) {
+                targetDisplay.value = selectedAsset.url;
+            }
+            const modal = bootstrap.Modal.getInstance(document.getElementById('mediaPickerModal'));
+            modal.hide();
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('mediaPickerFileInput');
+            const progress = document.getElementById('mediaPickerUploadProgress');
+            if (!fileInput.files.length) {
+                alert('لطفاً یک فایل انتخاب کنید.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            const token = document.querySelector('#mediaPickerUploadForm input[name="__RequestVerificationToken"]')?.value;
+            if (token) formData.append('__RequestVerificationToken', token);
+
+            progress.style.display = 'block';
+            try {
+                const response = await fetch('/Admin/MediaLibrary/Upload', {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'same-origin',
+                    headers: token ? { 'RequestVerificationToken': token } : {}
+                });
+
+                if (!response.ok) throw new Error('Upload failed');
+                const result = await response.json();
+
+                if (result.success !== false) {
+                    fileInput.value = '';
+                    loadMediaItems(currentPage);
+                } else {
+                    alert(result.message || 'خطا در آپلود فایل');
+                }
+            } catch (err) {
+                alert('خطا در آپلود: ' + err.message);
+            } finally {
+                progress.style.display = 'none';
+            }
+        }
+
+        function renderPagination(current, total, container) {
+            if (total <= 1) { container.innerHTML = ''; return; }
+            let html = '<nav><ul class="pagination">';
+            for (let i = 1; i <= total; i++) {
+                html += `<li class="page-item ${i === current ? 'active' : ''}"><a class="page-link" href="#" data-page="${i}">${i}</a></li>`;
+            }
+            html += '</ul></nav>';
+            container.innerHTML = html;
+            container.querySelectorAll('a[data-page]').forEach(link => {
+                link.addEventListener('click', (e) => { e.preventDefault(); loadMediaItems(parseInt(link.dataset.page)); });
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initMediaPicker);
+        } else {
+            initMediaPicker();
+        }
+    })();
+</script>

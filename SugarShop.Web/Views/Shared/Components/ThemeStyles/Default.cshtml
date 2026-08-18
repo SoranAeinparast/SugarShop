@@ -1,0 +1,147 @@
+﻿@* @using SugarShop.Domain.Entities
+@model SugarShop.Domain.Entities.ThemeSetting
+@{
+    var headerPosition = Model.HeaderType switch
+    {
+        HeaderType.Sticky => "sticky",
+        HeaderType.Fixed => "fixed",
+        _ => "relative"
+    };
+    var footerPosition = Model.FooterType switch
+    {
+        FooterType.Sticky => "sticky",
+        FooterType.Fixed => "fixed",
+        _ => "relative"
+    };
+    // تبدیل شفافیت به مقدار RGBA برای پس‌زمینه
+    var headerBgRgb = GetHexToRgb(Model.HeaderBgColor);
+    var footerBgRgb = GetHexToRgb(Model.FooterBgColor);
+    var headerOpacity = Model.HeaderTransparency / 100.0;
+    var footerOpacity = Model.FooterTransparency / 100.0;
+}
+@functions {
+    public string GetHexToRgb(string hex)
+    {
+        if (string.IsNullOrEmpty(hex)) return "255,255,255";
+        hex = hex.TrimStart('#');
+        if (hex.Length == 3)
+        {
+            hex = new string(new char[] { hex[0], hex[0], hex[1], hex[1], hex[2], hex[2] });
+        }
+        if (hex.Length != 6) return "255,255,255";
+        int r = Convert.ToInt32(hex.Substring(0, 2), 16);
+        int g = Convert.ToInt32(hex.Substring(2, 2), 16);
+        int b = Convert.ToInt32(hex.Substring(4, 2), 16);
+        return $"{r},{g},{b}";
+    }
+}
+<style>
+    :root {
+        --primary-color: @Model.PrimaryColor;
+        --secondary-color: @Model.SecondaryColor;
+    }
+    /* ===== هدر با پس‌زمینه شفاف ===== */
+    header, .site-header, nav.navbar {
+        background-color: rgba(@headerBgRgb, @(headerOpacity.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))) !important;
+        color: @Model.HeaderTextColor !important;
+        position: @headerPosition !important;
+        top: 0 !important;
+        width: 100% !important;
+        z-index: 1050 !important;
+    }
+    /* ===== فوتر با پس‌زمینه شفاف ===== */
+    footer, .site-footer {
+        background-color: rgba(@footerBgRgb, @(footerOpacity.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))) !important;
+        color: @Model.FooterTextColor !important;
+        position: @footerPosition !important;
+        bottom: 0 !important;
+        width: 100% !important;
+        z-index: 1040 !important;
+    }
+    /* ===== رنگ‌های لینک‌ها و دکمه‌ها ===== */
+    header a, .site-header a, nav.navbar a {
+        color: @Model.HeaderTextColor !important;
+    }
+    header a:hover, .site-header a:hover, nav.navbar a:hover {
+        color: @Model.HeaderTextColor !important;
+        opacity: 0.8 !important;
+    }
+    footer a {
+        color: @Model.FooterTextColor !important;
+    }
+    footer a:hover {
+        color: @Model.PrimaryColor !important;
+        transform: translateX(-5px);
+    }
+    /* ===== دکمه خروج در هدر ===== */
+    .logout-btn {
+        color: @Model.HeaderTextColor !important;
+        border-color: @Model.HeaderTextColor !important;
+    }
+    .logout-btn:hover {
+        background-color: rgba(255,255,255,0.2) !important;
+    }
+    /* ===== بخش کاربری ===== */
+    .user-info-wrapper {
+        color: @Model.HeaderTextColor !important;
+    }
+    .user-name-link {
+        color: @Model.HeaderTextColor !important;
+    }
+    .user-name-link:hover {
+        color: @Model.HeaderTextColor !important;
+        opacity: 0.8 !important;
+    }
+    /* ===== بدنه ===== */
+    body {
+        background-color: @Model.BodyBgColor !important;
+        color: @Model.BodyTextColor !important;
+        @if (Model.BodyDotPatternEnabled)
+        {
+            <text>
+            background-image: radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px) !important;
+            background-size: 20px 20px !important;
+            </text>
+        }
+    }
+    /* ===== رنگ‌های داینامیک ===== */
+    .btn-primary {
+        background-color: @Model.PrimaryColor !important;
+        border-color: @Model.PrimaryColor !important;
+    }
+    .btn-primary:hover {
+        background-color: @Model.SecondaryColor !important;
+        border-color: @Model.SecondaryColor !important;
+    }
+    .btn-outline-primary {
+        color: @Model.PrimaryColor !important;
+        border-color: @Model.PrimaryColor !important;
+    }
+    .btn-outline-primary:hover {
+        background-color: @Model.PrimaryColor !important;
+        color: #fff !important;
+    }
+    a:not(header a):not(.site-header a):not(nav.navbar a):not(footer a) {
+        color: @Model.PrimaryColor !important;
+    }
+    a:not(header a):not(.site-header a):not(nav.navbar a):not(footer a):hover {
+        color: @Model.SecondaryColor !important;
+    }
+    /* ===== padding برای حالت Fixed ===== */
+    @if (Model.HeaderType == HeaderType.Fixed)
+    {
+        <text>
+        body {
+            padding-top: 70px !important;
+        }
+        </text>
+    }
+    @if (Model.FooterType == FooterType.Fixed)
+    {
+        <text>
+        body {
+            padding-bottom: 80px !important;
+        }
+        </text>
+    }
+</style> *@

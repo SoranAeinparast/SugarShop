@@ -1,0 +1,96 @@
+﻿@using MD.PersianDateTime
+@using SugarShop.Web.Extensions
+@{
+    ViewData["Title"] = "شارژ کیف پول";
+    var minAmount = ViewBag.MinAmount ?? 10000;
+    var maxAmount = ViewBag.MaxAmount;
+    bool hasMaxLimit = maxAmount > 0;
+    string ToPersianNumberLocal(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return input;
+        var persianDigits = "۰۱۲۳۴۵۶۷۸۹";
+        return string.Concat(input.Select(c => char.IsDigit(c) ? persianDigits[c - '0'] : c));
+    }
+    Func<string, string> toPersian = (s) =>
+    {
+        try { return s.ToPersianNumber(); }
+        catch { return ToPersianNumberLocal(s); }
+    };
+}
+<div class="container mt-4">
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">💳 شارژ کیف پول</h4>
+        </div>
+        <div class="card-body">
+            <form asp-action="Recharge" method="post" id="rechargeForm">
+                <div class="mb-3">
+                    <label class="form-label">مبلغ شارژ (تومان)</label>
+                    <input type="number" name="amount" id="amount" class="form-control" required 
+                           min="@minAmount" step="1000" 
+                           @(hasMaxLimit ? $"max={maxAmount}" : "") />
+                    <div id="amountError" class="invalid-feedback" style="display: none;"></div>
+                    <small class="text-muted">
+                        حداقل مبلغ شارژ: @toPersian(((decimal)minAmount).ToString("N0")) تومان
+                        @if (hasMaxLimit)
+                        {
+                            <span> - حداکثر مبلغ شارژ: @toPersian(((decimal)maxAmount).ToString("N0")) تومان</span>
+                        }
+                    </small>
+                </div>
+                <button type="submit" class="btn btn-success">✅ پرداخت و شارژ کیف پول</button>
+                <a asp-action="Index" asp-controller="Profile" class="btn btn-secondary">🔙 بازگشت</a>
+            </form>
+        </div>
+    </div>
+</div>
+@section Scripts {
+    <script>
+        function toPersianNumber(str) {
+            if (str === undefined || str === null) return '';
+            const persianDigits = '۰۱۲۳۴۵۶۷۸۹';
+            return str.toString().replace(/\d/g, function(d) {
+                return persianDigits[parseInt(d)];
+            });
+        }
+        const amountInput = document.getElementById('amount');
+        const errorDiv = document.getElementById('amountError');
+        const form = document.getElementById('rechargeForm');
+        const min = @minAmount;
+        const max = @(hasMaxLimit ? maxAmount : 0);
+        function validateAmount() {
+            let value = parseFloat(amountInput.value);
+            let isValid = true;
+            let errorMsg = '';
+            if (isNaN(value)) {
+                errorMsg = 'لطفاً مبلغ را وارد کنید.';
+                isValid = false;
+            } else if (value < min) {
+                errorMsg = `حداقل مبلغ شارژ ${toPersianNumber(min.toLocaleString())} تومان است.`;
+                isValid = false;
+            } else if (max > 0 && value > max) {
+                errorMsg = `حداکثر مبلغ شارژ ${toPersianNumber(max.toLocaleString())} تومان است.`;
+                isValid = false;
+            }
+            if (!isValid) {
+                amountInput.classList.add('is-invalid');
+                errorDiv.textContent = errorMsg;
+                errorDiv.style.display = 'block';
+            } else {
+                amountInput.classList.remove('is-invalid');
+                errorDiv.style.display = 'none';
+            }
+            return isValid;
+        }
+        amountInput.addEventListener('input', validateAmount);
+        form.addEventListener('submit', function(e) {
+            if (!validateAmount()) {
+                e.preventDefault();
+            }
+        });
+    </script>
+}

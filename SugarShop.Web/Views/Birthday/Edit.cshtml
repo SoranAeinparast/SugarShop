@@ -1,0 +1,146 @@
+﻿@using SugarShop.Domain.Entities.Sales
+@model BirthdayReminder
+@{
+    ViewData["Title"] = "ویرایش یادآوری تولد";
+}
+<div class="container mt-4">
+    <div class="card shadow-sm">
+        <div class="card-header bg-warning text-dark">
+            <h4 class="mb-0">✏️ ویرایش یادآوری تولد</h4>
+        </div>
+        <div class="card-body">
+            <form asp-action="Edit" method="post" novalidate id="birthdayForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="Id" />
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label asp-for="FirstName" class="form-label">نام *</label>
+                            <input asp-for="FirstName" class="form-control" required />
+                            <span asp-validation-for="FirstName" class="text-danger"></span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label asp-for="LastName" class="form-label">نام خانوادگی *</label>
+                            <input asp-for="LastName" class="form-control" required />
+                            <span asp-validation-for="LastName" class="text-danger"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label asp-for="BirthDate" class="form-label">تاریخ تولد (شمسی)</label>
+                            <persian-date asp-for="BirthDate"></persian-date>
+                            <span asp-validation-for="BirthDate" class="text-danger"></span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label asp-for="Gender" class="form-label">جنسیت</label>
+                            <select asp-for="Gender" class="form-select">
+                                <option value="">انتخاب کنید</option>
+                                <option value="Male">مرد</option>
+                                <option value="Female">زن</option>
+                                <option value="Other">سایر</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label asp-for="Relation" class="form-label">نسبت با شما</label>
+                            <input asp-for="Relation" class="form-control" placeholder="مثال: دوست، همسر، برادر، همکار" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label asp-for="RemindDaysBefore" class="form-label">تعداد روز مانده به تولد برای یادآوری</label>
+                            <input asp-for="RemindDaysBefore" type="number" class="form-control" min="1" max="30" />
+                            <small class="text-muted">مثلاً 3 روز قبل از تولد، پیام ارسال شود</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label asp-for="Email" class="form-label">ایمیل (اختیاری)</label>
+                            <input asp-for="Email" type="email" class="form-control" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label asp-for="PhoneNumber" class="form-label">شماره همراه (اختیاری)</label>
+                            <input asp-for="PhoneNumber" class="form-control" />
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="Notes" class="form-label">توضیحات اضافی</label>
+                    <textarea asp-for="Notes" class="form-control" rows="3"></textarea>
+                </div>
+                <div class="mb-3 form-check">
+                    <input asp-for="IsActive" class="form-check-input" />
+                    <label asp-for="IsActive" class="form-check-label">فعال (برای دریافت یادآوری)</label>
+                </div>
+                <button type="submit" class="btn btn-primary">💾 ذخیره تغییرات</button>
+                <a asp-action="Index" class="btn btn-secondary">🔙 بازگشت</a>
+            </form>
+        </div>
+    </div>
+</div>
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        $.validator.setDefaults({ ignore: "" });
+        $(document).ready(function() {
+            try {
+                $('#BirthDatePersian').persianDatepicker({
+                    format: 'YYYY/MM/DD',
+                    autoClose: true,
+                    observer: true,
+                    initialValue: false
+                });
+            } catch(e) { console.error('persianDatepicker error:', e); }
+            $('#birthdayForm').removeData('validator');
+            $('#birthdayForm').removeData('unobtrusiveValidation');
+            $('#birthdayForm').on('submit', function(e) {
+                var persianDate = $('#BirthDatePersian').val().trim();
+                if (!persianDate) {
+                    alert('لطفاً تاریخ تولد را انتخاب کنید');
+                    e.preventDefault();
+                    return false;
+                }
+                var parts = persianDate.split('/');
+                if (parts.length !== 3) {
+                    alert('فرمت تاریخ نامعتبر است');
+                    e.preventDefault();
+                    return false;
+                }
+                var year = parseInt(parts[0]);
+                var month = parseInt(parts[1]);
+                var day = parseInt(parts[2]);
+                try {
+                    var pd = new persianDate([year, month, day]);
+                    var gd = pd.toCalendar('gregorian').toArray();
+                    var gregorianDate = new Date(Date.UTC(gd[0], gd[1]-1, gd[2]));
+                    var isoDate = gregorianDate.toISOString().split('T')[0];
+                    if ($('#BirthDate').length === 0) {
+                        $('<input>').attr({ type: 'hidden', id: 'BirthDate', name: 'BirthDate', value: isoDate }).appendTo('#birthdayForm');
+                    } else {
+                        $('#BirthDate').val(isoDate);
+                    }
+                    $('#BirthDatePersian').remove();
+                    return true;
+                } catch(ex) {
+                    alert('خطا در تبدیل تاریخ: ' + ex.message);
+                    e.preventDefault();
+                    return false;
+                }
+            });
+        });
+    </script>
+}

@@ -1,0 +1,79 @@
+﻿@using SugarShop.Domain.Entities
+@using SugarShop.Domain.Entities.Sales
+@model Wallet
+@{
+    var user = ViewBag.User as ApplicationUser;
+    var transactions = ViewBag.Transactions as List<WalletTransaction>;
+    ViewData["Title"] = $"کیف پول {user?.FullName ?? user?.UserName}";
+    Layout = "_AdminLayout";
+}
+<div class="card mb-3">
+    <div class="card-header">
+        <h5>اطلاعات کاربر</h5>
+    </div>
+    <div class="card-body">
+        <p><strong>نام کاربری:</strong> @user?.UserName</p>
+        <p><strong>نام کامل:</strong> @user?.FullName</p>
+        <p><strong>ایمیل:</strong> @user?.Email</p>
+        <p><strong>موجودی فعلی:</strong> <span class="badge bg-success fs-6">@Model.Balance.ToString("N0") تومان</span></p>
+    </div>
+</div>
+<div class="card mb-3">
+    <div class="card-header">
+        <h5>➕ تغییر موجودی دستی</h5>
+    </div>
+    <div class="card-body">
+        <form asp-action="AdjustBalance" method="post">
+            <input type="hidden" name="userId" value="@user?.Id" />
+            <div class="row">
+                <div class="col-md-4">
+                    <label>مبلغ (تومان)</label>
+                    <input type="number" name="amount" class="form-control" step="1000" required />
+                </div>
+                <div class="col-md-6">
+                    <label>توضیحات</label>
+                    <input type="text" name="description" class="form-control" placeholder="دلیل افزایش/کسر موجودی" />
+                </div>
+                <div class="col-md-2 align-self-end">
+                    <button type="submit" class="btn btn-warning">✏️ اعمال تغییر</button>
+                </div>
+            </div>
+        </form>
+        <small class="text-muted">عدد مثبت = افزایش موجودی | عدد منفی = کسر موجودی</small>
+    </div>
+</div>
+<div class="card">
+    <div class="card-header">
+        <h5>📜 تاریخچه تراکنش‌ها</h5>
+    </div>
+    <div class="card-body">
+        @if (transactions != null && transactions.Any())
+        {
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>تاریخ</th>
+                        <th>مبلغ (تومان)</th>
+                        <th>نوع</th>
+                        <th>توضیحات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var t in transactions)
+                    {
+                        <tr>
+                            <td>@t.CreatedAt.ToString("yyyy/MM/dd HH:mm")</td>
+                            <td class="@(t.Amount > 0 ? "text-success" : "text-danger")">@(t.Amount > 0 ? "+" : "")@t.Amount.ToString("N0")</td>
+                            <td>@t.Type</td>
+                            <td>@t.Description</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <div class="alert alert-info">هیچ تراکنشی یافت نشد.</div>
+        }
+    </div>
+</div>

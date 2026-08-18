@@ -1,0 +1,172 @@
+﻿@model SugarShop.Domain.Entities.AIContentSettings
+@{
+    ViewData["Title"] = "تنظیمات تولید محتوای هوشمند";
+    Layout = "_AdminLayout";
+    var sources = ViewBag.Sources as List<SugarShop.Domain.Entities.ContentSource> ?? new List<SugarShop.Domain.Entities.ContentSource>();
+    var topics = ViewBag.Topics as List<SugarShop.Domain.Entities.ContentTopic> ?? new List<SugarShop.Domain.Entities.ContentTopic>();
+}
+<div class="card">
+    <div class="card-header">
+        <h4>🤖 تنظیمات تولید محتوای هوشمند</h4>
+    </div>
+    <div class="card-body">
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                @TempData["Success"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+        @if (TempData["Warning"] != null)
+        {
+            <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                @TempData["Warning"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                @TempData["Error"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+        <form asp-action="SaveSettings" method="post">
+            @Html.AntiForgeryToken()
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>🔑 تنظیمات API</h5>
+                    <div class="mb-3">
+                        <label class="form-label">کلید OpenAI / OpenRouter</label>
+                        @if (!string.IsNullOrEmpty(Model.OpenAIApiKey))
+                        {
+                            <div class="mb-1">
+                                <input class="form-control" type="text" value="@Model.OpenAIApiKey" disabled />
+                                <small class="text-muted">کلید فعلی (جهت تغییر، مقدار جدید را در فیلد زیر وارد کنید)</small>
+                            </div>
+                        }
+                        <input asp-for="OpenAIApiKey" class="form-control" type="password" placeholder="sk-..." />
+                        <small class="text-muted">برای دریافت کلید به openrouter.ai یا platform.openai.com مراجعه کنید</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">مدل متن</label>
+                        <input asp-for="ModelName" class="form-control" placeholder="gpt-4o-mini" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">مدل تصویر</label>
+                        <input asp-for="ImageModelName" class="form-control" placeholder="dall-e-3" />
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h5>⏰ تنظیمات انتشار</h5>
+                    <div class="mb-3">
+                        <label class="form-label">زمان‌بندی (Cron Expression)</label>
+                        <input asp-for="ScheduleCron" class="form-control" placeholder="0 8 * * *" />
+                        <small class="text-muted">مثال: 0 8 * * * یعنی هر روز ساعت ۸ صبح</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">حداکثر مقاله در هر اجرا</label>
+                        <input asp-for="MaxArticlesPerRun" class="form-control" type="number" />
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input asp-for="AutoPublishEnabled" class="form-check-input" />
+                        <label class="form-check-label">انتشار خودکار (بدون تایید)</label>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input asp-for="RequireAdminApproval" class="form-check-input" />
+                        <label class="form-check-label">نیاز به تایید مدیر قبل از انتشار</label>
+                    </div>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-success">💾 ذخیره تنظیمات</button>
+        </form>
+        <hr />
+        <h5>📂 مدیریت منابع (URLهای دریافت محتوا)</h5>
+        <form asp-action="AddSource" method="post" class="row g-2">
+            @Html.AntiForgeryToken()
+            <div class="col-md-4">
+                <input type="text" name="Title" class="form-control" placeholder="نام منبع (اختیاری)" />
+            </div>
+            <div class="col-md-5">
+                <input type="url" name="Url" class="form-control" placeholder="https://example.com/recipe" required />
+            </div>
+            <div class="col-md-2">
+                <input type="text" name="Category" class="form-control" placeholder="دسته‌بندی" />
+            </div>
+            <div class="col-md-1">
+                <button type="submit" class="btn btn-primary">➕</button>
+            </div>
+        </form>
+        <table class="table table-sm mt-2">
+            <thead>
+                <tr>
+                    <th>عنوان</th>
+                    <th>URL</th>
+                    <th>دسته</th>
+                    <th>فعال</th>
+                    <th>عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var s in sources)
+                {
+                    <tr>
+                        <td>@s.Title</td>
+                        <td><a href="@s.Url" target="_blank">@s.Url</a></td>
+                        <td>@s.Category</td>
+                        <td>@(s.IsActive ? "✅" : "❌")</td>
+                        <td>
+                            <a asp-action="EditSource" asp-route-id="@s.Id" class="btn btn-sm btn-warning">✏️</a>
+                            <form asp-action="DeleteSource" method="post" style="display:inline;">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@s.Id" />
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('حذف شود؟')">🗑️</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <hr />
+        <h5>🏷️ مدیریت موضوعات</h5>
+        <form asp-action="AddTopic" method="post" class="row g-2">
+            @Html.AntiForgeryToken()
+            <div class="col-md-4">
+                <input type="text" name="Name" class="form-control" placeholder="نام موضوع (مثل کیک)" required />
+            </div>
+            <div class="col-md-6">
+                <input type="text" name="Keywords" class="form-control" placeholder="کلمات کلیدی (مثل کیک, شیرینی, دسر)" />
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary">➕</button>
+            </div>
+        </form>
+        <table class="table table-sm mt-2">
+            <thead>
+                <tr>
+                    <th>نام</th>
+                    <th>کلمات کلیدی</th>
+                    <th>فعال</th>
+                    <th>عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var t in topics)
+                {
+                    <tr>
+                        <td>@t.Name</td>
+                        <td>@t.Keywords</td>
+                        <td>@(t.IsActive ? "✅" : "❌")</td>
+                        <td>
+                            <form asp-action="DeleteTopic" method="post" style="display:inline;">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@t.Id" />
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('حذف شود؟')">🗑️</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

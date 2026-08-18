@@ -1,0 +1,96 @@
+﻿@using SugarShop.Domain.Entities.Sales
+@using MD.PersianDateTime
+@using SugarShop.Web.Extensions
+@model CustomCakeOrder
+@{
+    ViewData["Title"] = $"جزئیات سفارش کیک #{Model.Id}";
+    Layout = "_AdminLayout";
+    var createdDate = new PersianDateTime(Model.CreatedAt);
+    var createdStr = createdDate.ToString("yyyy/MM/dd HH:mm");
+}
+<div class="card">
+    <div class="card-header">
+        <h4>🎂 جزئیات سفارش کیک #@Model.Id</h4>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <p><strong>مشتری:</strong> @Model.UserId</p>
+                <p><strong>تاریخ ثبت:</strong> @createdStr.ToPersianNumber()</p>
+                @if (Model.DesiredDeliveryDateTime.HasValue)
+                {
+                    var deliveryDate = new PersianDateTime(Model.DesiredDeliveryDateTime.Value);
+                    var deliveryStr = deliveryDate.ToString("yyyy/MM/dd HH:mm");
+                    <p><strong>تاریخ تحویل دلخواه:</strong> @deliveryStr.ToPersianNumber()</p>
+                }
+                <p><strong>وضعیت فعلی:</strong> 
+                    @if (Model.Status == CustomCakeOrderStatus.Pending)
+                    {
+                        <span class="badge bg-warning text-dark">در انتظار بررسی</span>
+                    }
+                    else if (Model.Status == CustomCakeOrderStatus.Accepted)
+                    {
+                        <span class="badge bg-success">تأیید شده</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-danger">رد شده</span>
+                    }
+                </p>
+            </div>
+            <div class="col-md-6">
+                @if (!string.IsNullOrEmpty(Model.SampleImagePath))
+                {
+                    <p><strong>تصویر نمونه:</strong></p>
+                    <img src="@Model.SampleImagePath" class="img-fluid rounded-3" style="max-height: 150px; object-fit: contain;" />
+                }
+                @if (!string.IsNullOrEmpty(Model.PrintImagePath))
+                {
+                    <p><strong>تصویر برای چاپ:</strong></p>
+                    <img src="@Model.PrintImagePath" class="img-fluid rounded-3" style="max-height: 150px; object-fit: contain;" />
+                }
+            </div>
+        </div>
+        <hr />
+        <div class="row">
+            <div class="col-md-6">
+                <p><strong>وزن تقریبی:</strong> @(Model.WeightGrams?.ToString().ToPersianNumber() ?? "-") گرم</p>
+                <p><strong>تعداد نفرات:</strong> @(Model.Servings?.ToString().ToPersianNumber() ?? "-")</p>
+                <p><strong>طعم:</strong> @(Model.Flavor ?? "-")</p>
+                <p><strong>شکل:</strong> @(Model.Shape ?? "-")</p>
+                <p><strong>مواد به کار رفته:</strong> @(Model.Ingredients ?? "-")</p>
+                <p><strong>نوع مراسم:</strong> @(Model.Occasion ?? "-")</p>
+            </div>
+            <div class="col-md-6">
+                <p><strong>توضیحات اضافی:</strong> @(Model.SpecialRequests ?? "-")</p>
+            </div>
+        </div>
+        <hr />
+        <h5>تنظیم وضعیت سفارش</h5>
+        <form asp-action="UpdateCustomCakeOrder" method="post">
+            <input type="hidden" name="id" value="@Model.Id" />
+            <div class="row">
+                <div class="col-md-4">
+                    <label>وضعیت</label>
+                    <select name="status" class="form-select">
+                        <option value="Pending" selected="@(Model.Status == CustomCakeOrderStatus.Pending)">در انتظار بررسی</option>
+                        <option value="Accepted" selected="@(Model.Status == CustomCakeOrderStatus.Accepted)">تأیید شده</option>
+                        <option value="Rejected" selected="@(Model.Status == CustomCakeOrderStatus.Rejected)">رد شده</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label>قیمت نهایی (تومان)</label>
+                    <input type="number" name="finalPrice" class="form-control" value="@Model.FinalPrice" step="1000" />
+                </div>
+                <div class="col-md-4">
+                    <label>توضیحات مدیر</label>
+                    <textarea name="adminNotes" class="form-control" rows="2">@Model.AdminNotes</textarea>
+                </div>
+            </div>
+            <div class="mt-3">
+                <button type="submit" class="btn btn-success">💾 ذخیره تغییرات</button>
+                <a asp-action="CustomCakeOrders" class="btn btn-secondary">🔙 بازگشت به لیست</a>
+            </div>
+        </form>
+    </div>
+</div>

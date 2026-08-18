@@ -1,0 +1,43 @@
+﻿@model SugarShop.Domain.Entities.ContentSource
+@{
+    ViewData["Title"] = "ویرایش منبع";
+    Layout = "_AdminLayout";
+}
+<div class="card">
+    <div class="card-header">
+        <h4>✏️ ویرایش منبع</h4>
+    </div>
+    <div class="card-body">
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger">@TempData["Error"]</div>
+        }
+        <form asp-action="EditSource" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="Id" />
+            <div class="mb-3">
+                <label class="form-label">عنوان</label>
+                <input asp-for="Title" class="form-control" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">URL</label>
+                <input asp-for="Url" class="form-control" required />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">دسته‌بندی</label>
+                <input asp-for="Category" class="form-control" />
+            </div>
+            <div class="mb-3 form-check">
+                <input asp-for="IsActive" class="form-check-input" />
+                <label class="form-check-label">فعال</label>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">اولویت</label>
+                <input asp-for="Priority" type="number" class="form-control" />
+                <small class="text-muted">اعداد کوچک‌تر اولویت بالاتری دارند</small>
+            </div>
+            <button type="submit" class="btn btn-success">💾 ذخیره</button>
+            <a asp-action="Index" class="btn btn-secondary">↩️ بازگشت</a>
+        </form>
+    </div>
+</div>

@@ -1,0 +1,100 @@
+﻿@using SugarShop.Domain.Entities.Sales
+@using SugarShop.Web.Extensions
+@model IEnumerable<DiscountCode>
+@{
+    ViewData["Title"] = "مدیریت کدهای تخفیف";
+    Layout = "_AdminLayout";
+    string ToShamsi(DateTime? date)
+    {
+        if (date == null) return "-";
+        var persianDate = new MD.PersianDateTime.PersianDateTime(date.Value);
+        return persianDate.ToString("yyyy/MM/dd").ToPersianNumber();
+    }
+}
+
+<h2 class="mb-4">📋 لیست کدهای تخفیف</h2>
+
+<p>
+    <a href="@Url.Action("Create")" class="btn btn-primary">➕ افزودن جدید</a>
+</p>
+
+<table class="table table-bordered table-striped table-hover">
+    <thead class="table-dark">
+        <tr>
+            <th>کد</th>
+            <th>نوع تخفیف</th>
+            <th>مقدار</th>
+            <th>حداقل مبلغ سفارش</th>
+            <th>تاریخ شروع</th>
+            <th>تاریخ پایان</th>
+            <th>تعداد استفاده</th>
+            <th>وضعیت</th>
+            <th>عملیات</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            bool isExpired = item.EndDate < DateTime.UtcNow;
+            bool isNotStarted = item.StartDate > DateTime.UtcNow;
+            
+            <tr class="@(isExpired ? "table-danger" : (isNotStarted ? "table-warning" : ""))">
+                <td><strong>@item.Code</strong></td>
+                <td>@(item.DiscountType == DiscountType.Percentage ? "درصدی" : "مبلغ ثابت")</td>
+                <td>@(string.Format("{0:N0}", item.DiscountValue).ToPersianNumber() + (item.DiscountType == DiscountType.Percentage ? "%" : " تومان"))</td>
+                
+                <td>
+                    @if (item.MinimumOrderAmount.HasValue && item.MinimumOrderAmount.Value > 0)
+                    {
+                        @string.Format("{0:N0}", item.MinimumOrderAmount.Value).ToPersianNumber() <small class="text-muted">تومان</small>
+                    }
+                    else
+                    {
+                        <span class="text-muted">-</span>
+                    }
+                </td>
+                
+                <td>@ToShamsi(item.StartDate)</td>
+                <td>@ToShamsi(item.EndDate)</td>
+                <td>
+                    @item.UsedCount.ToString().ToPersianNumber()
+                    @if (item.UsageLimit.HasValue)
+                    {
+                        <span class="text-muted">/ @item.UsageLimit.Value.ToString().ToPersianNumber()</span>
+                    }
+                </td>
+                <td>
+                    @if (isExpired)
+                    {
+                        <span class="badge bg-danger">منقضی شده</span>
+                    }
+                    else if (isNotStarted)
+                    {
+                        <span class="badge bg-warning text-dark">شروع نشده</span>
+                    }
+                    else if (item.IsActive)
+                    {
+                        <span class="badge bg-success">فعال</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">غیرفعال</span>
+                    }
+                </td>
+                <td>
+                    <a href="@Url.Action("Edit", new { id = item.Id })" class="btn btn-warning btn-sm">✏️ ویرایش</a>
+                    <form asp-action="Delete" method="post" style="display:inline;">
+                        <input type="hidden" name="id" value="@item.Id" />
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('آیا از حذف این کد تخفیف اطمینان دارید؟')">🗑️ حذف</button>
+                    </form>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+@if (!Model.Any())
+{
+    <div class="alert alert-info text-center mt-4">
+        هنوز هیچ کد تخفیفی ثبت نشده است.
+    </div>
+}

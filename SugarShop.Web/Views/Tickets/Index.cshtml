@@ -1,0 +1,50 @@
+﻿@using SugarShop.Domain.Entities
+@{
+    ViewData["Title"] = "مدیریت پیام‌ها";
+    Layout = "_AdminLayout";
+}
+@model List<Ticket>
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h4>🎫 لیست پیام‌ها</h4>
+    </div>
+    <div class="card-body">
+        <ul class="nav nav-tabs mb-3">
+            <li class="nav-item"><a class="nav-link @(ViewBag.CurrentStatus == "all" ? "active" : "")" href="@Url.Action("Index", new { status = "all" })">همه</a></li>
+            <li class="nav-item"><a class="nav-link @(ViewBag.CurrentStatus == "open" ? "active" : "")" href="@Url.Action("Index", new { status = "open" })">باز</a></li>
+            <li class="nav-item"><a class="nav-link @(ViewBag.CurrentStatus == "answered" ? "active" : "")" href="@Url.Action("Index", new { status = "answered" })">پاسخ داده شده</a></li>
+            <li class="nav-item"><a class="nav-link @(ViewBag.CurrentStatus == "closed" ? "active" : "")" href="@Url.Action("Index", new { status = "closed" })">بسته شده</a></li>
+        </ul>
+        <div class="table-responsive">
+            <table class="table table-striped table-bordered">
+                <thead class="table-dark">
+                    <tr>
+                        <th>کاربر</th>
+                        <th>موضوع</th>
+                        <th>وضعیت</th>
+                        <th>تاریخ</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var ticket in Model)
+                    {
+                        <tr>
+                            <td class="align-middle">@(ViewBag.UserNames != null && ViewBag.UserNames.ContainsKey(ticket.UserId) ? ViewBag.UserNames[ticket.UserId] : ticket.UserId)</td>
+                            <td class="align-middle">@ticket.Subject</td>
+                            <td class="align-middle">
+                                @if (ticket.Status == TicketStatus.Open) { <span class="badge bg-danger">باز</span> }
+                                else if (ticket.Status == TicketStatus.Answered) { <span class="badge bg-success">پاسخ داده شده</span> }
+                                else if (ticket.Status == TicketStatus.Closed) { <span class="badge bg-secondary">بسته</span> }
+                            </td>
+                            <td class="align-middle">@ticket.CreatedAt.ToString("yyyy/MM/dd HH:mm")</td>
+                            <td class="align-middle">
+                                <a href="@Url.Action("Details", new { id = ticket.Id })" class="btn btn-sm btn-info">مشاهده و پاسخ</a>
+                            </td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,74 @@
+﻿@{
+    ViewData["Title"] = "مدیریت اسلایدرها";
+    Layout = "_AdminLayout";
+}
+@model List<SugarShop.Domain.Entities.Slider>
+<div class="card">
+    <div class="card-header d-flex justify-content-between">
+        <h4>🖼️ لیست اسلایدرها</h4>
+        <a href="@Url.Action("Create")" class="btn btn-primary">➕ افزودن جدید</a>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>فایل (تصویر/ویدیو)</th>
+                        <th>عنوان</th>
+                        <th>زیرنویس</th>
+                        <th>دکمه</th>
+                        <th>ترتیب</th>
+                        <th>فعال</th>
+                        <th>تاریخ شروع</th>
+                        <th>تاریخ پایان</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td>
+                                @if (!string.IsNullOrEmpty(item.ImagePath))
+                                {
+                                    if (item.IsVideo)
+                                    {
+                                        <video width="80" height="60" style="object-fit:cover;" controls>
+                                            <source src="@item.ImagePath" type="video/webm">
+                                            مرورگر شما از ویدیو پشتیبانی نمی‌کند.
+                                        </video>
+                                    }
+                                    else
+                                    {
+                                        <img src="@item.ImagePath" width="80" height="60" style="object-fit:cover;" />
+                                    }
+                                }
+                                else
+                                {
+                                    <span>🖼️</span>
+                                }
+                            </td>
+                            <td>@item.Title</td>
+                            <td>@item.Subtitle</td>
+                            <td>@item.ButtonText</td>
+                            <td>@item.SortOrder</td>
+                            <td>
+                                @if (item.IsActive) { <span class="badge bg-success">فعال</span> }
+                                else { <span class="badge bg-danger">غیرفعال</span> }
+                            </td>
+                            <td>@(item.StartAt?.ToString("yyyy/MM/dd") ?? "-")</td>
+                            <td>@(item.EndAt?.ToString("yyyy/MM/dd") ?? "-")</td>
+                            <td>
+                                <a href="@Url.Action("Edit", new { id = item.Id })" class="btn btn-sm btn-warning">ویرایش</a>
+                                <form asp-action="Delete" method="post" style="display:inline-block;" onsubmit="return confirm('حذف شود؟')">
+                                    <input type="hidden" name="id" value="@item.Id" />
+                                    <button type="submit" class="btn btn-sm btn-danger">حذف</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

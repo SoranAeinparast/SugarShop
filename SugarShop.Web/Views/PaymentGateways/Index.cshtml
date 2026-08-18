@@ -1,0 +1,96 @@
+﻿@using SugarShop.Domain.Entities.Sales
+@model List<PaymentGateway>
+@{
+    ViewData["Title"] = "مدیریت درگاه‌های پرداخت";
+    Layout = "_AdminLayout";
+}
+<div asp-validation-summary="All" class="alert alert-danger"></div>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
+<div class="card">
+    <div class="card-header">
+        <h4>💳 مدیریت درگاه‌های پرداخت</h4>
+    </div>
+    <div class="mb-3">
+    <a href="@Url.Action("CreateGateway")" class="btn btn-primary">➕ افزودن درگاه جدید</a>
+</div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>نام درگاه</th>
+                        <th>عنوان</th>
+                        <th>نوع درگاه</th>
+                        <th>وضعیت</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var gateway in Model)
+                    {
+                        <tr>
+                            <td>@gateway.Name</td>
+                            <td>@gateway.Title</td>
+                            <td>@gateway.GatewayType</td>
+                            <td>
+                                <a href="@Url.Action("ToggleGateway", new { id = gateway.Id, isActive = !gateway.IsActive })" 
+                                   class="btn btn-sm @(gateway.IsActive ? "btn-success" : "btn-secondary")">
+                                    @(gateway.IsActive ? "فعال" : "غیرفعال")
+                                </a>
+                                <a href="@Url.Action("CreateAccount", new { gatewayId = gateway.Id })" class="btn btn-sm btn-info ms-1">➕ افزودن حساب</a>
+                            </td>
+                            <td></td>
+                        </tr>
+                        @if (gateway.Accounts != null && gateway.Accounts.Any())
+                        {
+                            <tr style="background-color: #f9f9f9;">
+                                <td colspan="5">
+                                    <table class="table table-sm table-borderless mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>عنوان حساب</th>
+                                                <th>وضعیت</th>
+                                                <th>تنظیمات (JSON)</th>
+                                                <th>عملیات</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var account in gateway.Accounts)
+                                            {
+                                                <tr>
+                                                    <td>@account.Title</td>
+                                                    <td>
+                                                        @if (account.IsActive)
+                                                        {
+                                                            <span class="badge bg-success">فعال</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="badge bg-secondary">غیرفعال</span>
+                                                        }
+                                                    </td>
+                                                    <td style="max-width: 300px; overflow: auto;">
+                                                        <pre style="font-size: 0.8rem; margin: 0;">@account.ConfigData</pre>
+                                                    </td>
+                                                    <td>
+                                                        <a href="@Url.Action("EditAccount", new { id = account.Id })" class="btn btn-sm btn-primary">✏️ ویرایش</a>
+                                                        <form asp-action="DeleteAccount" method="post" style="display:inline;" onsubmit="return confirm('آیا از حذف این حساب اطمینان دارید؟');">
+                                                            <input type="hidden" name="id" value="@account.Id" />
+                                                            <button type="submit" class="btn btn-sm btn-danger">🗑️ حذف</button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

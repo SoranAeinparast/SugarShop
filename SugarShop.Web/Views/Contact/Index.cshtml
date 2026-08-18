@@ -1,0 +1,410 @@
+﻿@using SugarShop.Domain.Entities
+@using SugarShop.Web.Extensions
+@model SiteSetting
+@{
+    ViewData["Title"] = Model?.ContactPageTitle ?? "تماس با ما";
+    var settings = Model ?? new SiteSetting();
+    var rawMapUrl = settings.MapEmbedUrl?.Trim() ?? "";
+    if (rawMapUrl.StartsWith("//"))
+        rawMapUrl = "https:" + rawMapUrl;
+    if (rawMapUrl.Contains("google.com/maps") && !rawMapUrl.Contains("/embed"))
+    {
+    }
+    var hasMap = !string.IsNullOrWhiteSpace(rawMapUrl);
+
+    var prevData = ViewBag.FormData as SugarShop.Domain.Entities.Sales.ContactMessage;
+}
+@if (hasMap)
+{
+    <div class="map-full-width">
+        <iframe
+            id="contactMap"
+            src="@rawMapUrl"
+            width="100%"
+            height="450"
+            style="border:0; display:block;"
+            allowfullscreen=""
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+            title="موقعیت مکانی @(settings.MapLocationName ?? settings.SiteTitle)">
+        </iframe>
+        @if (!string.IsNullOrEmpty(settings.MapLatitude) && !string.IsNullOrEmpty(settings.MapLongitude))
+        {
+            <div class="map-route-btn-container">
+                <button class="btn route-btn" onclick="openRoute()">
+                    <i class="bi bi-pin-map-fill"></i> مسیریابی
+                </button>
+            </div>
+        }
+    </div>
+}
+<div class="container mt-5 mb-5">
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="contact-form-wrapper">
+                <div class="section-header mb-4">
+                    <h2 class="fw-bold">@(settings.ContactFormTitle ?? "ارسال پیام")</h2>
+                    <p class="text-muted">@(settings.ContactFormSubtitle ?? "سوالات، پیشنهادات و انتقادات خود را با ما در میان بگذارید.")</p>
+                </div>
+                @if (TempData["ContactSuccess"] != null)
+                {
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="bi bi-check-circle me-2"></i>@TempData["ContactSuccess"]
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="بستن"></button>
+                    </div>
+                }
+                @if (ViewBag.FormError != null)
+                {
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="bi bi-exclamation-triangle me-2"></i>@ViewBag.FormError
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="بستن"></button>
+                    </div>
+                }
+                <form asp-controller="Contact" asp-action="SendMessage" method="post"
+                      id="contactForm" novalidate>
+                    @Html.AntiForgeryToken()
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <input type="text" name="FullName" class="form-control" id="fullName"
+                                       placeholder="نام کامل" required
+                                       value="@(prevData?.FullName ?? "")" />
+                                <label for="fullName">نام کامل <span class="text-danger">*</span></label>
+                                <div class="invalid-feedback">نام کامل الزامی است.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <input type="email" name="Email" class="form-control" id="email"
+                                       placeholder="ایمیل" required
+                                       value="@(prevData?.Email ?? "")" />
+                                <label for="email">ایمیل <span class="text-danger">*</span></label>
+                                <div class="invalid-feedback">ایمیل معتبر الزامی است.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <input type="tel" name="Phone" class="form-control" id="phone"
+                                       placeholder="شماره تماس"
+                                       value="@(prevData?.Phone ?? "")" />
+                                <label for="phone">شماره تماس</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <input type="text" name="Subject" class="form-control" id="subject"
+                                       placeholder="موضوع" required
+                                       value="@(prevData?.Subject ?? "")" />
+                                <label for="subject">موضوع <span class="text-danger">*</span></label>
+                                <div class="invalid-feedback">موضوع پیام الزامی است.</div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-floating">
+                                <textarea name="Message" class="form-control" id="message"
+                                          placeholder="پیام شما" style="height: 150px;" required>@(prevData?.Message ?? "")</textarea>
+                                <label for="message">پیام شما <span class="text-danger">*</span></label>
+                                <div class="invalid-feedback">متن پیام الزامی است.</div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary btn-lg w-100 rounded-pill" id="submitBtn">
+                                <i class="bi bi-send me-2"></i> ارسال پیام
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="contact-info-wrapper">
+                <h4 class="fw-bold mb-4"><i class="bi bi-info-circle me-2"></i>اطلاعات تماس</h4>
+                <div class="contact-info-list">
+                    @if (!string.IsNullOrEmpty(settings.Address))
+                    {
+                        <div class="contact-info-item">
+                            <div class="contact-info-icon"><i class="bi bi-geo-alt-fill"></i></div>
+                            <div>
+                                <div class="contact-info-label">آدرس</div>
+                                <div class="contact-info-value">@settings.Address</div>
+                            </div>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(settings.Phone))
+                    {
+                        <div class="contact-info-item">
+                            <div class="contact-info-icon"><i class="bi bi-telephone-fill"></i></div>
+                            <div>
+                                <div class="contact-info-label">تلفن</div>
+                                <div class="contact-info-value">
+                                    <a href="tel:@settings.Phone" dir="ltr">@settings.Phone.ToPersianNumber()</a>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(settings.Email))
+                    {
+                        <div class="contact-info-item">
+                            <div class="contact-info-icon"><i class="bi bi-envelope-fill"></i></div>
+                            <div>
+                                <div class="contact-info-label">ایمیل</div>
+                                <div class="contact-info-value">
+                                    <a href="mailto:@settings.Email" dir="ltr">@settings.Email</a>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(settings.WorkingHours))
+                    {
+                        <div class="contact-info-item">
+                            <div class="contact-info-icon"><i class="bi bi-clock-fill"></i></div>
+                            <div>
+                                <div class="contact-info-label">ساعات کاری</div>
+                                <div class="contact-info-value">@settings.WorkingHours.ToPersianNumber()</div>
+                            </div>
+                        </div>
+                    }
+                </div>
+                @{
+                    bool hasSocial =
+                        !string.IsNullOrEmpty(settings.InstagramUrl) ||
+                        !string.IsNullOrEmpty(settings.TelegramUrl)  ||
+                        !string.IsNullOrEmpty(settings.WhatsAppUrl)  ||
+                        !string.IsNullOrEmpty(settings.baleUrl)      ||
+                        !string.IsNullOrEmpty(settings.rubikaUrl)    ||
+                        !string.IsNullOrEmpty(settings.eitaaUrl)     ||
+                        !string.IsNullOrEmpty(settings.soroushUrl);
+                }
+                @if (hasSocial)
+                {
+                    <div class="contact-social mt-4">
+                        <h5 class="fw-bold mb-3"><i class="bi bi-share me-2"></i>ما را دنبال کنید</h5>
+                        <div class="d-flex gap-2 flex-wrap">
+                            @if (!string.IsNullOrEmpty(settings.InstagramUrl))
+                            {
+                                <a href="@settings.InstagramUrl" target="_blank" rel="noopener noreferrer"
+                                   class="social-link instagram" title="اینستاگرام">
+                                    <i class="bi bi-instagram"></i>
+                                </a>
+                            }
+                            @if (!string.IsNullOrEmpty(settings.TelegramUrl))
+                            {
+                                <a href="@settings.TelegramUrl" target="_blank" rel="noopener noreferrer"
+                                   class="social-link telegram" title="تلگرام">
+                                    <i class="bi bi-telegram"></i>
+                                </a>
+                            }
+                            @if (!string.IsNullOrEmpty(settings.WhatsAppUrl))
+                            {
+                                <a href="@settings.WhatsAppUrl" target="_blank" rel="noopener noreferrer"
+                                   class="social-link whatsapp" title="واتساپ">
+                                    <i class="bi bi-whatsapp"></i>
+                                </a>
+                            }
+                            @if (!string.IsNullOrEmpty(settings.baleUrl))
+                            {
+                                <a href="@settings.baleUrl" target="_blank" rel="noopener noreferrer"
+                                   class="social-link bale" title="بله">
+                                    <img src="~/images/icons/bale.ico" alt="بله" style="width:22px;height:22px;" />
+                                </a>
+                            }
+                            @if (!string.IsNullOrEmpty(settings.rubikaUrl))
+                            {
+                                <a href="@settings.rubikaUrl" target="_blank" rel="noopener noreferrer"
+                                   class="social-link rubika" title="روبیکا">
+                                    <img src="~/images/icons/rubika.ico" alt="روبیکا" style="width:22px;height:22px;" />
+                                </a>
+                            }
+                            @if (!string.IsNullOrEmpty(settings.eitaaUrl))
+                            {
+                                <a href="@settings.eitaaUrl" target="_blank" rel="noopener noreferrer"
+                                   class="social-link eitaa" title="ایتا">
+                                    <img src="~/images/icons/eitaa.ico" alt="ایتا" style="width:22px;height:22px;" />
+                                </a>
+                            }
+                            @if (!string.IsNullOrEmpty(settings.soroushUrl))
+                            {
+                                <a href="@settings.soroushUrl" target="_blank" rel="noopener noreferrer"
+                                   class="social-link soroush" title="سروش">
+                                    <img src="~/images/icons/soroush.ico" alt="سروش" style="width:22px;height:22px;" />
+                                </a>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+<style>
+    .map-full-width {
+        position: relative;
+        width: 100vw;
+        margin-left: calc(50% - 50vw);
+        margin-right: calc(50% - 50vw);
+        margin-bottom: 3rem;
+        height: 450px;
+        overflow: hidden;
+        background: #f0f0f0;
+    }
+    .map-full-width iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+        display: block;
+    }
+    .map-full-width::after {
+        content: '';
+        display: none;
+    }
+    .map-route-btn-container {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        z-index: 10;
+    }
+    .route-btn {
+        background: #d4a056;
+        color: #fff;
+        border: none;
+        padding: 12px 28px;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        box-shadow: 0 4px 15px rgba(212,160,86,0.4);
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .route-btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(212,160,86,0.55);
+        background: #b8860b;
+        color: #fff;
+    }
+    .contact-form-wrapper {
+        background: #fff;
+        padding: 2.5rem;
+        border-radius: 1.5rem;
+        box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,0.06);
+    }
+    .section-header h2 { color: #2c3e50; font-size: 1.8rem; }
+    .form-control:focus {
+        border-color: #d4a056;
+        box-shadow: 0 0 0 0.25rem rgba(212,160,86,0.2);
+    }
+    .btn-primary {
+        background: #d4a056;
+        border-color: #d4a056;
+    }
+    .btn-primary:hover {
+        background: #b8860b;
+        border-color: #b8860b;
+    }
+    .contact-info-wrapper {
+        background: #fcf9f5;
+        padding: 2.5rem;
+        border-radius: 1.5rem;
+        border: 1px solid #f0e8d8;
+        height: 100%;
+    }
+    .contact-info-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 15px;
+        padding: 14px 0;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+    .contact-info-item:last-child { border-bottom: none; }
+    .contact-info-icon {
+        width: 44px; height: 44px;
+        background: rgba(212,160,86,0.12);
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.2rem;
+        color: #d4a056;
+        flex-shrink: 0;
+    }
+    .contact-info-label { font-size: 0.78rem; color: #999; font-weight: 500; margin-bottom: 2px; }
+    .contact-info-value { font-size: 0.97rem; font-weight: 600; color: #2c3e50; }
+    .contact-info-value a { color: #2c3e50; text-decoration: none; }
+    .contact-info-value a:hover { color: #d4a056; }
+    .social-link {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 44px; height: 44px;
+        border-radius: 50%;
+        background: #f0e8d8;
+        color: #2c3e50;
+        font-size: 1.2rem;
+        transition: all 0.3s;
+        text-decoration: none;
+    }
+    .social-link:hover { transform: translateY(-3px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    .social-link.instagram:hover { background: #E4405F; color: #fff; }
+    .social-link.telegram:hover  { background: #0088cc; color: #fff; }
+    .social-link.whatsapp:hover  { background: #25D366; color: #fff; }
+    .social-link.bale:hover      { background: #FFD700; }
+    .social-link.rubika:hover    { background: #6C3B9A; }
+    .social-link.eitaa:hover     { background: #0F8C4A; }
+    .social-link.soroush:hover   { background: #2C3E50; }
+    @@media (max-width: 768px) {
+        .map-full-width { height: 280px; }
+        .contact-form-wrapper, .contact-info-wrapper { padding: 1.5rem; }
+        .route-btn { padding: 9px 18px; font-size: 0.85rem; }
+    }
+</style>
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (function () {
+            'use strict';
+            var form = document.getElementById('contactForm');
+            form.addEventListener('submit', function (e) {
+                if (!form.checkValidity()) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                if (form.checkValidity()) {
+                    document.getElementById('submitBtn').disabled = true;
+                    document.getElementById('submitBtn').innerHTML =
+                        '<span class="spinner-border spinner-border-sm me-2"></span> در حال ارسال...';
+                }
+                form.classList.add('was-validated');
+            }, false);
+        })();
+        function openRoute() {
+            var lat  = '@Html.Raw(settings.MapLatitude?.Replace("'", ""))';
+            var lng  = '@Html.Raw(settings.MapLongitude?.Replace("'", ""))';
+            var name = '@Html.Raw(settings.MapLocationName?.Replace("'", ""))';
+            if (!lat || !lng || lat === '' || lng === '') {
+                alert('موقعیت مکانی برای مسیریابی ثبت نشده است.');
+                return;
+            }
+            var webUrl = 'https://balad.ir/route?destination=' + lat + ',' + lng;
+            var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+            if (isMobile) {
+                var deepLink = 'balad://route?destination=' + lat + ',' + lng;
+                window.location.href = deepLink;
+                setTimeout(function () { window.open(webUrl, '_blank'); }, 2000);
+            } else {
+                window.open(webUrl, '_blank');
+            }
+        }
+        @if (hasMap)
+        {
+            <text>
+            var mapIframe = document.getElementById('contactMap');
+            if (mapIframe) {
+                mapIframe.addEventListener('error', function() {
+                    mapIframe.parentElement.innerHTML =
+                        '<div class="d-flex align-items-center justify-content-center h-100 text-muted">' +
+                        '<div class="text-center"><i class="bi bi-map fs-1 mb-3 d-block"></i>' +
+                        '<p>نقشه در دسترس نیست. لطفاً آدرس embed صحیح وارد کنید.</p></div></div>';
+                });
+            }
+            </text>
+        }
+    </script>
+}
+

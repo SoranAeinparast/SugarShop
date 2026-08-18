@@ -1,0 +1,162 @@
+﻿@using SugarShop.Domain.Entities
+@model SiteSetting
+@{
+    ViewData["Title"] = "تنظیمات صفحه تماس با ما";
+    Layout = "_AdminLayout";
+}
+<div class="card shadow-sm">
+    <div class="card-header d-flex align-items-center justify-content-between">
+        <h4 class="mb-0">📞 تنظیمات صفحه تماس با ما</h4>
+        <a href="@Url.Action("Messages")" class="btn btn-primary btn-sm">
+            <i class="bi bi-envelope"></i> 📨 مشاهده پیام‌های دریافتی
+        </a>
+    </div>
+    <div class="card-body">
+        <div id="message" class="alert" style="display:none;"></div>
+        <form id="settingsForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" id="Id" value="@Model.Id" />
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="card border-0 bg-light p-3 h-100">
+                        <h6 class="text-muted mb-3 border-bottom pb-2">📝 متون صفحه</h6>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">عنوان صفحه تماس</label>
+                            <input id="ContactPageTitle" class="form-control"
+                                   placeholder="تماس با ما" value="@Model.ContactPageTitle" />
+                            <small class="text-muted">نمایش داده می‌شود در Hero و Title صفحه</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">زیرنویس صفحه تماس</label>
+                            <input id="ContactPageSubtitle" class="form-control"
+                                   placeholder="ما در کنار شما هستیم" value="@Model.ContactPageSubtitle" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">عنوان فرم تماس</label>
+                            <input id="ContactFormTitle" class="form-control"
+                                   placeholder="ارسال پیام" value="@Model.ContactFormTitle" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">زیرنویس فرم تماس</label>
+                            <input id="ContactFormSubtitle" class="form-control"
+                                   placeholder="سوالات خود را با ما در میان بگذارید" value="@Model.ContactFormSubtitle" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">پیام موفقیت ارسال فرم</label>
+                            <input id="ContactSuccessMessage" class="form-control"
+                                   placeholder="پیام شما با موفقیت ارسال شد. به زودی با شما تماس خواهیم گرفت." value="@Model.ContactSuccessMessage" />
+                            <small class="text-muted">پیامی که بعد از ارسال موفق فرم به کاربر نشان داده می‌شود</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card border-0 bg-light p-3 h-100">
+                        <h6 class="text-muted mb-3 border-bottom pb-2">🗺️ تنظیمات نقشه</h6>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">URL جاسازی نقشه (Embed URL)</label>
+                            <input id="MapEmbedUrl" class="form-control"
+                                   placeholder="https://www.google.com/maps/embed?pb=..." value="@Model.MapEmbedUrl" />
+                            <div class="alert alert-info mt-2 py-2 small">
+                                <strong>نحوه دریافت لینک Embed:</strong><br/>
+                                • <b>گوگل مپ:</b> باز کنید → Share → Embed a map → کد iframe را کپی کنید، فقط مقدار <code>src="..."</code> را اینجا وارد کنید<br/>
+                                • <b>بلد:</b> صفحه مکان را باز کنید → اشتراک‌گذاری → لینک جاسازی را کپی کنید
+                            </div>
+                        </div>
+                        @if (!string.IsNullOrEmpty(Model?.MapEmbedUrl))
+                        {
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">پیش‌نمایش نقشه فعلی</label>
+                                <div style="height:200px; border-radius:8px; overflow:hidden; border:1px solid #dee2e6;">
+                                    <iframe src="@Model.MapEmbedUrl"
+                                            width="100%" height="200"
+                                            style="border:0;" loading="lazy"
+                                            referrerpolicy="no-referrer-when-downgrade">
+                                    </iframe>
+                                </div>
+                            </div>
+                        }
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label fw-semibold">عرض جغرافیایی (Latitude)</label>
+                                <input id="MapLatitude" class="form-control"
+                                       placeholder="مثال: 35.6892" value="@Model.MapLatitude" />
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-semibold">طول جغرافیایی (Longitude)</label>
+                                <input id="MapLongitude" class="form-control"
+                                       placeholder="مثال: 51.3890" value="@Model.MapLongitude" />
+                            </div>
+                        </div>
+                        <small class="text-muted d-block mt-1 mb-3">
+                            برای دکمه مسیریابی در صفحه تماس استفاده می‌شود.
+                            مختصات را از <a href="https://www.latlong.net/" target="_blank">latlong.net</a> دریافت کنید.
+                        </small>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">نام مکان (برای مسیریابی)</label>
+                            <input id="MapLocationName" class="form-control"
+                                   placeholder="شیرینی سرای گرمسار" value="@Model.MapLocationName" />
+                            <small class="text-muted">در عنوان iframe نقشه نمایش داده می‌شود</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 d-flex gap-2">
+                <button type="button" id="saveBtn" class="btn btn-success px-4">
+                    <i class="bi bi-floppy"></i> 💾 ذخیره تنظیمات
+                </button>
+                <a href="/Contact" target="_blank" class="btn btn-outline-secondary">
+                    <i class="bi bi-eye"></i> مشاهده صفحه تماس
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+@section Scripts {
+    <script>
+        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || 
+                       document.querySelector('[name="__RequestVerificationToken"]')?.value;
+        document.getElementById('saveBtn').addEventListener('click', async function() {
+            const data = {
+                Id: document.getElementById('Id').value,
+                ContactPageTitle: document.getElementById('ContactPageTitle').value,
+                ContactPageSubtitle: document.getElementById('ContactPageSubtitle').value,
+                ContactFormTitle: document.getElementById('ContactFormTitle').value,
+                ContactFormSubtitle: document.getElementById('ContactFormSubtitle').value,
+                ContactSuccessMessage: document.getElementById('ContactSuccessMessage').value,
+                MapEmbedUrl: document.getElementById('MapEmbedUrl').value,
+                MapLatitude: document.getElementById('MapLatitude').value,
+                MapLongitude: document.getElementById('MapLongitude').value,
+                MapLocationName: document.getElementById('MapLocationName').value
+            };
+            console.log("ارسال داده:", data);
+            try {
+                const response = await fetch('/Admin/ContactSettings/SaveJson', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': token
+                    },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                const msgDiv = document.getElementById('message');
+                msgDiv.style.display = 'block';
+                if (result.success) {
+                    msgDiv.className = 'alert alert-success';
+                    msgDiv.innerText = result.message;
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    msgDiv.className = 'alert alert-danger';
+                    msgDiv.innerText = result.message;
+                }
+                setTimeout(() => msgDiv.style.display = 'none', 4000);
+            } catch (err) {
+                console.error(err);
+                const msgDiv = document.getElementById('message');
+                msgDiv.style.display = 'block';
+                msgDiv.className = 'alert alert-danger';
+                msgDiv.innerText = 'خطا در ارتباط با سرور';
+            }
+        });
+    </script>
+}

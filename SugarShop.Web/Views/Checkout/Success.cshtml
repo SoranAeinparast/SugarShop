@@ -1,0 +1,35 @@
+﻿@{
+    ViewData["Title"] = "پرداخت موفق";
+}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 text-center">
+            <div class="card shadow-lg border-success">
+                <div class="card-body p-5">
+                    <div class="mb-4">
+                        <i class="fas fa-check-circle text-success" style="font-size: 5rem;"></i>
+                    </div>
+                    <h2 class="text-success mb-3">✅ سفارش شما با موفقیت ثبت شد!</h2>
+                    <p class="lead">کد سفارش شما:</p>
+                    <h3 class="bg-light d-inline-block p-3 rounded">@ViewBag.OrderCode</h3>
+                    <p class="mt-4">شماره سفارش: <strong>@ViewBag.OrderId</strong></p>
+                    <p>پس از تأیید نهایی توسط فروشگاه، وضعیت سفارش به شما اطلاع داده خواهد شد.</p>
+                    <hr />
+                    <div class="mt-4">
+                        <a href="/" class="btn btn-primary">بازگشت به صفحه اصلی</a>
+                        <a href="/Profile/Orders" class="btn btn-outline-secondary ms-2">مشاهده سفارشات من</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<style>
+    .fa-check-circle:before {
+        content: "✅";
+        font-size: 5rem;
+    }
+    .bg-light {
+        background-color: #f8f9fa !important;
+    }
+</style>

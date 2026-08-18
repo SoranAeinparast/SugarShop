@@ -1,0 +1,138 @@
+﻿@using SugarShop.Web.Extensions
+@using SugarShop.Domain.Entities.Sales
+@using SugarShop.Web.Helpers
+@using SugarShop.Web.ViewModels
+@using MD.PersianDateTime
+@model List<Order>
+@{
+    ViewData["Title"] = "مدیریت سفارشات";
+    var currentStatus = ViewBag.CurrentStatus as string ?? "all";
+    string ToPersianNumber(string input) => input.ToPersianNumber();
+    var userNames = ViewBag.UserNames as Dictionary<string, string> ?? new Dictionary<string, string>();
+    int totalOrders = ViewBag.TotalOrders ?? 0;
+    decimal totalPayments = ViewBag.TotalPayments ?? 0;
+}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>📋 مدیریت سفارشات</h2>
+        <a href="@Url.Action("ExportOrdersToExcel", "Admin", new { status = currentStatus })" class="btn btn-success">
+            📥 دانلود اکسل (CSV)
+        </a>
+    </div>
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+    }
+    @{
+        var allCount = Model.Count;
+        var awaitingCount = Model.Count(o => o.OrderStatus == OrderStatus.AwaitingReview);
+        var pendingCount = Model.Count(o => o.OrderStatus == OrderStatus.PendingPayment);
+        var preparingCount = Model.Count(o => o.OrderStatus == OrderStatus.Preparing);
+        var paidCount = Model.Count(o => o.OrderStatus == OrderStatus.Paid);
+        var deliveredCount = Model.Count(o => o.OrderStatus == OrderStatus.Delivered);
+    }
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <a class="nav-link @(currentStatus == "all" ? "active" : "")" href="@Url.Action("Orders", new { status = "all" })">همه
+            <span class="badge bg-secondary">@allCount</span></a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(currentStatus == "awaiting" ? "active" : "")" href="@Url.Action("Orders", new { status = "awaiting" })">در انتظار بررسی
+            <span class="badge bg-secondary">@awaitingCount</span></a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(currentStatus == "preparing" ? "active" : "")" href="@Url.Action("Orders", new { status = "preparing" })">در حال آماده‌سازی
+            <span class="badge bg-primary">@preparingCount</span></a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(currentStatus == "pending" ? "active" : "")" href="@Url.Action("Orders", new { status = "pending" })">در انتظار پرداخت
+            <span class="badge bg-warning">@pendingCount</span></a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(currentStatus == "paid" ? "active" : "")" href="@Url.Action("Orders", new { status = "paid" })">پرداخت شده
+            <span class="badge bg-info">@paidCount</span></a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(currentStatus == "delivered" ? "active" : "")" href="@Url.Action("Orders", new { status = "delivered" })">تحویل شده
+            <span class="badge bg-success">@deliveredCount</span></a>
+        </li>
+    </ul>
+    <div class="table-responsive">
+        <table class="table table-striped table-bordered">
+            <thead class="table-dark">
+                <tr>
+                    <th>کد سفارش</th>
+                    <th>نام کاربر</th>
+                    <th>گیرنده سفارش</th>
+                    <th>قیمت نهایی</th>
+                    <th>وزن نهایی</th>
+                    <th>وضعیت</th>
+                    <th>تاریخ</th>
+                    <th>عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var order in Model)
+                {
+                    string userName = order.UserId != null && userNames.ContainsKey(order.UserId) ? userNames[order.UserId] : "نامشخص";
+                    string statusClass = order.OrderStatus switch
+                    {
+                        OrderStatus.AwaitingReview => "secondary",
+                        OrderStatus.PendingPayment => "warning",
+                        OrderStatus.Paid => "info",
+                        OrderStatus.Preparing => "primary",
+                        OrderStatus.Shipped => "dark",
+                        OrderStatus.Delivered => "success",
+                        OrderStatus.Cancelled => "danger",
+                        _ => "secondary"
+                    };
+                    <tr>
+                        <td class="align-middle">@order.OrderCode</td>
+                        <td class="align-middle">@userName</td>
+                        <td class="align-middle">@order.CustomerName</td>
+                        <td class="align-middle">
+                            @if (order.FinalTotalAmount.HasValue)
+                            {
+                                <span class="text-success">@order.FinalTotalAmount.Value.ToString("N0").ToPersianNumber() تومان</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">-</span>
+                            }
+                        </td>
+                        <td class="align-middle">
+                            @if (order.FinalTotalWeightGrams.HasValue)
+                            {
+                                <span>@order.FinalTotalWeightGrams.Value.ToPersianNumber() گرم</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">-</span>
+                            }
+                        </td>
+                        <td class="align-middle">
+                            <span class="badge bg-@statusClass">@order.OrderStatus.ToFarsi()</span>
+                        </td>
+                        <td class="align-middle">
+                            @{
+                                var persianDate = new PersianDateTime(order.CreatedAt);
+                                var persianDateString = persianDate.ToString("yyyy/MM/dd");
+                            }
+                            @persianDateString.ToPersianNumber()
+                        </td>
+                        <td class="align-middle">
+                            <a asp-action="OrderDetails" asp-route-id="@order.Id" class="btn btn-sm btn-primary">جزئیات</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot class="table-secondary fw-bold">
+                <tr>
+                    <td colspan="2">تعداد سفارشات: @totalOrders.ToPersianNumber()</td>
+                    <td colspan="2">جمع کل پرداخت‌ها: @totalPayments.ToString("N0").ToPersianNumber() تومان</td>
+                    <td colspan="4"></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>

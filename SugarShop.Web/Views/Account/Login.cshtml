@@ -1,0 +1,196 @@
+﻿@{
+    ViewData["Title"] = "ورود / ثبت‌نام";
+    Layout = "_Layout";
+    var returnUrl = ViewData["ReturnUrl"] as string;
+}
+<style>
+    .auth-page { min-height: 80vh; display: flex; align-items: center; justify-content: center; padding: 40px 20px; }
+    .auth-card { background: white; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); max-width: 450px; width: 100%; overflow: hidden; }
+    .auth-header { background: linear-gradient(135deg, #d4a056 0%, #b8860b 100%); padding: 30px 20px; text-align: center; color: white; }
+    .auth-header h2 { margin: 0; font-weight: 700; }
+    .auth-tabs { display: flex; background: #f8f9fa; border-bottom: 2px solid #e9ecef; }
+    .auth-tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; font-weight: 600; color: #6c757d; transition: all 0.3s; border: none; background: none; }
+    .auth-tab.active { color: #d4a056; background: white; border-bottom: 3px solid #d4a056; }
+    .tab-content { display: none; padding: 30px; animation: fadeIn 0.4s ease; }
+    .tab-content.active { display: block; }
+    @@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .form-group { margin-bottom: 20px; position: relative; }
+    .form-label { font-weight: 600; color: #495057; margin-bottom: 8px; display: block; font-size: 0.9rem; }
+    .input-wrapper { position: relative; }
+    .input-wrapper i.input-icon { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: #d4a056; font-size: 1.1rem; z-index: 2; }
+    .form-control { width: 100%; padding: 12px 45px 12px 15px; border: 2px solid #e9ecef; border-radius: 10px; font-size: 0.95rem; transition: all 0.3s; }
+    .form-control:focus { border-color: #d4a056; box-shadow: 0 0 0 3px rgba(212, 160, 86, 0.1); outline: none; }
+    .toggle-password { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #6c757d; cursor: pointer; z-index: 2; }
+    .toggle-password:hover { color: #d4a056; }
+    .form-options { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-size: 0.9rem; }
+    .remember-me { display: flex; align-items: center; gap: 8px; cursor: pointer; color: #495057; }
+    .remember-me input { width: 18px; height: 18px; accent-color: #d4a056; cursor: pointer; }
+    .forgot-password-link { color: #d4a056; text-decoration: none; font-weight: 600; }
+    .forgot-password-link:hover { text-decoration: underline; }
+    .btn-auth { width: 100%; padding: 14px; background: linear-gradient(135deg, #d4a056 0%, #b8860b 100%); color: white; border: none; border-radius: 10px; font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 15px rgba(212, 160, 86, 0.3); }
+    .btn-auth:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(212, 160, 86, 0.4); }
+    .btn-auth:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; margin-left: 8px; vertical-align: middle; }
+    @@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
+<div class="auth-page">
+    <div class="auth-card">
+        <div class="auth-header"><h2>@(ViewBag.SiteTitle ?? "شیرینی سرا ...")</h2><p>به خانواده ما خوش آمدید</p></div>
+        <div class="auth-tabs">
+            <button class="auth-tab active" data-tab="login"><i class="bi bi-box-arrow-in-right"></i> ورود</button>
+            <button class="auth-tab" data-tab="register"><i class="bi bi-person-plus"></i> ثبت‌نام</button>
+        </div>
+        <div class="tab-content active" id="login-tab">
+            <form id="loginForm">
+                <input type="hidden" name="ReturnUrl" value="@returnUrl" />
+                <div class="form-group">
+                    <label class="form-label">نام کاربری یا ایمیل</label>
+                    <div class="input-wrapper">
+                        <i class="bi bi-person input-icon"></i>
+                        <input type="text" name="Username" class="form-control" placeholder="نام کاربری یا ایمیل" required />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">رمز عبور</label>
+                    <div class="input-wrapper">
+                        <i class="bi bi-lock input-icon"></i>
+                        <input type="password" name="Password" id="loginPassword" class="form-control" placeholder="رمز عبور" required />
+                        <button type="button" class="toggle-password" data-target="loginPassword"><i class="bi bi-eye"></i></button>
+                    </div>
+                </div>
+                <div class="form-options">
+                    <label class="remember-me">
+                        <input type="hidden" name="RememberMe" value="false" />
+                        <input type="checkbox" name="RememberMe" value="true" id="rememberMe" />
+                        <span>مرا به خاطر بسپار</span>
+                    </label>
+                    <a href="@Url.Action("ForgotPassword")" class="forgot-password-link">فراموشی رمز عبور؟</a>
+                </div>
+                <button type="submit" class="btn-auth" id="loginBtn"><i class="bi bi-box-arrow-in-right"></i> ورود به حساب</button>
+            </form>
+        </div>
+        <div class="tab-content" id="register-tab">
+            <form id="registerForm">
+                <input type="hidden" name="ReturnUrl" value="@returnUrl" />
+                <div class="form-group">
+                    <label class="form-label">نام کاربری</label>
+                    <div class="input-wrapper">
+                        <i class="bi bi-person-badge input-icon"></i>
+                        <input type="text" name="Username" class="form-control" placeholder="مثال: Ali22 یا soran یا ..." required />
+                    </div>
+                    <small class="text-muted" style="font-size: 0.75rem;">فقط حروف و اعداد انگلیسی</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">نام و نام خانوادگی</label>
+                    <div class="input-wrapper">
+                        <i class="bi bi-person input-icon"></i>
+                        <input type="text" name="FullName" class="form-control" placeholder="نام کامل خود را وارد کنید" required />
+                    </div>
+                    <small class="text-muted" style="font-size: 0.75rem;">استفاده از حروف فارسی مجاز است</small>
+
+                </div>
+                <div class="form-group">
+                    <label class="form-label">ایمیل</label>
+                    <div class="input-wrapper">
+                        <i class="bi bi-envelope input-icon"></i>
+                        <input type="email" name="Email" class="form-control" placeholder="example@email.com" required />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">رمز عبور</label>
+                    <div class="input-wrapper">
+                        <i class="bi bi-lock input-icon"></i>
+                        <input type="password" name="Password" id="registerPassword" class="form-control" placeholder=" حداقل 6 کاراکتر - ترکیب حروف و اعداد" required />
+                        <button type="button" class="toggle-password" data-target="registerPassword"><i class="bi bi-eye"></i></button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">تکرار رمز عبور</label>
+                    <div class="input-wrapper">
+                        <i class="bi bi-lock-fill input-icon"></i>
+                        <input type="password" name="ConfirmPassword" id="registerConfirmPassword" class="form-control" placeholder="رمز عبور را دوباره وارد کنید" required />
+                        <button type="button" class="toggle-password" data-target="registerConfirmPassword"><i class="bi bi-eye"></i></button>
+                    </div>
+                </div>
+                <button type="submit" class="btn-auth" id="registerBtn"><i class="bi bi-person-plus"></i> ثبت‌نام</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    $(function() {
+        $('.auth-tab').click(function() {
+            var tabId = $(this).data('tab');
+            $('.auth-tab').removeClass('active');
+            $(this).addClass('active');
+            $('.tab-content').removeClass('active');
+            $('#' + tabId + '-tab').addClass('active');
+        });
+        $('.toggle-password').click(function() {
+            var targetId = $(this).data('target');
+            var $input = $('#' + targetId);
+            var $icon = $(this).find('i');
+            if ($input.attr('type') === 'password') {
+                $input.attr('type', 'text');
+                $icon.removeClass('bi-eye').addClass('bi-eye-slash');
+            } else {
+                $input.attr('type', 'password');
+                $icon.removeClass('bi-eye-slash').addClass('bi-eye');
+            }
+        });
+        $('#loginForm').submit(function(e) {
+            e.preventDefault();
+            var $btn = $('#loginBtn');
+            var originalText = $btn.html();
+            $btn.prop('disabled', true).html('<span class="spinner"></span> در حال ورود...');
+            
+            $.ajax({
+                url: '/Account/Login',
+                type: 'POST',
+                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                data: $(this).serialize(),
+                success: function(response) {
+                    if (response.success) {
+                        Swal.fire({ icon: 'success', title: 'ورود موفق', text: 'با موفقیت وارد شدید!', timer: 1500, showConfirmButton: false })
+                            .then(() => { window.location.href = response.redirectUrl; });
+                    } else {
+                        Swal.fire({ icon: response.type || 'error', title: response.type === 'warning' ? 'توجه' : 'خطا', text: response.message, confirmButtonColor: '#d4a056' });
+                    }
+                },
+                error: function() {
+                    Swal.fire({ icon: 'error', title: 'خطا', text: 'خطا در ارتباط با سرور.', confirmButtonColor: '#dc3545' });
+                },
+                complete: function() { $btn.prop('disabled', false).html(originalText); }
+            });
+        });
+        $('#registerForm').submit(function(e) {
+            e.preventDefault();
+            var $btn = $('#registerBtn');
+            var originalText = $btn.html();
+            $btn.prop('disabled', true).html('<span class="spinner"></span> در حال ثبت‌نام...');
+            
+            $.ajax({
+                url: '/Account/Register',
+                type: 'POST',
+                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                data: $(this).serialize(),
+                success: function(response) {
+                    if (response.success) {
+                        Swal.fire({ icon: 'success', title: 'ثبت‌نام موفق', text: response.message, timer: 2000, showConfirmButton: false })
+                            .then(() => { window.location.href = response.redirectUrl; });
+                    } else {
+                        Swal.fire({ icon: 'error', title: 'خطا در ثبت‌نام', text: response.message, confirmButtonColor: '#d4a056' });
+                    }
+                },
+                error: function() {
+                    Swal.fire({ icon: 'error', title: 'خطا', text: 'خطا در ارتباط با سرور.', confirmButtonColor: '#dc3545' });
+                },
+                complete: function() { $btn.prop('disabled', false).html(originalText); }
+            });
+        });
+    });
+</script>
+}

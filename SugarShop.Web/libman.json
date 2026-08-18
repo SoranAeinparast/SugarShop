@@ -1,0 +1,14 @@
+{
+  "version": "3.0",
+  "defaultProvider": "unpkg",
+  "libraries": [
+    {
+      "library": "persian-datepicker@1.0.0",
+      "destination": "wwwroot/lib/persian-datepicker"
+    },
+    {
+      "library": "persian-date@1.0.0",
+      "destination": "wwwroot/lib/persian-date"
+    }
+  ]
+}

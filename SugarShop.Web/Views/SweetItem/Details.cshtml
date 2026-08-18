@@ -1,0 +1,19 @@
+﻿@model SugarShop.Domain.Entities.SweetItem
+<h2>@Model.TitleFa</h2>
+<div>
+    @if (!string.IsNullOrEmpty(Model.ImagePath))
+    {
+        <img src="@Model.ImagePath" alt="@Model.TitleFa" style="max-width: 200px;" />
+    }
+    <p><b>وزن تقریبی هر عدد:</b> @Model.ApproxWeightGrams گرم</p>
+    <p><b>قیمت هر کیلوگرم:</b> @Model.PricePerKg.ToString("N0") تومان</p>
+    <p><b>قیمت تقریبی هر عدد:</b> @(((Model.PricePerKg * Model.ApproxWeightGrams) / 1000m).ToString("N0")) تومان</p>
+    <p><b>دسته‌بندی:</b> @Model.Category?.TitleFa</p>
+    <p><b>موجودی:</b> @Model.InventoryCount عدد</p>
+    <p><b>در انبار هست:</b> @(Model.IsInStock ? "بله" : "خیر")</p>
+    @if (!string.IsNullOrEmpty(Model.Description))
+    {
+        <p><b>توضیحات:</b> @Model.Description</p>
+    }
+</div>
+<a class="btn btn-secondary" asp-action="Index">بازگشت</a>

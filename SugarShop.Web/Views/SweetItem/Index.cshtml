@@ -1,0 +1,27 @@
+﻿@model List<SugarShop.Domain.Entities.SweetItem>
+<h2>شیرینی‌ها</h2>
+<table class="table">
+    <thead>
+        <tr>
+            <th>عنوان</th>
+            <th>وزن تقریبی (گرم)</th>
+            <th>قیمت (کیلوگرم)</th>
+            <th>دسته</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var s in Model)
+    {
+        <tr>
+            <td>@s.TitleFa</td>
+            <td>@s.ApproxWeightGrams</td> 
+            <td>@s.PricePerKg.ToString("N0") تومان</td> 
+            <td>@s.Category?.TitleFa</td>
+            <td>
+                <a class="btn btn-sm btn-primary" asp-action="Details" asp-route-id="@s.Id">جزئیات</a>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>

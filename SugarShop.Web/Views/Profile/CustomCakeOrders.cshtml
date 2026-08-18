@@ -1,0 +1,98 @@
+﻿@using SugarShop.Domain.Entities.Sales
+@using MD.PersianDateTime
+@using SugarShop.Web.Extensions
+@model List<CustomCakeOrder>
+@{
+    ViewData["Title"] = "سفارش کیکهای دلخواه من";
+}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>🎂 سفارش کیکهای دلخواه من</h2>
+        <div>
+            <a asp-controller="CustomCakeOrder" asp-action="Create" class="btn btn-secondary rounded-pill px-4">➕ سفارش جدید</a>
+            <a asp-action="Index" class="btn btn-secondary rounded-pill px-4">🔙 بازگشت به داشبورد</a>
+        </div>
+    </div>
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">@TempData["Success"]</div>
+    }
+    @if (!Model.Any())
+    {
+        <div class="alert alert-info text-center">هیچ سفارش کیک دلخواهی ثبت نکرده‌اید.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>تاریخ ثبت</th>
+                        <th>طعم</th>
+                        <th>قیمت نهایی</th>
+                        <th>وضعیت</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var order in Model)
+                    {
+                        var createdDate = new PersianDateTime(order.CreatedAt);
+                        <tr>
+                            <td>@order.Id</td>
+                            <td>@createdDate.ToString("yyyy/MM/dd HH:mm").ToPersianNumber()</td>
+                            <td>@order.Flavor</td>
+                            <td>
+                                @(order.FinalPrice?.ToString("N0").ToPersianNumber() ?? "-") تومان
+                                @if (order.Status == CustomCakeOrderStatus.Accepted && order.IsPaid)
+                                {
+                                    <span class="badge bg-success ms-2">پرداخت شده</span>
+                                }
+                             </td>
+                            <td>
+                                @if (order.Status == CustomCakeOrderStatus.Pending)
+                                {
+                                    <span class="badge bg-warning text-dark">در انتظار بررسی</span>
+                                }
+                                else if (order.Status == CustomCakeOrderStatus.Accepted)
+                                {
+                                    <span class="badge bg-success">تأیید شده</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">رد شده</span>
+                                }
+                             </td>
+                            <td>
+                                <div class="d-flex justify-content-center gap-2">
+                                    @if (order.Status == CustomCakeOrderStatus.Pending)
+                                    {
+                                        <a asp-action="EditCustomCakeOrder" asp-route-id="@order.Id" 
+                                           class="btn btn-sm btn-warning" style="width: 85px;">ویرایش ✏️</a>
+                                        <form asp-action="DeleteCustomCakeOrder" method="post" 
+                                              onsubmit="return confirm('آیا از حذف این سفارش اطمینان دارید؟');" class="m-0">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@order.Id" />
+                                            <button type="submit" class="btn btn-sm btn-danger" style="width: 85px;">حذف 🗑️</button>
+                                        </form>
+                                    }
+                                    @if (order.Status == CustomCakeOrderStatus.Accepted && !order.IsPaid)
+                                    {
+                                        <form asp-action="PayCustomCakeOrder" method="post" class="m-0">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@order.Id" />
+                                            <button type="submit" class="btn btn-sm btn-primary" style="width: 85px;">پرداخت 💳</button>
+                                        </form>
+                                    }
+                                    <a asp-action="CustomCakeOrderDetails" asp-route-id="@order.Id" 
+                                       class="btn btn-sm btn-info" style="width: 85px;">جزئیات</a>
+                                </div>
+                             </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

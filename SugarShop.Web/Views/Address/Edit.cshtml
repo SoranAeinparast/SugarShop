@@ -1,0 +1,93 @@
+﻿@using SugarShop.Web.Extensions
+@model SugarShop.Domain.Entities.Sales.Address
+@{
+    ViewData["Title"] = "ویرایش آدرس";
+}
+<div class="container mt-4 mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0 fw-bold">✏️ ویرایش آدرس</h2>
+        <a asp-action="Index" class="btn btn-outline-secondary">🔙 بازگشت به لیست آدرس‌ها</a>
+    </div>
+    <div class="bg-white rounded-4 shadow-sm p-4 p-md-5">
+        <form asp-action="Edit" method="post" id="addressForm">
+            <input type="hidden" asp-for="Id" />
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">عنوان <span class="text-danger">*</span> <small class="text-muted fw-normal">(مثال: خانه، محل کار)</small></label>
+                        <input asp-for="Title" class="form-control form-control-lg" required placeholder="مثال: منزل" />
+                        <span asp-validation-for="Title" class="text-danger small"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">نام گیرنده <span class="text-danger">*</span></label>
+                        <input asp-for="ReceiverName" class="form-control form-control-lg" required placeholder="نام و نام خانوادگی گیرنده" />
+                        <span asp-validation-for="ReceiverName" class="text-danger small"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">شماره تماس گیرنده <span class="text-danger">*</span></label>
+                        <input asp-for="ReceiverPhone" class="form-control form-control-lg persian-number-input" required placeholder="مثال: 09123456789" dir="ltr" style="text-align: right;" />
+                        <span asp-validation-for="ReceiverPhone" class="text-danger small"></span>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">آدرس کامل <span class="text-danger">*</span></label>
+                        <textarea asp-for="FullAddress" class="form-control form-control-lg" rows="4" required placeholder="استان، شهر، خیابان، کوچه، پلاک، واحد"></textarea>
+                        <span asp-validation-for="FullAddress" class="text-danger small"></span>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">کد پستی <small class="text-muted fw-normal">(اختیاری)</small></label>
+                        <input asp-for="PostalCode" class="form-control form-control-lg persian-number-input" placeholder="مثال: 1234567890" dir="ltr" style="text-align: right;" />
+                        <span asp-validation-for="PostalCode" class="text-danger small"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex gap-2 mt-4 pt-4 border-top">
+                <button type="submit" class="btn btn-success btn-lg px-5">
+                    <i class="bi bi-check-circle-fill me-2"></i>ذخیره تغییرات
+                </button>
+                <a asp-action="Index" class="btn btn-outline-secondary btn-lg px-4">انصراف</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        function toPersianNumber(str) {
+            if (!str) return str;
+            const persianDigits = '۰۱۲۳۴۵۶۷۸۹';
+            return str.replace(/\d/g, function(d) {
+                return persianDigits[parseInt(d)];
+            });
+        }
+        function toEnglishNumber(str) {
+            if (!str) return str;
+            const persianDigits = '۰۱۲۳۴۵۶۷۸۹';
+            return str.replace(/[۰-۹]/g, function(d) {
+                return persianDigits.indexOf(d);
+            });
+        }
+        $(document).ready(function() {
+           $('.persian-number-input').each(function() {
+                var $input = $(this);
+                var englishValue = $input.val();
+                if (englishValue) {
+                    $input.val(toPersianNumber(englishValue));
+                }
+            });
+            $('#addressForm').on('submit', function() {
+                $('.persian-number-input').each(function() {
+                    var $input = $(this);
+                    var persianValue = $input.val();
+                    if (persianValue) {
+                        $input.val(toEnglishNumber(persianValue));
+                    }
+                });
+                return true;
+            });
+        });
+    </script>
+}

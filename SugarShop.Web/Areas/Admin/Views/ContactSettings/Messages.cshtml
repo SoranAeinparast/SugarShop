@@ -1,0 +1,173 @@
+﻿@using SugarShop.Domain.Entities.Sales
+@model List<ContactMessage>
+@{
+    ViewData["Title"] = "پیام‌های دریافتی";
+    Layout = "_AdminLayout";
+    int unreadCount = Model?.Count(m => !m.IsRead) ?? 0;
+}
+<div class="card shadow-sm">
+    <div class="card-header d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center gap-2">
+            <h4 class="mb-0">📨 پیام‌های دریافتی</h4>
+            @if (unreadCount > 0)
+            {
+                <span class="badge bg-warning text-dark">@unreadCount پیام جدید</span>
+            }
+        </div>
+        <a asp-area="Admin" asp-controller="ContactSettings" asp-action="Index"
+           class="btn btn-outline-secondary btn-sm">
+            ⚙️ تنظیمات صفحه تماس
+        </a>
+    </div>
+    <div class="card-body">
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show">
+                @TempData["Success"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show">
+                @TempData["Error"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+        @if (!Model.Any())
+        {
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+                هنوز پیامی دریافت نشده است.
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th style="width:40px">#</th>
+                            <th>نام</th>
+                            <th>ایمیل</th>
+                            <th>تلفن</th>
+                            <th>موضوع</th>
+                            <th>تاریخ</th>
+                            <th>وضعیت</th>
+                            <th style="width:160px">عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var msg in Model)
+                        {
+                            <tr class="@(msg.IsRead ? "" : "table-warning fw-semibold")">
+                                <td>@msg.Id</td>
+                                <td>@msg.FullName</td>
+                                <td>
+                                    <a href="mailto:@msg.Email" class="text-decoration-none" dir="ltr">@msg.Email</a>
+                                </td>
+                                <td dir="ltr">@msg.Phone</td>
+                                <td>@msg.Subject</td>
+                                <td>
+                                    <small>@msg.CreatedAt.ToString("yyyy/MM/dd HH:mm")</small>
+                                </td>
+                                <td>
+                                    @if (msg.IsRead)
+                                    {
+                                        <span class="badge bg-success">خوانده شده</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning text-dark">جدید</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-1">
+                                        <button class="btn btn-sm btn-info"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#msgModal_@msg.Id"
+                                                title="مشاهده پیام">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                        @if (!msg.IsRead)
+                                        {
+                                            <form asp-area="Admin"
+                                                  asp-controller="ContactSettings"
+                                                  asp-action="MarkAsRead"
+                                                  asp-route-id="@msg.Id"
+                                                  method="post"
+                                                  style="display:inline;">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-sm btn-success" title="علامت خوانده‌شده">
+                                                    <i class="bi bi-check-lg"></i>
+                                                </button>
+                                            </form>
+                                        }
+                                        <form asp-area="Admin"
+                                              asp-controller="ContactSettings"
+                                              asp-action="DeleteMessage"
+                                              asp-route-id="@msg.Id"
+                                              method="post"
+                                              style="display:inline;"
+                                              onsubmit="return confirm('آیا مطمئن هستید؟ این پیام حذف خواهد شد.')">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-danger" title="حذف">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            <div class="modal fade" id="msgModal_@msg.Id" tabindex="-1"
+                                 aria-labelledby="msgModalLabel_@msg.Id" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="msgModalLabel_@msg.Id">
+                                                پیام از @msg.FullName
+                                            </h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <table class="table table-borderless table-sm mb-3">
+                                                <tr>
+                                                    <th class="text-muted" style="width:100px">موضوع:</th>
+                                                    <td>@msg.Subject</td>
+                                                </tr>
+                                                <tr>
+                                                    <th class="text-muted">ایمیل:</th>
+                                                    <td><a href="mailto:@msg.Email" dir="ltr">@msg.Email</a></td>
+                                                </tr>
+                                                <tr>
+                                                    <th class="text-muted">تلفن:</th>
+                                                    <td dir="ltr">@msg.Phone</td>
+                                                </tr>
+                                                <tr>
+                                                    <th class="text-muted">تاریخ:</th>
+                                                    <td>@msg.CreatedAt.ToString("yyyy/MM/dd - HH:mm")</td>
+                                                </tr>
+                                            </table>
+                                            <hr />
+                                            <p class="fw-semibold mb-2">متن پیام:</p>
+                                            <div class="bg-light p-3 rounded" style="white-space:pre-wrap;">@msg.Message</div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <a href="mailto:@msg.Email?subject=پاسخ به: @msg.Subject"
+                                               class="btn btn-primary">
+                                                <i class="bi bi-reply"></i> پاسخ از طریق ایمیل
+                                            </a>
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">بستن</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-2 text-muted small">
+                مجموع: @Model.Count پیام | خوانده‌نشده: @unreadCount
+            </div>
+        }
+    </div>
+</div>

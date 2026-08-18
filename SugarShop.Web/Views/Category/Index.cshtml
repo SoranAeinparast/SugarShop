@@ -1,0 +1,859 @@
+﻿@using SugarShop.Web.ViewModels
+@model CategoryProductsViewModel
+@using SugarShop.Web.Extensions
+@using MD.PersianDateTime
+@{
+    ViewData["Title"] = Model.CategoryTitle;
+    string ToPersianNumber(string input) => input.ToPersianNumber();
+    
+    // ✅ خواندن تنظیمات هدر (فقط یک بار)
+    var headerSettings = ViewBag.HeaderSettings as SugarShop.Domain.Entities.CategoryHeaderSetting;
+}
+
+<partial name="_BoxModal" />
+
+@* ============================================================
+   ✅ هدر دسته‌بندی (ساختار تمیز و بدون تکرار)
+   ============================================================ *@
+@if (headerSettings != null && headerSettings.IsEnabled)
+{
+    var displayTitle = !string.IsNullOrEmpty(headerSettings.DefaultTitle) ? headerSettings.DefaultTitle : Model.CategoryTitle;
+    var displaySubtitle = Model.RequiresBoxSelection ? headerSettings.BoxSelectionSubtitle : headerSettings.DefaultSubtitle;
+
+    <div class="category-header" style="width: 100vw; margin-left: calc(-50vw + 50%); margin-right: calc(-50vw + 50%); position: relative; overflow: hidden; min-height: @(headerSettings.Height)px; background: @headerSettings.BackgroundColor;">
+        @if (!string.IsNullOrEmpty(headerSettings.BackgroundImagePath) && headerSettings.UseBackgroundImage)
+        {
+            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: url('@headerSettings.BackgroundImagePath'); background-size: cover; background-position: center; z-index: 0;"></div>
+            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.85); z-index: 1;"></div>
+        }
+        
+        <div class="container" style="position: relative; z-index: 2;">
+            <div class="text-center py-4 py-md-5">
+                <h1 class="display-5 fw-bold mb-2" style="color: @headerSettings.TextColor;">@displayTitle</h1>
+                @if (!string.IsNullOrEmpty(displaySubtitle))
+                {
+                    <p class="mb-0" style="font-size: 1.05rem; color: @headerSettings.TextColor; opacity: 0.8;">
+                        <span>@displaySubtitle</span>
+                    </p>
+                }
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    @* ✅ هدر پیش‌فرض (اگر تنظیمات وجود نداشت یا غیرفعال بود) *@
+    <div class="category-header bg-white shadow-sm" style="width: 100vw; margin-left: calc(-50vw + 50%); margin-right: calc(-50vw + 50%); border-bottom: 1px solid #f0f0f0;">
+        <div class="container">
+            <div class="text-center py-4 py-md-5">
+                <h1 class="display-5 fw-bold mb-2" style="color: #2c3e50;">@Model.CategoryTitle</h1>
+                <p class="text-muted mb-0" style="font-size: 1.05rem;">
+                    @if (Model.RequiresBoxSelection)
+                    {
+                        <span>✨ روی جعبه‌ای که می‌خوای کلیک کن | می‌توانی تو هر ردیف شیرینی دلخواهت رو بچینی ✨</span>
+                    }
+                    else
+                    {
+                        <span>🍰 بهترین محصولات با قیمت ثابت و کیفیت تضمینی</span>
+                    }
+                </p>
+            </div>
+        </div>
+    </div>
+}
+
+@* ============================================================
+   بخش ۲: محتوای اصلی (محصولات) - ادامه فایل بدون تغییر
+   ============================================================ *@
+<div class="container mt-4 mb-5">
+    @if (!Model.Products.Any())
+    {
+        <div class="alert alert-warning text-center py-5 rounded-4">
+            <h4>به زودی محصولات جدید و با کیفیت در این بخش قرار میگیرند</h4>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            @* ----------------- محصولات ----------------- *@
+            @foreach (var product in Model.Products)
+            {
+                bool isInStock = product.Inventory > 0;
+                <div class="col-sm-6 col-md-4 col-lg-3">
+                    <div class="card product-card h-100 border-0 shadow-sm rounded-4 overflow-hidden">
+                        @* بخش تصویر *@
+                        <div class="product-img-wrapper position-relative"
+                             data-product-id="@(product.IsSweet ? null : product.Id)"
+                             data-sweet-id="@(product.IsSweet ? product.Id : null)">
+                            @if (!string.IsNullOrEmpty(product.ImagePath))
+                            {
+                                <img src="@product.ImagePath" class="card-img-top product-img" alt="@product.Title" loading="lazy" style="cursor: pointer;">
+                            }
+                            else
+                            {
+                                <div class="product-img-placeholder d-flex align-items-center justify-content-center" style="cursor: pointer;">
+                                    <span style="font-size: 3rem;">🍪</span>
+                                </div>
+                            }
+                            <div class="position-absolute top-0 end-0 m-2">
+                                @if (isInStock)
+                                {
+                                    <span class="badge bg-success px-3 py-2 rounded-pill shadow-sm">موجود</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning text-dark px-3 py-2 rounded-pill shadow-sm">قابل سفارش</span>
+                                }
+                            </div>
+                        </div>
+                        @* بخش اطلاعات محصول *@
+                        <div class="card-body d-flex flex-column p-3">
+                            <h5 class="card-title fw-bold mb-2 product-title">@product.Title</h5>
+                            @if (product.IsSweet)
+                            {
+                                <div class="product-meta small text-secondary mb-2">
+                                    <div>⚖️ ~@product.ApproxWeightGrams.ToPersianNumber() گرم/عدد</div>
+                                    <div>💰 @product.PricePerKg.ToString("N0").ToPersianNumber() تومان/کیلو</div>
+                                </div>
+                                <div class="mt-1 mb-2">
+                                    <span class="badge bg-warning text-dark px-3 py-1 rounded-pill">نیازمند جعبه</span>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="product-meta small text-secondary mb-2">
+                                    @if (product.WeightGrams.HasValue)
+                                    {
+                                        <div>️ @product.WeightGrams.Value.ToPersianNumber() گرم</div>
+                                    }
+                                    <div class="price fw-bold text-success fs-5">@product.UnitPrice.ToString("N0").ToPersianNumber() <small class="fw-normal">تومان</small></div>
+                                </div>
+                                <div class="mt-1 mb-2">
+                                    <span class="badge bg-success px-3 py-1 rounded-pill">قیمت ثابت</span>
+                                </div>
+                            }
+                            <div class="mt-auto pt-3">
+                                @if (product.IsSweet)
+                                {
+                                    <button class="btn btn-success w-100 add-to-box-btn rounded-pill py-2" data-sweet-id="@product.Id">
+                                        افزودن به جعبه
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-primary w-100 add-to-cart-simple rounded-pill py-2" data-product-id="@product.Id">
+                                        🛒 افزودن به سبد خرید
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                        @* بخش توضیحات *@
+                        @if (!string.IsNullOrEmpty(product.Description) || true)
+                        {
+                            <div class="card-footer bg-transparent border-0 text-center pb-3 pt-0">
+                                <button class="btn btn-sm btn-outline-secondary rounded-pill description-btn px-3"
+                                        data-desc="@product.Description"
+                                        data-img="@product.ImagePath"
+                                        data-title="@product.Title"
+                                        @(string.IsNullOrEmpty(product.Description) ? "disabled style=opacity:0.5" : "")>
+                                    📖 توضیحات
+                                </button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            @* ----------------- کارت ویژه کیک سفارشی ----------------- *@
+            @if (Model.CategorySlug == "cakes")
+            {
+                <div class="col-sm-6 col-md-4 col-lg-3">
+                    <div class="card product-card h-100 border-0 shadow-sm rounded-4 overflow-hidden special-cake-card">
+                        <div class="product-img-wrapper position-relative" style="background: linear-gradient(135deg, #fff9e6, #ffe6cc);">
+                            <div class="d-flex align-items-center justify-content-center h-100">
+                                <div class="display-1">🎂✨</div>
+                            </div>
+                        </div>
+                        <div class="card-body d-flex flex-column p-3">
+                            <h5 class="card-title fw-bold mb-2 product-title">درخواست کیک سفارشی</h5>
+                            <div class="product-meta small text-secondary mb-2">
+                                <div> با هر طرح و طعمی که دوست داری</div>
+                                <div> پخته شده توسط بهترین قنادان</div>
+                            </div>
+                            <div class="mt-1 mb-2">
+                                <span class="badge bg-warning text-dark px-3 py-1 rounded-pill">سفارشی</span>
+                            </div>
+                            <div class="mt-auto pt-3">
+                                <a asp-controller="CustomCakeOrder" asp-action="Create" class="btn btn-warning w-100 rounded-pill py-2">
+                                    🎂 سفارش دهید
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    <div class="text-center mt-5">
+        <a href="/" class="btn btn-secondary rounded-pill px-4">↩️ بازگشت به صفحه اصلی</a>
+    </div>
+</div>
+
+@* ============================================================
+   دکمه شناور جعبه - بدون تغییر
+   ============================================================ *@
+@if (Model.RequiresBoxSelection)
+{
+    <div style="position: fixed; bottom: 40px; left: 40px; z-index: 1060;">
+        <div class="finger-pointer">
+            <i class="bi bi-hand-index-thumb" style="font-size: 2rem; color: #ff416c;"></i>
+        </div>
+        <button id="boxFloatingBtn" class="btn btn-primary rounded-circle shadow-lg border-0"
+                type="button"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#boxOffcanvas"
+                aria-controls="boxOffcanvas"
+                style="width: 70px; height: 70px;
+                       background: linear-gradient(45deg, #ff416c, #ff4b2b);
+                       box-shadow: 0 0 20px rgba(255, 65, 108, 0.6) !important;
+                       transition: all 0.4s ease;
+                       animation: pulse-animation 2s infinite;
+                       position: relative;">
+            <i class="bi bi-box-seam" style="font-size: 1.8rem; color: white;"></i>
+            <span id="boxFloatingBadge" class="badge bg-dark rounded-pill"
+                  style="display:block; position: absolute; top: -5px; right: -5px;
+                         border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.3);">0</span>
+        </button>
+    </div>
+}
+
+<!-- مودال توضیحات محصول -->
+<div class="modal fade" id="descModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-md">
+        <div class="modal-content border-0 rounded-4 shadow-lg overflow-hidden">
+            <div class="modal-header border-0 pb-0 pt-3 px-4">
+                <h5 class="modal-title fw-bold" id="descModalTitle">توضیحات محصول</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="text-center mb-3">
+                    <img id="descModalImage" src="" alt="تصویر محصول" class="img-fluid rounded-3" style="max-height: 200px; object-fit: contain;">
+                </div>
+                <div id="descModalBody" class="text-justify lh-base" style="font-size: 1rem; line-height: 1.6;"></div>
+            </div>
+            <div class="modal-footer border-0 justify-content-center pb-4">
+                <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">بستن</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* ==================== هدر دسته‌بندی ==================== */
+    .category-header {
+        position: relative;
+        z-index: 1;
+    }
+    
+    /* ==================== انیمیشن‌ها ==================== */
+    @@keyframes pulse-animation {
+        0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 65, 108, 0.7); }
+        70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(255, 65, 108, 0); }
+        100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 65, 108, 0); }
+    }
+    @@keyframes finger-bounce {
+        0%, 100% { transform: translateY(0) rotate(180deg); }
+        50% { transform: translateY(10px) rotate(170deg); }
+    }
+    
+    /* ==================== استایل کارت محصولات ==================== */
+    .product-card {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        background: white;
+        border-radius: 1rem !important;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 420px;
+    }
+    .product-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 1rem 2rem rgba(0,0,0,0.12) !important;
+    }
+    .product-img-wrapper {
+        overflow: hidden;
+        background-color: #f8f9fa;
+        border-top-left-radius: 1rem;
+        border-top-right-radius: 1rem;
+        flex-shrink: 0;
+        height: 220px;
+    }
+    .product-img {
+        width: 100%;
+        height: 220px;
+        object-fit: cover;
+        transition: transform 0.5s ease;
+    }
+    .product-card:hover .product-img {
+        transform: scale(1.05);
+    }
+    .product-img-placeholder {
+        height: 220px;
+        background: #fef9e6;
+        color: #d4a056;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .product-title {
+        min-height: 48px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        font-size: 1rem;
+        line-height: 1.4;
+    }
+    .product-meta div {
+        margin-bottom: 4px;
+    }
+    .price {
+        font-size: 1.25rem;
+    }
+    .badge {
+        font-weight: 500;
+        font-size: 0.75rem;
+    }
+    .card-body {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+    }
+    .mt-auto {
+        margin-top: auto !important;
+    }
+    
+    /* ==================== استایل دکمه‌ها ==================== */
+    .btn {
+        transition: all 0.2s;
+    }
+    .btn-primary {
+        background-color: #d4a056;
+        border-color: #d4a056;
+    }
+    .btn-primary:hover {
+        background-color: #b8860b;
+        border-color: #b8860b;
+        transform: scale(0.98);
+    }
+    .btn-success {
+        background-color: #28a745;
+        border-color: #28a745;
+    }
+    .btn-success:hover {
+        transform: scale(0.98);
+    }
+    .btn-warning {
+        background-color: #ffc107;
+        border-color: #ffc107;
+        color: #212529;
+    }
+    .btn-warning:hover {
+        background-color: #e0a800;
+        border-color: #d39e00;
+        transform: scale(0.98);
+    }
+    .btn-outline-secondary:hover {
+        background-color: #f8f9fa;
+        color: #6c757d;
+    }
+    
+    /* ==================== کارت ویژه کیک ==================== */
+    .special-cake-card {
+        background: white !important;
+    }
+    .special-cake-card .product-img-wrapper {
+        background: linear-gradient(135deg, #fff9e6, #ffe6cc);
+    }
+    .special-cake-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 1rem 2rem rgba(0,0,0,0.12) !important;
+    }
+    
+    /* ==================== مودال توضیحات ==================== */
+    .modal-content {
+        backdrop-filter: blur(2px);
+        transition: transform 0.2s;
+    }
+    .modal-header {
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+    .modal-footer {
+        background: #f8f9fa;
+    }
+    #descModalBody {
+        color: #2c3e50;
+        text-align: justify;
+    }
+    #descModalImage {
+        max-width: 100%;
+        border-radius: 12px;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    }
+    
+    /* ==================== دکمه شناور ==================== */
+    #boxFloatingBtn:hover {
+        transform: scale(1.15) !important;
+        background: linear-gradient(45deg, #ff4b2b, #ff416c) !important;
+    }
+    .finger-pointer {
+        position: absolute;
+        top: -45px;
+        left: 15px;
+        transform: rotate(180deg);
+        animation: finger-bounce 1.5s infinite;
+    }
+    div:has(#boxFloatingBtn:hover) .finger-pointer {
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+    
+    /* ==================== ریسپانسیو ==================== */
+    @@media (max-width: 768px) {
+        .product-img-wrapper,
+        .product-img,
+        .product-img-placeholder {
+            height: 180px !important;
+        }
+        .product-card {
+            min-height: 380px;
+        }
+        .card-body {
+            padding: 0.75rem !important;
+        }
+        .product-title {
+            font-size: 0.9rem;
+            min-height: 40px;
+        }
+        .product-meta div {
+            font-size: 0.7rem;
+        }
+        .price {
+            font-size: 1rem !important;
+        }
+        .badge {
+            font-size: 0.65rem;
+            padding: 0.2rem 0.5rem;
+        }
+        .btn {
+            font-size: 0.7rem;
+            padding: 0.3rem 0.5rem;
+        }
+        .description-btn {
+            font-size: 0.65rem;
+        }
+        .row.g-4 {
+            --bs-gutter-x: 0.75rem;
+        }
+        .col-sm-6 {
+            margin-bottom: 0.8rem;
+        }
+    }
+    @@media (max-width: 576px) {
+        .product-img-wrapper,
+        .product-img,
+        .product-img-placeholder {
+            height: 160px !important;
+        }
+        .product-card {
+            min-height: 360px;
+        }
+        .card-body {
+            padding: 0.6rem !important;
+        }
+        .product-title {
+            font-size: 0.85rem;
+            min-height: 36px;
+        }
+        .price {
+            font-size: 0.9rem !important;
+        }
+        .btn {
+            font-size: 0.65rem;
+        }
+    }
+</style>
+
+@section Scripts {
+<script>
+    function toPersianNumber(str) {
+        if (!str) return str;
+        const persianDigits = '۰۱۲۴۵۶۷۸۹';
+        return str.toString().replace(/\d/g, function(d) {
+            return persianDigits[parseInt(d)];
+        });
+    }
+    
+    // ============================================================
+    // 🛒 محصولات عادی - افزودن به سبد خرید
+    // ============================================================
+    $(document).on('click', '.add-to-cart-simple', function () {
+        var productId = $(this).data('product-id');
+        var $btn = $(this);
+        $btn.prop('disabled', true).text('در حال افزودن...');
+        const csrfToken = $('input[name="__RequestVerificationToken"]').val();
+        $.ajax({
+            url: '/Cart/AddProductToCart',
+            type: 'POST',
+            headers: { 'RequestVerificationToken': csrfToken },
+            data: { productId: productId, quantity: 1 },
+            success: function(response) {
+                if (response.success) {
+                    var isWarning = (response.type === 'warning');
+                    if (isWarning) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: response.title,
+                            text: response.message,
+                            confirmButtonColor: '#f0ad4e',
+                            confirmButtonText: 'باشه'
+                        }).then(() => {
+                            Swal.fire({
+                                icon: 'success',
+                                title: '✅ افزوده شد',
+                                text: 'محصول با موفقیت به سبد خرید اضافه شد.',
+                                confirmButtonColor: '#28a745',
+                                confirmButtonText: 'رفتن به سبد خرید',
+                                showCancelButton: true,
+                                cancelButtonColor: '#6c757d',
+                                cancelButtonText: 'ادامه خرید'
+                            }).then((result) => {
+                                if (result.isConfirmed) {
+                                    window.location.href = '/Cart';
+                                } else {
+                                    $btn.prop('disabled', false).text('🛒 افزودن به سبد خرید');
+                                }
+                            });
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'success',
+                            title: response.title,
+                            text: response.message,
+                            confirmButtonColor: '#28a745',
+                            confirmButtonText: 'رفتن به سبد خرید',
+                            showCancelButton: true,
+                            cancelButtonColor: '#6c757d',
+                            cancelButtonText: 'ادامه خرید'
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                window.location.href = '/Cart';
+                            } else {
+                                $btn.prop('disabled', false).text('🛒 افزودن به سبد خرید');
+                            }
+                        });
+                    }
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: response.title,
+                        text: response.message,
+                        confirmButtonColor: '#dc3545',
+                        confirmButtonText: 'باشه'
+                    });
+                    $btn.prop('disabled', false).text(' افزودن به سبد خرید');
+                }
+            },
+            error: function(xhr) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطا',
+                    text: 'خطا در ارتباط با سرور',
+                    confirmButtonText: 'باشه'
+                });
+                $btn.prop('disabled', false).text('🛒 افزودن به سبد خرید');
+            }
+        });
+    });
+    
+    // ============================================================
+    // 📦 پنل جعبه (Offcanvas)
+    // ============================================================
+    let currentSelectedBoxId = null;
+    let isChangingBoxType = false;
+    
+    function loadBoxPanel() {
+        $('#boxOffcanvasBody').html(`
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+                <p class="mt-3 text-muted">در حال بارگذاری پنل جعبه...</p>
+            </div>
+        `);
+        $.ajax({
+            url: '/Box/GetBoxModalContent',
+            type: 'GET',
+            success: function (data) {
+                $('#boxOffcanvasBody').html(data);
+                attachBoxPanelEvents();
+                updateBoxFloatingBadge();
+                console.log('✅ پنل جعبه بارگذاری شد.');
+            },
+            error: function (xhr) {
+                var errorMsg = toPersianNumber(xhr.responseText || xhr.statusText);
+                $('#boxOffcanvasBody').html(`
+                    <div class="alert alert-danger m-4">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        خطا در بارگذاری پنل جعبه: ${errorMsg}
+                    </div>
+                `);
+                console.error('❌ خطا در بارگذاری پنل:', errorMsg);
+            }
+        });
+    }
+    
+    function updateBoxFloatingBadge() {
+        var filledRows = $('#boxOffcanvasBody .remove-row').length;
+        var $badge = $('#boxFloatingBadge');
+        if (filledRows > 0) {
+            $badge.text(toPersianNumber(filledRows)).css('display', 'inline-block');
+        } else {
+            $badge.hide();
+        }
+    }
+    
+    function attachBoxPanelEvents() {
+        $(document).off('click', '#changeBoxBtn').on('click', '#changeBoxBtn', function () {
+            isChangingBoxType = true;
+            console.log(' حالت تغییر جعبه فعال شد.');
+        });
+        
+        $(document).off('click', '.btn-select-box').on('click', '.btn-select-box', function () {
+            var boxId = $(this).data('box-id');
+            var $btn = $(this);
+            $btn.prop('disabled', true).text('در حال اعمال...');
+            var postUrl = isChangingBoxType ? '/Box/ChangeBoxType' : '/Box/SelectBoxType';
+            var payload = isChangingBoxType ? { newBoxTypeId: boxId } : { boxTypeId: boxId };
+            $.ajax({
+                url: postUrl,
+                type: 'POST',
+                data: payload,
+                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                success: function () {
+                    currentSelectedBoxId = boxId;
+                    isChangingBoxType = false;
+                    loadBoxPanel();
+                    console.log(`✅ جعبه با ID ${boxId} انتخاب شد.`);
+                },
+                error: function (xhr) {
+                    $btn.prop('disabled', false).text('انتخاب');
+                    isChangingBoxType = false;
+                    var errorMsg = toPersianNumber(xhr.responseText || xhr.statusText);
+                    alert('خطا: ' + errorMsg);
+                    console.error('❌ خطا در انتخاب جعبه:', errorMsg);
+                }
+            });
+        });
+        
+        $(document).off('click', '.remove-row').on('click', '.remove-row', function () {
+            var rowIndex = $(this).data('row-index');
+            if (!confirm('آیا این ردیف حذف شود؟')) return;
+            $.ajax({
+                url: '/Box/RemoveRow',
+                type: 'POST',
+                data: { rowIndex: rowIndex },
+                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                success: function () {
+                    loadBoxPanel();
+                    console.log(`️ ردیف ${rowIndex} حذف شد.`);
+                },
+                error: function (xhr) {
+                    var errorMsg = toPersianNumber(xhr.responseText || xhr.statusText);
+                    alert('خطا: ' + errorMsg);
+                    console.error('❌ خطا در حذف ردیف:', errorMsg);
+                }
+            });
+        });
+        
+        $(document).off('click', '#clearBoxBtn').on('click', '#clearBoxBtn', function () {
+            isChangingBoxType = false;
+            if (!confirm('کل جعبه خالی شود؟')) return;
+            $.ajax({
+                url: '/Box/Clear',
+                type: 'POST',
+                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                success: function () {
+                    loadBoxPanel();
+                    console.log('🧹 جعبه خالی شد.');
+                },
+                error: function (xhr) {
+                    var errorMsg = toPersianNumber(xhr.responseText || xhr.statusText);
+                    alert('خطا: ' + errorMsg);
+                    console.error('❌ خطا در خالی کردن جعبه:', errorMsg);
+                }
+            });
+        });
+        
+        $(document).off('click', '#addToCartFromBox').on('click', '#addToCartFromBox', function () {
+            var $btn = $(this);
+            $btn.prop('disabled', true).text('در حال افزودن...');
+            $.ajax({
+                url: '/Box/AddToCart',
+                type: 'POST',
+                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                success: function () {
+                    window.location.href = '/Cart';
+                },
+                error: function (xhr) {
+                    $btn.prop('disabled', false).text('افزودن به سبد خرید');
+                    var errorMsg = toPersianNumber(xhr.responseText || xhr.statusText);
+                    alert('خطا: ' + errorMsg);
+                    console.error('❌ خطا در افزودن به سبد خرید:', errorMsg);
+                }
+            });
+        });
+    }
+    
+    function initBoxState() {
+        $.ajax({
+            url: '/Box/GetCurrentBoxType',
+            type: 'GET',
+            success: function (data) {
+                if (data && data.selectedBoxId) {
+                    currentSelectedBoxId = data.selectedBoxId;
+                    console.log(`📦 جعبه انتخاب‌شده فعلی: ${currentSelectedBoxId}`);
+                }
+            },
+            error: function (xhr) {
+                console.error('❌ خطا در دریافت جعبه فعلی:', xhr.statusText);
+            }
+        });
+    }
+    
+    $(document).on('shown.bs.offcanvas', '#boxOffcanvas', function () {
+        console.log('📦 Offcanvas باز شد.');
+        loadBoxPanel();
+    });
+    
+    // ============================================================
+    // 🍬 افزودن شیرینی به جعبه
+    // ============================================================
+    $(document).on('click', '.add-to-box-btn', function () {
+        var sweetId = $(this).data('sweet-id');
+        if (!currentSelectedBoxId) {
+            Swal.fire({
+                icon: 'warning',
+                title: '📦 انتخاب نوع جعبه',
+                text: 'ابتدا کلیک روی آیکون جعبه در گوشه سمت چپ پایین صفحه',
+                confirmButtonText: 'باشه',
+                confirmButtonColor: '#d4a056'
+            });
+            return;
+        }
+        var $btn = $(this);
+        $btn.prop('disabled', true).text('در حال افزودن...');
+        const csrfToken = $('input[name="__RequestVerificationToken"]').val();
+        $.ajax({
+            url: '/Box/AddRow',
+            type: 'POST',
+            headers: { 'RequestVerificationToken': csrfToken },
+            data: { sweetItemId: sweetId },
+            success: function(response) {
+                if (response.success) {
+                    var isWarning = (response.type === 'warning');
+                    Swal.fire({
+                        icon: isWarning ? 'warning' : 'success',
+                        title: response.title,
+                        text: response.message,
+                        confirmButtonColor: isWarning ? '#f0ad4e' : '#28a745',
+                        confirmButtonText: 'باشه',
+                        timer: isWarning ? null : (response.isFull ? 2000 : 1500),
+                        showConfirmButton: true
+                    }).then((result) => {
+                        if (isWarning) {
+                            if ($('#boxOffcanvas').hasClass('show')) {
+                                loadBoxPanel();
+                            }
+                        } else if (response.isFull) {
+                            $.ajax({
+                                url: '/Box/AddToCart',
+                                type: 'POST',
+                                headers: { 'RequestVerificationToken': csrfToken },
+                                success: function() { window.location.href = '/Cart/Index'; },
+                                error: function() { Swal.fire('خطا', 'مشکل در افزودن جعبه به سبد خرید', 'error'); }
+                            });
+                        } else {
+                            if ($('#boxOffcanvas').hasClass('show')) {
+                                loadBoxPanel();
+                            }
+                        }
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: response.title || 'خطا',
+                        text: response.message,
+                        confirmButtonColor: '#dc3545',
+                        confirmButtonText: 'متوجه شدم'
+                    });
+                }
+            },
+            error: function(xhr) {
+                var errorMsg = toPersianNumber(xhr.responseJSON?.message || xhr.responseText || 'خطا در ارتباط با سرور');
+                Swal.fire({ icon: 'error', title: 'خطا', text: errorMsg, confirmButtonText: 'باشه' });
+            },
+            complete: function() { $btn.prop('disabled', false).text('📦 افزودن به جعبه'); }
+        });
+    });
+    
+    // ============================================================
+    // 📖 نمایش توضیحات محصول
+    // ============================================================
+    $(document).on('click', '.description-btn', function () {
+        var desc = $(this).data('desc');
+        var img = $(this).data('img');
+        var title = $(this).data('title');
+        if (desc && desc.trim() !== '') {
+            $('#descModalTitle').text(title || 'توضیحات محصول');
+            $('#descModalBody').text(desc);
+            if (img && img.trim() !== '') {
+                $('#descModalImage').attr('src', img).show();
+            } else {
+                $('#descModalImage').hide();
+            }
+            $('#descModal').modal('show');
+        }
+    });
+    
+    // ============================================================
+    // ️ کلیک روی تصویر
+    // ============================================================
+    $(document).on('click', '.product-img-wrapper[data-product-id]', function(e) {
+        var productId = $(this).data('product-id');
+        if (productId) {
+            $('.add-to-cart-simple[data-product-id="' + productId + '"]').click();
+        }
+        e.stopPropagation();
+    });
+    
+    $(document).on('click', '.product-img-wrapper[data-sweet-id]', function(e) {
+        var sweetId = $(this).data('sweet-id');
+        if (sweetId) {
+            $('.add-to-box-btn[data-sweet-id="' + sweetId + '"]').click();
+        }
+        e.stopPropagation();
+    });
+    
+    // ============================================================
+    //  اجرای اولیه
+    // ============================================================
+    @if (Model.RequiresBoxSelection)
+    {
+        <text>
+        $(function () {
+            initBoxState();
+            console.log('🚀 صفحه آماده است.');
+        });
+        </text>
+    }
+</script>
+}

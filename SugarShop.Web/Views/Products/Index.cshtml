@@ -1,0 +1,118 @@
+﻿@using SugarShop.Domain.Entities
+@model List<Product>
+@{
+    ViewData["Title"] = "مدیریت محصولات دارای قیمت مشخص";
+    Layout = "_AdminLayout";
+}
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h4 class="mb-1">🍰 لیست محصولات دارای قیمت مشخص</h4>
+            <p class="text-muted mb-0 small">کیک، دسر، شکلات و سایر محصولات عمومی</p>
+        </div>
+        <a href="@Url.Action("Create")" class="btn btn-primary">
+            ➕ افزودن محصول جدید
+        </a>
+    </div>
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-striped table-bordered table-hover align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th style="width: 80px;">تصویر</th>
+                            <th>نام محصول</th>
+                            <th>دسته‌بندی</th>
+                            <th>قیمت (تومان)</th>
+                            <th>وزن (گرم)</th>
+                            <th>موجودی</th>
+                            <th>ترتیب</th>
+                            <th>وضعیت</th>
+                            <th style="width: 180px;">عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model)
+                        {
+                            <tr>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(item.ImagePath))
+                                    {
+                                        <img src="@item.ImagePath"
+                                             alt="@item.TitleFa"
+                                             width="56"
+                                             height="56"
+                                             class="rounded-3 object-fit-cover border"
+                                             loading="lazy" />
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex align-items-center justify-content-center bg-light rounded-3 border"
+                                             style="width:56px;height:56px;font-size:1.4rem;">
+                                            🍰
+                                        </div>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="fw-semibold">@item.TitleFa</div>
+                                </td>
+                                <td>
+                                    @(item.Category?.TitleFa ?? "-")
+                                </td>
+                                <td>
+                                    @item.Price.ToString("N0")
+                                </td>
+                                <td>
+                                    @(item.WeightGrams.HasValue ? $"{item.WeightGrams.Value:N0} گرم" : "-")
+                                </td>
+                                <td>
+                                    <span class="badge @(item.Inventory > 0 ? "bg-success" : "bg-secondary")">
+                                        @item.Inventory
+                                    </span>
+                                </td>
+                                <td>
+                                    @item.SortOrder
+                                </td>
+                                <td>
+                                    @if (item.IsActive)
+                                    {
+                                        <span class="badge bg-success">فعال</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">غیرفعال</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <a href="@Url.Action("Edit", new { id = item.Id })"
+                                           class="btn btn-sm btn-warning">
+                                            ✏️ ویرایش
+                                        </a>
+                                        <form asp-action="Delete"
+                                              method="post"
+                                              class="d-inline"
+                                              onsubmit="return confirm('آیا از حذف این محصول اطمینان دارید؟');">
+                                            <input type="hidden" name="id" value="@item.Id" />
+                                            <button type="submit" class="btn btn-sm btn-danger">
+                                                🗑️ حذف
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info mb-0">
+                هیچ محصولی برای نمایش وجود ندارد.
+            </div>
+        }
+    </div>
+</div>
+

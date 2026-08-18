@@ -1,0 +1,30 @@
+﻿@model int
+<div class="modal fade" id="orderSuccessModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-md">
+        <div class="modal-content border-0 rounded-4 shadow-lg overflow-hidden">
+            <div class="modal-header bg-success text-white border-0">
+                <h5 class="modal-title">✅ سفارش شما ثبت شد</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center p-4">
+                <div class="display-1 mb-3">🎂</div>
+                <h4 class="mb-3">@ViewBag.UserName عزیز</h4>
+                <p>سفارش شما با شماره <strong class="fs-5">@Model</strong> دریافت شد.</p>
+                <p>همکاران ما آن را بررسی و برای هماهنگی‌های لازم در اسرع وقت با شما تماس خواهند گرفت.</p>
+                <p>همچنین می‌توانید روند پیشرفت سفارش را در داشبورد کاربری خودتان و در قسمت <strong>"سفارش کیکهای دلخواه"</strong> مشاهده فرمایید.</p>
+                <p class="mt-3 text-muted">از انتخاب و اعتماد شما سپاسگزاریم.</p>
+            </div>
+            <div class="modal-footer border-0 justify-content-center pb-4">
+                <button type="button" class="btn btn-primary rounded-pill px-4" data-bs-dismiss="modal">مشاهده سفارشات من</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    $(function() {
+        $('#orderSuccessModal').modal('show');
+        $('#orderSuccessModal').on('hidden.bs.modal', function() {
+            window.location.href = '/Profile/CustomCakeOrders';
+        });
+    });
+</script>

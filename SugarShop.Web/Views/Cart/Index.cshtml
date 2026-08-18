@@ -1,0 +1,404 @@
+﻿@using SugarShop.Web.SessionModels
+@model CartSessionState
+@{
+    ViewData["Title"] = "سبد خرید";
+}
+<div class="container mt-4">
+    <h2 class="mb-4">🛒 سبد خرید</h2>
+    @if (Model.Items.Count == 0 && Model.Products.Count == 0)
+    {
+        <div class="text-center py-5">
+            <div class="empty-cart">
+                🛍️ سبد خرید شما خالی است
+            </div>
+            <a href="/Home/Index" class="btn btn-primary mt-3">➕ شروع خرید</a>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            <div class="col-lg-8">
+                @if (Model.Products.Any())
+                {
+                    <div class="card mb-3">
+                        <div class="card-header bg-secondary text-white">
+                            <h5 class="mb-0">🛍️ محصولات (قیمت ثابت)</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-bordered mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>محصول</th>
+                                            <th>تعداد</th>
+                                            <th>قیمت واحد</th>
+                                            <th>جمع</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var prod in Model.Products)
+                                        {
+                                            <tr>
+                                                <td>@prod.Title</td>
+                                                <td>@prod.Quantity</td>
+                                                <td>@prod.Price.ToString("N0") تومان</td>
+                                                <td>@prod.TotalPrice.ToString("N0") تومان</td>
+                                                <td class="text-center">
+                                                    <button type="button" class="btn btn-sm btn-danger remove-product-btn" data-product-id="@prod.ProductId">
+                                                        🗑️ حذف
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                    <tfoot class="table-secondary">
+                                        <tr>
+                                            <td colspan="3" class="text-end"><strong>جمع محصولات:</strong></td>
+                                            <td><strong>@Model.TotalProductPrice.ToString("N0") تومان</strong></td>
+                                            <td></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                }
+                @if (Model.Items.Any())
+                {
+                    <div class="card mb-3">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">📦 جعبه‌های شیرینی (نیازمند تأیید وزن)</h5>
+                        </div>
+                        <div class="card-body">
+                            @foreach (var item in Model.Items)
+                            {
+                                <div class="cart-item card mb-3">
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-8">
+                                                <h5 class="cart-item-title">📦 @item.BoxTitle</h5>
+                                                <div class="cart-item-details">
+                                                    <small class="text-muted">🍬 @item.TotalRows ردیف</small>
+                                                </div>
+                                                @if (item.Items.Any())
+                                                {
+                                                    <hr />
+                                                    <div class="cart-item-items">
+                                                        <small>شیرینی‌های داخل جعبه:</small>
+                                                        <div class="mt-1">
+                                                            @foreach (var sweet in item.Items)
+                                                            {
+                                                                <span class="badge bg-secondary me-1 mb-1">
+                                                                    🍪 @sweet.TitleFaSnapshot
+                                                                </span>
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                }
+                                            </div>
+                                            <div class="col-md-4 text-end">
+                                                <button type="button" class="btn btn-sm btn-danger remove-box-btn" data-item-id="@item.Id">
+                                                    🗑️ حذف جعبه
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="col-lg-4">
+                <div class="cart-summary card">
+                    <div class="card-header">
+                        <h5 class="mb-0">💰 خلاصه سبد خرید</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>تعداد جعبه‌ها:</span>
+                            <strong>@Model.Items.Count عدد</strong>
+                        </div>
+                        @if (Model.Products.Any())
+                        {
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>تعداد محصولات:</span>
+                                <strong>@Model.Products.Count قلم</strong>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(Model.AppliedDiscountCode))
+                        {
+                            <div class="d-flex justify-content-between mb-2 text-success">
+                                <span>تخفیف کد @Model.AppliedDiscountCode:</span>
+                                <strong>-@(Model.DiscountAmount?.ToString("N0") ?? "0") تومان</strong>
+                            </div>
+                        }
+                        <hr />
+                        @if (Model.Items.Any())
+                        {
+                            <div class="alert alert-info small">
+                                💡 قیمت نهایی جعبه‌های شیرینی بعد از وزن‌کشی توسط فروشگاه اعلام می‌شود.
+                                <br />اما مبلغ محصولات دارای قیمت مشخص قطعی است و قابل پرداخت فوری می‌باشد.
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-info small">
+                                💡 تمام اقلام سبد خرید شما قیمت ثابت دارند و قابل پرداخت فوری هستند.
+                            </div>
+                        }
+                        <div class="d-grid gap-2">
+                            <a href="/Home/Index" class="btn btn-outline-primary">➕ ادامه خرید از فروشگاه</a>
+                            <a href="/Cart/Checkout" class="btn btn-success btn-lg">✅ ثبت نهایی سفارش</a>
+                            <button type="button" id="clearCartBtn" class="btn btn-outline-danger w-100">🗑️ خالی کردن سبد خرید</button>
+                        </div>
+                        <div class="card mt-3 border-warning">
+                            <div class="card-body">
+                                <form id="applyDiscountForm" method="post">
+                                    <div class="input-group">
+                                        <input type="text" name="discountCode" class="form-control" placeholder="کد تخفیف" id="discountCodeInput" />
+                                        <button type="submit" class="btn btn-outline-primary">اعمال</button>
+                                    </div>
+                                </form>
+                                @if (!string.IsNullOrEmpty(Model.AppliedDiscountCode))
+                                {
+                                    <div class="mt-2">
+                                        <span>کد اعمال شده: <strong>@Model.AppliedDiscountCode</strong></span>
+                                        <button type="button" id="removeDiscountBtn" class="btn btn-link text-danger">حذف</button>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        @if (Model.Items.Any())
+        {
+            <div class="alert alert-info mt-3 small">
+                <i class="bi bi-info-circle"></i>
+                توجه: وزن تقریبی جعبه‌های شیرینی بر اساس ظرفیت جعبه محاسبه شده است.
+                قیمت نهایی آنها پس از وزن‌کشی دقیق توسط فروشگاه تعیین و به شما اطلاع داده می‌شود.
+                محصولات دارای قیمت مشخص (کیک، دسر، شکلات، لوازم تولد و ...) بدون نیاز به تأیید فروشگاه قابل پرداخت هستند.
+            </div>
+        }
+    }
+</div>
+<style>
+    .cart-item {
+        transition: all 0.2s;
+        border-left: 4px solid #d4a056;
+    }
+    .cart-item:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .cart-item-title {
+        color: #d4a056;
+        margin-bottom: 5px;
+    }
+    .cart-summary {
+        position: sticky;
+        top: 20px;
+        border: 1px solid #d4a056;
+    }
+    .empty-cart {
+        font-size: 1.2rem;
+        color: #999;
+        padding: 50px;
+    }
+</style>
+@section Scripts {
+<script>
+    const csrfToken = $('input[name="__RequestVerificationToken"]').val();
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <text>
+        Swal.fire({
+            icon: 'success',
+            title: 'موفق',
+            text: '@TempData["SuccessMessage"]',
+            confirmButtonColor: '#28a745',
+            confirmButtonText: 'باشه'
+        });
+        </text>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <text>
+        Swal.fire({
+            icon: 'error',
+            title: 'خطا',
+            text: '@TempData["ErrorMessage"]',
+            confirmButtonColor: '#dc3545',
+            confirmButtonText: 'باشه'
+        });
+        </text>
+    }
+    @if (TempData["DiscountError"] != null)
+    {
+        <text>
+        Swal.fire({
+            icon: 'error',
+            title: 'خطا در تخفیف',
+            text: '@TempData["DiscountError"]',
+            confirmButtonColor: '#dc3545',
+            confirmButtonText: 'باشه'
+        });
+        </text>
+    }
+    @if (TempData["DiscountSuccess"] != null)
+    {
+        <text>
+        Swal.fire({
+            icon: 'success',
+            title: 'تخفیف اعمال شد',
+            text: '@TempData["DiscountSuccess"]',
+            confirmButtonColor: '#28a745',
+            confirmButtonText: 'باشه'
+        });
+        </text>
+    }
+    $(document).on('click', '.remove-product-btn', function(e) {
+        var productId = $(this).data('product-id');
+        Swal.fire({
+            title: 'آیا مطمئن هستید؟',
+            text: 'این محصول از سبد خرید حذف خواهد شد.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'بله، حذف کن',
+            cancelButtonText: 'انصراف'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                var form = $('<form>', {
+                    'method': 'post',
+                    'action': '/Cart/RemoveProduct'
+                }).append($('<input>', {
+                    'name': 'productId',
+                    'value': productId,
+                    'type': 'hidden'
+                })).append($('<input>', {
+                    'name': '__RequestVerificationToken',
+                    'value': csrfToken,
+                    'type': 'hidden'
+                }));
+                $('body').append(form);
+                form.submit();
+            }
+        });
+    });
+    $(document).on('click', '.remove-box-btn', function(e) {
+        var itemId = $(this).data('item-id');
+        Swal.fire({
+            title: 'آیا مطمئن هستید؟',
+            text: 'این جعبه از سبد خرید حذف خواهد شد.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'بله، حذف کن',
+            cancelButtonText: 'انصراف'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                var form = $('<form>', {
+                    'method': 'post',
+                    'action': '/Cart/RemoveItem'
+                }).append($('<input>', {
+                    'name': 'id',
+                    'value': itemId,
+                    'type': 'hidden'
+                })).append($('<input>', {
+                    'name': '__RequestVerificationToken',
+                    'value': csrfToken,
+                    'type': 'hidden'
+                }));
+                $('body').append(form);
+                form.submit();
+            }
+        });
+    });
+    $('#clearCartBtn').on('click', function() {
+        Swal.fire({
+            title: 'آیا مطمئن هستید؟',
+            text: 'کل سبد خرید شما خالی خواهد شد. این عمل قابل بازگشت نیست.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'بله، خالی کن',
+            cancelButtonText: 'انصراف'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                var form = $('<form>', {
+                    'method': 'post',
+                    'action': '/Cart/ClearCart'
+                }).append($('<input>', {
+                    'name': '__RequestVerificationToken',
+                    'value': csrfToken,
+                    'type': 'hidden'
+                }));
+                $('body').append(form);
+                form.submit();
+            }
+        });
+    });
+    $('#applyDiscountForm').on('submit', function(e) {
+        e.preventDefault();
+        var discountCode = $('#discountCodeInput').val();
+        if (!discountCode) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'کد تخفیف وارد نشده',
+                text: 'لطفاً کد تخفیف خود را وارد کنید.',
+                confirmButtonText: 'باشه'
+            });
+            return;
+        }
+        var form = $(this);
+        $.ajax({
+            url: form.attr('action'),
+            type: 'POST',
+            data: { discountCode: discountCode, __RequestVerificationToken: csrfToken },
+            success: function(response) {
+                window.location.reload();
+            },
+            error: function(xhr) {
+                var errorMsg = xhr.responseText || 'خطا در اعمال کد تخفیف';
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطا',
+                    text: errorMsg,
+                    confirmButtonText: 'باشه'
+                });
+            }
+        });
+    });
+    $('#removeDiscountBtn').on('click', function() {
+        Swal.fire({
+            title: 'حذف کد تخفیف',
+            text: 'آیا از حذف کد تخفیف اطمینان دارید؟',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'بله، حذف کن',
+            cancelButtonText: 'انصراف'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                var form = $('<form>', {
+                    'method': 'post',
+                    'action': '/Cart/RemoveDiscount'
+                }).append($('<input>', {
+                    'name': '__RequestVerificationToken',
+                    'value': csrfToken,
+                    'type': 'hidden'
+                }));
+                $('body').append(form);
+                form.submit();
+            }
+        });
+    });
+</script>
+}

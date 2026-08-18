@@ -1,0 +1,815 @@
+﻿@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using SugarShop.Domain.Entities
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+@inject SugarShop.Infrastructure.Persistence.Sales.SugarShopSalesDbContext DbContext
+@using SugarShop.Web.ViewModels
+@using MD.PersianDateTime
+@{
+    var user = await UserManager.GetUserAsync(User);
+    var isAdmin = user != null && await UserManager.IsInRoleAsync(user, "Admin");
+    var isOrderManager = user != null && await UserManager.IsInRoleAsync(user, "OrderManager");
+    var isNormalUser = user != null && !isAdmin && !isOrderManager;
+    string ToPersianNumber(string input) => input.ToPersianNumber();
+    var siteSettings = await DbContext.SiteSettings.FirstOrDefaultAsync();
+    if (siteSettings != null)
+    {
+        ViewData["Title"] = string.IsNullOrEmpty(siteSettings.SiteTitle) ? "SugarShop" : siteSettings.SiteTitle;
+        ViewData["Description"] = siteSettings.SiteDescription;
+        if (!string.IsNullOrEmpty(siteSettings.FaviconPath))
+        {
+            <link rel="icon" type="image/x-icon" href="@siteSettings.FaviconPath">
+        }
+    }
+    var theme = await DbContext.ThemeSettings.OrderByDescending(t => t.Id).FirstOrDefaultAsync() ?? new ThemeSetting();
+    var isHeaderTransparent = theme.HeaderTransparency < 100; 
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
+    var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
+    bool isHomePage = currentController == "Home" && currentAction == "Index";
+    bool applyTransparentOverlay = isHeaderTransparent && isHomePage;
+    var headerMenu = await DbContext.MenuItems
+        .Where(m => m.Location == "header" && m.IsActive)
+        .OrderBy(m => m.Order)
+        .ToListAsync();
+    var footerMenu = await DbContext.MenuItems
+        .Where(m => m.Location == "footer" && m.IsActive)
+        .OrderBy(m => m.Order)
+        .ToListAsync();
+}
+@functions {
+    private string HexToRgb(string hex)
+    {
+        if (string.IsNullOrEmpty(hex)) return "255,255,255";
+        hex = hex.TrimStart('#');
+        if (hex.Length == 3)
+        {
+            hex = new string(new char[] { hex[0], hex[0], hex[1], hex[1], hex[2], hex[2] });
+        }
+        if (hex.Length != 6) return "255,255,255";
+        int r = Convert.ToInt32(hex.Substring(0, 2), 16);
+        int g = Convert.ToInt32(hex.Substring(2, 2), 16);
+        int b = Convert.ToInt32(hex.Substring(4, 2), 16);
+        return $"{r},{g},{b}";
+    }
+}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - @(siteSettings?.SiteTitle ?? "SugarShop")</title>
+    @if (!string.IsNullOrEmpty(ViewData["Description"] as string))
+    {
+        <meta name="description" content="@ViewData["Description"]" />
+    }
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.rtl.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/bootstrap-icons.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/SugarShop.Web.styles.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/lib/persian-datepicker/css/persian-datepicker.css" />
+    <link rel="stylesheet" href="~/lib/sweetalert2/sweetalert2.min.css" />
+    @await RenderSectionAsync("Styles", required: false)
+    <style>
+        html,
+        body {
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+        body {
+            background-color: @theme.PrimaryColor !important;
+            color: @theme.BodyTextColor;
+            display: flex;
+            flex-direction: column;
+        }
+        .main-content {
+            flex: 1 0 auto;
+            width: 100%;
+        }
+        .navbar {
+            background-color: rgba(@(HexToRgb(theme.HeaderBgColor)),
+                                   @(theme.HeaderTransparency / 100.0)) !important;
+            color: @theme.HeaderTextColor !important;
+            width: 100%;
+            z-index: 1050;
+            transition: all .3s ease;
+        }
+        @if (theme.HeaderType == HeaderType.Sticky)
+        {
+            <text>
+            .navbar {
+                position: sticky !important;
+                top: 0 !important;
+            }
+            </text>
+        }
+        else if (theme.HeaderType == HeaderType.Fixed)
+        {
+            <text>
+            .navbar {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+            }
+            </text>
+        }
+        @if (applyTransparentOverlay)
+        {
+            <text>
+            .navbar {
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                background-color: rgba(@(HexToRgb(theme.HeaderBgColor)), @(theme.HeaderTransparency / 100.0)) !important;
+            }
+            body {
+                padding-top: 0 !important;
+            }
+            </text>
+        }
+        
+        .navbar .navbar-brand,
+        .navbar .nav-link,
+        .navbar .dropdown-toggle,
+        .navbar .navbar-nav .nav-link { 
+            color: @theme.HeaderTextColor !important;
+        }
+        .navbar .nav-link:hover,
+        .navbar .dropdown-toggle:hover {
+            color: @theme.HeaderTextColor !important;
+            opacity: 0.8;
+        }
+
+        .navbar .dropdown-item {
+            color: @theme.HeaderTextColor;
+        }
+        .navbar .dropdown-item:hover {
+            background-color: rgba(255,255,255,.1);
+        }
+        .navbar-toggler {
+            border-color: @theme.HeaderTextColor !important;
+        }
+        .navbar-toggler:focus {
+            box-shadow: none !important;
+        }
+        .navbar-toggler-icon {
+            filter: none;
+        }
+        .site-logo {
+            height: 42px;
+            width: auto;
+            object-fit: contain;
+        }
+        .site-title {
+            color: @theme.HeaderTextColor;
+            font-size: 1.15rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .navbar-brand {
+            display: flex !important;
+            align-items: center;
+            gap: 10px;
+            padding-left: 30px;
+        }
+        @@media (max-width: 576px) {
+            .site-logo {
+                height: 36px;
+            }
+            .site-title {
+                border-left: 1px solid rgba(0,0,0,.15);
+                padding-left: 15px;
+            }
+        }
+        footer {
+            background-color: rgba(@(HexToRgb(theme.FooterBgColor)),
+                                   @(theme.FooterTransparency / 100.0)) !important;
+            color: @theme.FooterTextColor !important;
+            width: 100%;
+            min-height: 220px;
+            padding: 30px 0;
+            margin-top: auto;
+            transition: all .3s ease;
+        }
+        @if (theme.FooterType == FooterType.Fixed)
+        {
+            <text>
+            footer {
+                position: fixed !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                z-index: 1040 !important;
+            }
+            </text>
+        }
+        else if (theme.FooterType == FooterType.Sticky)
+        {
+            <text>
+            footer {
+                position: sticky !important;
+                bottom: 0 !important;
+                z-index: 1040 !important;
+            }
+            </text>
+        }
+        else
+        {
+            <text>
+            footer {
+                position: relative;
+            }
+            </text>
+        }
+        footer h5 {
+            color: @theme.FooterTextColor;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+        footer ul li {
+            margin-bottom: 8px;
+        }
+        footer .border-top {
+            border-color: rgba(255,255,255,.15) !important;
+        }
+        footer p,
+        footer li {
+            color: @theme.FooterTextColor;
+        }
+        footer a {
+            color: @theme.FooterTextColor !important;
+            text-decoration: none;
+            transition: .2s;
+        }
+        footer a:hover {
+            opacity: .8;
+        }
+        .dropdown-menu-end {
+            right: 0 !important;
+            left: auto !important;
+        }
+        @@media (max-width:768px) {
+            .dropdown-menu-end {
+                right: 10px !important;
+                left: auto !important;
+            }
+            footer {
+                text-align: center;
+            }
+            footer .form-control {
+                width: 100% !important;
+            }
+        }
+        .btn-primary {
+            background-color: @theme.PrimaryColor;
+            border-color: @theme.PrimaryColor;
+        }
+        .btn-primary:hover {
+            background-color: @theme.PrimaryColor !important;
+            border-color: @theme.PrimaryColor;
+            filter: brightness(.9);
+        }
+        .btn-outline-primary {
+            background-color: @theme.PrimaryColor !important;
+            border-color: @theme.PrimaryColor;
+        }
+        .btn-outline-primary:hover {
+            background-color: @theme.PrimaryColor !important;
+            border-color: @theme.PrimaryColor;
+            color: #fff;
+        }
+        footer {
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.05);
+            backdrop-filter: blur(2px);
+        }
+        footer::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 100%);
+            pointer-events: none;
+            z-index: 1;
+        }
+        footer .container {
+            position: relative;
+            z-index: 2;
+        }
+        footer h5 {
+            position: relative;
+            display: inline-block;
+            margin-bottom: 1.5rem !important;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            padding-bottom: 0.75rem;
+        }
+        footer h5::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 50px;
+            height: 3px;
+            background: linear-gradient(90deg, @theme.SecondaryColor, @theme.PrimaryColor);
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+        footer h5:hover::after {
+            width: 80px;
+        }
+        footer a {
+            transition: all 0.3s ease;
+            position: relative;
+            display: inline-block;
+        }
+        footer a:hover {
+            transform: translateX(-5px);
+            opacity: 1 !important;
+            color: @theme.SecondaryColor !important;
+        }
+        footer ul li {
+            transition: all 0.2s ease;
+        }
+        footer ul li:hover {
+            transform: translateX(-5px);
+        }
+        footer .mt-3 a {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 38px;
+            height: 38px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            margin: 0 5px;
+        }
+        footer .mt-3 a:hover {
+            background: @theme.PrimaryColor !important;
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        footer .form-control {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: inherit;
+            border-radius: 50px;
+            padding: 0.75rem 1.25rem;
+            transition: all 0.3s ease;
+        }
+        footer .form-control:focus {
+            background: rgba(255,255,255,0.15);
+            border-color: @theme.PrimaryColor !important;
+            box-shadow: 0 0 0 3px rgba(212, 160, 86, 0.2);
+            color: inherit;
+            outline: none;
+        }
+        footer .btn-primary {
+            border-radius: 50px;
+            padding: 0.6rem 1.2rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+            background: linear-gradient(135deg, @theme.PrimaryColor !important , @theme.SecondaryColor);
+            border: none;
+        }
+        footer .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(212, 160, 86, 0.4);
+        }
+        footer ul li i, 
+        footer ul li span {
+            vertical-align: middle;
+        }
+        footer .border-top {
+            border-top: 1px solid rgba(255,255,255,0.1) !important;
+            background: rgba(0,0,0,0.1);
+            backdrop-filter: blur(4px);
+        }
+        @@media (max-width: 768px) {
+            footer h5::after {
+                right: 50%;
+                transform: translateX(50%);
+            }
+            footer h5:hover::after {
+                width: 60px;
+            }
+            footer .btn-primary {
+                width: 100%;
+                margin-top: 5px;
+            }
+            footer .form-control {
+                text-align: center;
+            }
+        }
+        .user-info-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .user-name-link {
+            color: @theme.HeaderTextColor !important;
+            text-decoration: none;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: opacity 0.2s;
+        }
+        .user-name-link:hover {
+            opacity: 0.8;
+            text-decoration: none;
+            color: @theme.HeaderTextColor !important;
+        }
+        .logout-btn {
+            background: transparent;
+            border: 1px solid @theme.HeaderTextColor;
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 0.85rem;
+            color: @theme.HeaderTextColor !important;
+            transition: all 0.2s;
+        }
+        .logout-btn:hover {
+            background-color: rgba(255,255,255,0.2);
+            border-color: @theme.HeaderTextColor;
+        }
+        .user-info-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            height: 40px; 
+        }
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .user-name-link {
+            line-height: 32px;
+            padding: 0;
+        }
+        .logout-btn {
+            height: 32px;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            margin: 0;
+            padding: 0 12px;
+            border-radius: 20px;
+            background: transparent;
+            border: 1px solid @theme.HeaderTextColor;
+            color: @theme.HeaderTextColor !important;
+        }
+        .user-info-wrapper form {
+            margin: 0;
+            padding: 0;
+        }
+        .dot-grid-bg {
+        background-image: radial-gradient(circle, rgba(255,255,255,0.15) 1.2px, transparent 1.2px);
+        background-size: 15px 15px;
+    }
+    .logout-btn {
+    background: transparent;
+    border: 1px solid currentColor;
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 0.85rem;
+    color: inherit !important;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+.logout-btn:hover {
+    background-color: rgba(255,255,255,0.2);
+}
+.user-info-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 40px;
+}
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+.user-name-link {
+    line-height: 32px;
+    text-decoration: none;
+    padding: 0;
+}
+.user-name-link:hover {
+    text-decoration: none;
+}
+    </style>
+    @await Component.InvokeAsync("ThemeStyles")
+</head>
+<body class="@(theme.BodyDotPatternEnabled ? "dot-grid-bg" : "")" style="background-color: @theme.BodyBgColor; color: @theme.BodyTextColor;">
+    <header>
+        <nav class="navbar navbar-expand-lg navbar-dark border-bottom shadow-sm">
+            <div class="container-fluid">
+                <a class="navbar-brand d-flex align-items-center gap-2"
+                   asp-area=""
+                   asp-controller="Home"
+                   asp-action="Index">
+                    @if (siteSettings != null && !string.IsNullOrEmpty(siteSettings.LogoPath))
+                    {
+                        <img src="@siteSettings.LogoPath"
+                             alt="@siteSettings.SiteTitle"
+                             class="site-logo" />
+                    }
+                    <span class="site-title">
+                        @(siteSettings?.SiteTitle ?? "SugarShop")
+                    </span>
+                </a>
+                <button class="navbar-toggler"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#mainNavbar"
+                        aria-controls="mainNavbar"
+                        aria-expanded="false"
+                        aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="mainNavbar">
+                    <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                                                @foreach (var menuItem in headerMenu)
+                        {
+                            var absoluteUrl = menuItem.Url.StartsWith("/") ? menuItem.Url : "/" + menuItem.Url;
+                            <li class="nav-item">
+                                <a class="nav-link" href="@absoluteUrl">
+                                    @if (!string.IsNullOrEmpty(menuItem.Icon)) { <span class="ms-1">@menuItem.Icon</span> }
+                                    @menuItem.Title
+                                </a>
+                            </li>
+                        }
+                        <li class="nav-item">
+                            <a class="nav-link" asp-controller="Cart" asp-action="Index">
+                                🛒 سبد خرید
+                                <span id="cartBadge" class="badge bg-danger rounded-pill" style="display:none;">0</span>
+                            </a>
+                        </li>
+                    </ul>
+                    <ul class="navbar-nav">
+                        @if (SignInManager.IsSignedIn(User))
+                        {
+                            var currentUser = await UserManager.GetUserAsync(User);
+                            <li class="nav-item">
+                                <div class="user-info-wrapper">
+                                    @if (!string.IsNullOrEmpty(currentUser?.AvatarPath))
+                                    {
+                                        <img src="@currentUser.AvatarPath" class="user-avatar" alt="آواتار" />
+                                    }
+                                    else
+                                    {
+                                        <span>👤</span>
+                                    }
+                                    <a asp-controller="Profile" asp-action="Index"
+                                       class="user-name-link"
+                                       data-bs-toggle="tooltip"
+                                       data-bs-placement="bottom"
+                                       title="ورود به داشبورد کاربری">
+                                       @(currentUser?.FullName ?? currentUser?.UserName ?? "کاربر")
+                
+                                    </a>
+                                    <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="logout-btn">🚪 خروج</button>
+                                    </form>
+                                </div>
+                            </li>
+                        }
+                        else
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link" asp-controller="Account" asp-action="Login">ورود / ثبت‌نام</a>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </nav>
+    </header>
+    <script>
+    (function() {
+        // فقط در صفحات غیر از صفحه اصلی و در صورت عدم اعمال حالت شفاف مطلق
+        @if (!applyTransparentOverlay)
+        {
+            <text>
+            var header = document.querySelector('.navbar');
+            if (header) {
+                var headerHeight = header.offsetHeight;
+                document.body.style.paddingTop = headerHeight + 'px';
+            }
+            </text>
+        }
+    })();
+</script>
+    <div class="container main-content">
+        <main role="main" class="pb-3">
+            @RenderBody()
+        </main>
+    </div>
+    <footer>
+        <div class="container py-5">
+            <div class="row gy-4">
+                <div class="col-lg-4">
+                    <h5 class="mb-3">درباره ما</h5>
+                    <p style="text-align:justify;">
+                        @(siteSettings?.AboutShortText ?? "فروشگاه شیرینی‌جات شکر با بهترین کیفیت و تنوع بالا")
+                    </p>
+                    <div class="mt-3">
+                        @if (!string.IsNullOrEmpty(siteSettings?.InstagramUrl))
+                        {
+                            <a href="@siteSettings.InstagramUrl" target="_blank" class="me-3" title="اینستاگرام">
+                                <img src="~/images/icons/instagram.ico" alt="اینستاگرام" style="width: 20px; height: 20px; vertical-align: middle;" />
+                            </a>
+                        }
+                        @if (!string.IsNullOrEmpty(siteSettings?.TelegramUrl))
+                        {
+                            <a href="@siteSettings.TelegramUrl" target="_blank" class="me-3" title="تلگرام">
+                                <img src="~/images/icons/telegram.ico" alt="تلگرام" style="width: 20px; height: 20px; vertical-align: middle;" />
+                            </a>
+                        }
+                        @if (!string.IsNullOrEmpty(siteSettings?.WhatsAppUrl))
+                        {
+                            <a href="@siteSettings.WhatsAppUrl" target="_blank" class="me-3" title="واتساپ">
+                                <img src="~/images/icons/whatsapp.ico" alt="واتساپ" style="width: 20px; height: 20px; vertical-align: middle;" />
+                            </a>
+                        }
+                        @if (!string.IsNullOrEmpty(siteSettings?.baleUrl))
+                        {
+                            <a href="@siteSettings.baleUrl" target="_blank" class="me-3" title="بله">
+                                <img src="~/images/icons/bale.ico" alt="بله" style="width: 20px; height: 20px; vertical-align: middle;" />
+                            </a>
+                        }
+                        @if (!string.IsNullOrEmpty(siteSettings?.rubikaUrl))
+                        {
+                            <a href="@siteSettings.rubikaUrl" target="_blank" class="me-3" title="روبیکا">
+                                <img src="~/images/icons/rubika.ico" alt="روبیکا" style="width: 20px; height: 20px; vertical-align: middle;" />
+                            </a>
+                        }
+                        @if (!string.IsNullOrEmpty(siteSettings?.eitaaUrl))
+                        {
+                            <a href="@siteSettings.eitaaUrl" target="_blank" class="me-3" title="ایتا">
+                                <img src="~/images/icons/eitaa.ico" alt="ایتا" style="width: 20px; height: 20px; vertical-align: middle;" />
+                            </a>
+                        }
+                        @if (!string.IsNullOrEmpty(siteSettings?.soroushUrl))
+                        {
+                            <a href="@siteSettings.soroushUrl" target="_blank" class="me-3" title="سروش">
+                                <img src="~/images/icons/soroush.ico" alt="سروش" style="width: 20px; height: 20px; vertical-align: middle;" />
+                            </a>
+                        }
+                    </div>
+                </div>
+                <div class="col-lg-2 col-md-6">
+                    <h5 class="mb-3">لینک‌های سریع</h5>
+                    <ul class="list-unstyled">
+                        @if (!string.IsNullOrEmpty(siteSettings?.QuickLinksJson))
+                        {
+                            var links = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string,string>>>(siteSettings.QuickLinksJson);
+                            if (links != null)
+                            {
+                                foreach (var link in links)
+                                {
+                                    <li class="mb-2"><a href="@link["Url"]">@link["Title"]</a></li>
+                                }
+                            }
+                        }
+                        @foreach (var menuItem in footerMenu)
+                        {
+                            <li class="mb-2"><a href="@menuItem.Url">@menuItem.Title</a></li>
+                        }
+                    </ul>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <h5 class="mb-3">تماس با ما</h5>
+                    <ul class="list-unstyled">
+                        @if (!string.IsNullOrEmpty(siteSettings?.Address))
+                        {
+                            <li class="mb-2">🏢 @siteSettings.Address</li>
+                        }
+                        @if (!string.IsNullOrEmpty(siteSettings?.Phone))
+                        {
+                            <li class="mb-2">📞 @siteSettings.Phone.ToPersianNumber()</li>
+                        }
+                        @if (!string.IsNullOrEmpty(siteSettings?.Email))
+                        {
+                            <li class="mb-2">✉️ @siteSettings.Email</li>
+                        }
+                        @if (!string.IsNullOrEmpty(siteSettings?.WorkingHours))
+                        {
+                            <li class="mb-2">🕘 @siteSettings.WorkingHours.ToPersianNumber()</li>
+                        }
+                    </ul>
+                </div>
+                <div class="col-lg-3">
+                    <h5 class="mb-3">خبرنامه</h5>
+                    <p>برای دریافت آخرین اخبار و تخفیف‌ها ایمیل خود را وارد کنید.</p>
+                    <form asp-controller="Newsletter" asp-action="Subscribe" method="post">
+                        <input type="email" name="email" class="form-control mb-2" placeholder="آدرس ایمیل شما" required />
+                        <button type="submit" class="btn btn-primary w-100">عضویت در خبرنامه</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+            <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.15); width: 100vw; margin-left: calc(-50vw + 50%); margin-right: calc(-50vw + 50%);">
+    
+            <div class="footer-bottom py-3">
+                <div class="container">
+                    <div class="row align-items-center">
+                        <div class="col-md-6 text-center text-md-start mb-2 mb-md-0">
+                            <p class="mb-0" style="color: inherit; opacity: 0.8; font-size: 0.9rem;">
+                                &copy; @DateTime.Now.Year - @(siteSettings?.SiteTitle ?? "SugarShop") - تمامی حقوق محفوظ است.
+                            </p>
+                        </div>
+                        <div class="col-md-6 text-center text-md-end">
+                            <a href="https://www.soransoft.ir" target="_blank" class="powered-by d-flex align-items-center justify-content-center justify-content-md-end text-decoration-none" style="color: inherit; opacity: 0.8; transition: opacity 0.3s;">
+                                <img src="/images/SORANSOFT_LOGO.png" alt="SORANSOFT" class="powered-logo me-2" style="height: 24px; width: auto;" onerror="this.style.display='none'" />
+                                <span style="font-size: 0.9rem;">Powered by Soransoft</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </footer>
+<script src="~/lib/jquery/dist/jquery.min.js"></script>
+<script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+<script src="~/js/site.js" asp-append-version="true"></script>
+<script src="~/lib/persian-date/persian-date.js"></script>
+<script src="~/lib/persian-datepicker/js/persian-datepicker.js"></script>
+@await RenderSectionAsync("Scripts", required: false)
+<script src="~/lib/sweetalert2/sweetalert2.min.js"></script>
+<script>
+    function updateCartBadge() {
+        $.get('/Cart/GetCartState', function(data) {
+            if (data.totalItems > 0) {
+                $('#cartBadge').text(data.totalItems).show();
+            } else {
+                $('#cartBadge').hide();
+            }
+        });
+    }
+    setInterval(updateCartBadge, 5000);
+    updateCartBadge();
+    function adjustLayout() {
+        var header = document.querySelector('.navbar');
+        var footer = document.querySelector('footer');
+        @if (applyTransparentOverlay)
+        {
+            <text>
+            // در صفحه اصلی با هدر شفاف، padding-top را صفر نگه می‌داریم
+            document.body.style.paddingTop = '0';
+            </text>
+        }
+        else
+        {
+            <text>
+            if (header && (getComputedStyle(header).position === 'fixed' || getComputedStyle(header).position === 'sticky')) {
+                var newPadding = header.offsetHeight + 'px';
+                if (document.body.style.paddingTop !== newPadding) {
+                    document.body.style.paddingTop = newPadding;
+                }
+            } else {
+                if (document.body.style.paddingTop !== '0') {
+                    document.body.style.paddingTop = '0';
+                }
+            }
+            </text>
+        }
+        if (footer && (getComputedStyle(footer).position === 'fixed' || getComputedStyle(footer).position === 'sticky')) {
+            document.body.style.paddingBottom = footer.offsetHeight + 'px';
+        } else {
+            document.body.style.paddingBottom = '0';
+        }
+    }
+    // اجرای اولیه بلافاصله بعد از بارگذاری هدر (درون اسکریپت بالایی انجام شد)
+    // اما در صورت تغییر سایز پنجره، دوباره اجرا کن
+    window.addEventListener('resize', adjustLayout);
+    // همچنین برای اطمینان از تغییرات داینامیک (مثل لود فونت)
+    window.addEventListener('load', adjustLayout);
+    // فعال‌سازی Tooltip برای تمام المان‌هایی که data-bs-toggle="tooltip" دارند
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl)
+    });
+</script>
+</body>
+</html>

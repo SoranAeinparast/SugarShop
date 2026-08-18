@@ -1,0 +1,23 @@
+﻿@{
+    ViewData["Title"] = "ارسال خبرنامه";
+    Layout = "_AdminLayout";
+}
+<div class="card">
+    <div class="card-header">
+        <h4>📨 ارسال خبرنامه به تمام مشترکین فعال</h4>
+    </div>
+    <div class="card-body">
+        <form asp-action="Send" method="post">
+            <div class="mb-3">
+                <label class="form-label">موضوع</label>
+                <input type="text" name="subject" class="form-control" required />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">متن خبرنامه</label>
+                <textarea name="body" class="form-control" rows="10" required></textarea>
+                <small class="text-muted">لینک لغو اشتراک به طور خودکار به انتهای ایمیل اضافه می‌شود.</small>
+            </div>
+            <button type="submit" class="btn btn-primary">ارسال</button>
+        </form>
+    </div>
+</div>

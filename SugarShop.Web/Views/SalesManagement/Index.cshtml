@@ -1,0 +1,27 @@
+﻿@{
+    ViewData["Title"] = "مدیریت فروش";
+    Layout = "_AdminLayout";
+}
+<div class="card">
+    <div class="card-header">
+        <h4>🛒 مدیریت فروش</h4>
+    </div>
+    <div class="card-body">
+        <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active" id="orders-tab" data-bs-toggle="tab" data-bs-target="#orders" type="button" role="tab">📦 سفارشات مشتریان</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="custom-cakes-tab" data-bs-toggle="tab" data-bs-target="#custom-cakes" type="button" role="tab">🎂 کیک‌های سفارشی</button>
+            </li>
+        </ul>
+        <div class="tab-content mt-3">
+            <div class="tab-pane fade show active" id="orders" role="tabpanel">
+                <iframe src="/Admin/Orders" style="width:100%; min-height:600px; border:none;"></iframe>
+            </div>
+            <div class="tab-pane fade" id="custom-cakes" role="tabpanel">
+                <iframe src="/Admin/CustomCakeOrders" style="width:100%; min-height:600px; border:none;"></iframe>
+            </div>
+        </div>
+    </div>
+</div>

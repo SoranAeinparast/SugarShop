@@ -1,0 +1,226 @@
+﻿@using SugarShop.Domain.Entities.Sales
+@using System.Collections.Generic
+@using MD.PersianDateTime
+@model Order
+@{
+    ViewData["Title"] = $"جزئیات سفارش {Model.OrderCode}";
+    var productItems = Model.Items.Where(x => x.ItemType == OrderItemType.Product).ToList();
+    var boxGroups = Model.Items
+        .Where(x => x.ItemType == OrderItemType.SweetItem && !string.IsNullOrEmpty(x.BoxTitle))
+        .GroupBy(x => x.BoxTitle)
+        .ToList();
+    var sweetNames = ViewBag.SweetNames as Dictionary<int, string> ?? new Dictionary<int, string>();
+    var productNames = ViewBag.ProductNames as Dictionary<int, string> ?? new Dictionary<int, string>();
+    var boxInfos = ViewBag.BoxInfos as Dictionary<string, BoxFinalInfo> ?? new Dictionary<string, BoxFinalInfo>();
+    string ToPersianNumber(string input) => input.ToPersianNumber();
+    var hasProducts = productItems.Any();
+    var hasBoxes = boxGroups.Any();
+    decimal productTotal = productItems.Sum(p => p.TotalPriceSnapshot);
+    bool anyBoxPending = hasBoxes && boxGroups.Any(bg => !boxInfos.ContainsKey(bg.Key));
+    bool allBoxesFinalized = hasBoxes && !anyBoxPending;
+    decimal boxTotalFinalized = allBoxesFinalized ? boxInfos.Values.Sum(b => b.FinalPrice) : 0;
+    decimal totalFinalPrice = productTotal + boxTotalFinalized;
+}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>📦 سفارش @Model.OrderCode</h2>
+        <a asp-action="Orders" class="btn btn-secondary">بازگشت به لیست سفارشات</a>
+    </div>
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+    }
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header"><h5>اطلاعات ارسال</h5></div>
+                <div class="card-body">
+                    <p><strong>نام گیرنده:</strong> @Model.CustomerName</p>
+                    <p><strong>تلفن:</strong> @Model.CustomerPhone.ToPersianNumber()</p>
+                    <p><strong>آدرس:</strong> @Model.CustomerFullAddress</p>
+                    <p><strong>کد پستی:</strong> @Model.CustomerPostalCode.ToPersianNumber()</p>
+                    @if (Model.DeliveryDate.HasValue) { <p><strong>تاریخ تحویل:</strong> @Model.DeliveryDate.Value.ToString("yyyy/MM/dd").ToPersianNumber()</p> }
+                    @if (Model.DeliveryTime.HasValue) { <p><strong>ساعت تحویل:</strong> @Model.DeliveryTime.Value.ToString(@"hh\:mm").ToPersianNumber()</p> }
+                    @if (!string.IsNullOrEmpty(Model.Notes)) { <p><strong>توضیحات:</strong> @Model.Notes</p> }
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header"><h5>اطلاعات مالی</h5></div>
+                <div class="card-body">
+                    @if (!hasProducts && !hasBoxes)
+                    {
+                        <p class="text-muted">هیچ آیتمی در این سفارش وجود ندارد.</p>
+                    }
+                    else if (hasProducts && !hasBoxes)
+                    {
+                        <p><strong>قیمت نهایی کل:</strong> <span class="text-success fw-bold">@productTotal.ToString("N0").ToPersianNumber() تومان</span></p>
+                    }
+                    else if (!hasProducts && hasBoxes)
+                    {
+                        if (anyBoxPending)
+                        {
+                            <p><strong>قیمت نهایی کل:</strong> <span class="text-muted">قیمت جعبه/جعبه‌های شیرینی، بعد از وزن کشی دقیق توسط فروشگاه اعلام خواهد شد.</span></p>
+                        }
+                        else
+                        {
+                            <p><strong>قیمت نهایی کل:</strong> <span class="text-success fw-bold">@boxTotalFinalized.ToString("N0").ToPersianNumber() تومان</span></p>
+                        }
+                    }
+                    else if (hasProducts && hasBoxes)
+                    {
+                        if (anyBoxPending)
+                        {
+                            <p>
+                                <strong>قیمت نهایی کل:</strong>
+                                <span class="text-success fw-bold">@productTotal.ToString("N0").ToPersianNumber() تومان</span>
+                                <span class="text-muted"> + قیمت جعبه/جعبه‌های شیرینی، بعد از وزن کشی و اعلام توسط فروشگاه</span>
+                            </p>
+                        }
+                        else
+                        {
+                            <p><strong>قیمت نهایی کل:</strong> <span class="text-success fw-bold">@totalFinalPrice.ToString("N0").ToPersianNumber() تومان</span></p>
+                        }
+                    }
+                    <p><strong>وضعیت سفارش:</strong>
+                        <span class="badge bg-secondary">
+                            @(Model.OrderStatus switch {
+                                OrderStatus.AwaitingReview => "در انتظار بررسی",
+                                OrderStatus.PendingPayment => "در انتظار پرداخت",
+                                OrderStatus.Paid => "پرداخت شده",
+                                OrderStatus.Preparing => "در حال آماده‌سازی",
+                                OrderStatus.Shipped => "ارسال شده",
+                                OrderStatus.Delivered => "تحویل شده",
+                                OrderStatus.Cancelled => "لغو شده",
+                                _ => "نامشخص"
+                            })
+                        </span>
+                    </p>
+                    <p><strong>وضعیت پرداخت:</strong>
+                        <span class="badge bg-secondary">
+                            @(Model.PaymentStatus switch {
+                                PaymentStatus.Unpaid => "پرداخت نشده",
+                                PaymentStatus.Initiated => "در حال پرداخت",
+                                PaymentStatus.Succeeded => "پرداخت موفق",
+                                PaymentStatus.Failed => "پرداخت ناموفق",
+                                _ => "نامشخص"
+                            })
+                        </span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    @if (productItems.Any())
+    {
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">🛍️ محصولات عادی</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>محصول</th>
+                                <th class="text-center">تعداد</th>
+                                <th class="text-center">قیمت واحد</th>
+                                <th class="text-center">جمع</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var productItem in productItems)
+                            {
+                                var productName = productItem.ProductId.HasValue && productNames.ContainsKey(productItem.ProductId.Value)
+                                    ? productNames[productItem.ProductId.Value]
+                                    : "محصول نامشخص";
+                                <tr>
+                                    <td class="align-middle">@productName</td>
+                                    <td class="align-middle text-center">@productItem.Quantity</td>
+                                    <td class="align-middle text-center">@productItem.UnitPriceSnapshot.ToString("N0").ToPersianNumber() تومان</td>
+                                    <td class="align-middle text-center">@productItem.TotalPriceSnapshot.ToString("N0").ToPersianNumber() تومان</td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot class="table-secondary">
+                            <tr>
+                                <td colspan="3" class="text-end"><strong>جمع محصولات:</strong></td>
+                                <td class="text-center"><strong>@productItems.Sum(p => p.TotalPriceSnapshot).ToString("N0").ToPersianNumber() تومان</strong></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+    @if (boxGroups.Any())
+    {
+        <h4>📦 جعبه‌های شیرینی</h4>
+        foreach (var boxGroup in boxGroups)
+        {
+            var boxTitle = boxGroup.Key;
+            var sweetGroups = boxGroup.GroupBy(x => x.SweetItemId).ToList();
+            var boxInfo = boxInfos.ContainsKey(boxTitle) ? boxInfos[boxTitle] : null;
+            <div class="card mb-4 border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">📦 @boxTitle</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>🍪 شیرینی</th>
+                                    <th class="text-center">🔢 تعداد ردیف</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var sg in sweetGroups)
+                                {
+                                    var first = sg.First();
+                                    var name = first.SweetItemId.HasValue && sweetNames.ContainsKey(first.SweetItemId.Value)
+                                        ? sweetNames[first.SweetItemId.Value]
+                                        : (first.SweetItemId.HasValue ? $"شیرینی (کد {first.SweetItemId})" : "نامشخص");
+                                    var rowCount = sg.Count();
+                                    <tr>
+                                        <td class="align-middle"><strong>@name</strong></td>
+                                        <td class="align-middle text-center">@rowCount.ToPersianNumber() ردیف</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot class="table-secondary">
+                                <tr>
+                                    <td class="text-end"><strong>نوع شیرینی‌های انتخابی:</strong></td>
+                                    <td class="text-center"><strong>@sweetGroups.Count().ToPersianNumber() نوع شیرینی</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    @if (boxInfo != null)
+                    {
+                        <div class="alert alert-success mt-3 mb-0">
+                            <strong>⚖️ وزن نهایی جعبه:</strong> @boxInfo.FinalWeightGrams.ToPersianNumber() گرم &nbsp;|&nbsp;
+                            <strong>💰 قیمت نهایی جعبه:</strong> @boxInfo.FinalPrice.ToString("N0").ToPersianNumber() تومان
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning mt-3 mb-0">
+                            وزن و قیمت نهایی این جعبه هنوز توسط فروشگاه اعلام نشده است.
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+    @if (Model.IsPaymentEnabled && Model.PaymentStatus == PaymentStatus.Unpaid)
+    {
+        <div class="mt-3">
+            <form asp-action="PayOrder" method="post">
+                <input type="hidden" name="orderId" value="@Model.Id" />
+                <button type="submit" class="btn btn-success btn-lg">💳 پرداخت سفارش</button>
+            </form>
+        </div>
+    }
+</div>

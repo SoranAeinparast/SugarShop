@@ -1,0 +1,49 @@
+﻿@using SugarShop.Web.ViewModels
+@using MD.PersianDateTime
+@model List<UserWalletViewModel>
+@{
+    ViewData["Title"] = "مدیریت کیف پول کاربران";
+    Layout = "_AdminLayout";
+    string ToPersianNumber(string input) => input.ToPersianNumber();
+}
+<div class="card">
+    <div class="card-header d-flex justify-content-between">
+        <h4>💰 کیف پول کاربران</h4>
+        <a href="@Url.Action("Settings")" class="btn btn-info">⚙️ تنظیمات کیف پول</a>
+    </div>
+    <div class="card-body">
+        <form method="get" class="mb-3">
+            <div class="input-group">
+                <input type="text" name="searchTerm" class="form-control" placeholder="جستجوی نام کاربری، ایمیل یا نام کامل" value="@ViewBag.SearchTerm" />
+                <button type="submit" class="btn btn-primary">جستجو</button>
+            </div>
+        </form>
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>نام کاربری</th>
+                        <th>نام کامل</th>
+                        <th>ایمیل</th>
+                        <th>موجودی (تومان)</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td>@item.UserName</td>
+                            <td>@item.FullName</td>
+                            <td>@item.Email</td>
+                            <td>@item.Balance.ToString("N0")</td>
+                            <td>
+                                <a href="@Url.Action("Details", new { userId = item.UserId })" class="btn btn-sm btn-primary">📋 جزئیات</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

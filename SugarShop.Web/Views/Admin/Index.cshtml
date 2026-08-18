@@ -1,0 +1,658 @@
+﻿@using SugarShop.Domain.Entities.Sales
+@using SugarShop.Web.Extensions
+@using MD.PersianDateTime
+@{
+    ViewData["Title"] = "داشبورد مدیریت";
+    Layout = "_AdminLayout";
+    var totalOrders = (int)ViewBag.TotalOrders;
+    var totalUsers = (int)ViewBag.TotalUsers;
+    var totalProducts = (int)ViewBag.TotalProducts;
+    var totalRevenue = (decimal)ViewBag.TotalRevenue;
+    var todayOrders = (int)ViewBag.TodayOrders;
+    var todayRevenue = (decimal)ViewBag.TodayRevenue;
+    var unreadMessages = (int)ViewBag.UnreadMessages;
+    var awaitingOrders = (int)ViewBag.AwaitingOrders;
+    var pendingPayments = (int)ViewBag.PendingPayments;
+    var recentOrders = ViewBag.RecentOrders as List<Order> ?? new List<Order>();
+    var recentMessages = ViewBag.RecentMessages as List<ContactMessage> ?? new List<ContactMessage>();
+    var userNames = ViewBag.UserNames as Dictionary<string, string> ?? new Dictionary<string, string>();
+    var salesLabels = ViewBag.SalesLabels as List<string> ?? new List<string>();
+    var salesData = ViewBag.SalesData as List<decimal> ?? new List<decimal>();
+    var awaitingCount = (int)ViewBag.AwaitingCount;
+    var pendingCount = (int)ViewBag.PendingCount;
+    var paidCount = (int)ViewBag.PaidCount;
+    var preparingCount = (int)ViewBag.PreparingCount;
+    var deliveredCount = (int)ViewBag.DeliveredCount;
+    var totalStatusOrders = awaitingCount + pendingCount + paidCount + preparingCount + deliveredCount;
+}
+<style>
+    .dashboard-container {
+        padding: 20px;
+    }
+    .stat-card {
+        border: none;
+        border-radius: 16px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        position: relative;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    }
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+    }
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 100px;
+        height: 100px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 50%;
+        transform: translate(30%, -30%);
+    }
+    .stat-card .stat-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+        background: rgba(255,255,255,0.2);
+        color: white;
+    }
+    .stat-card .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: white;
+        margin: 0;
+    }
+    .stat-card .stat-label {
+        color: rgba(255,255,255,0.9);
+        font-size: 0.9rem;
+        margin: 0;
+    }
+    .stat-card .stat-change {
+        font-size: 0.8rem;
+        color: rgba(255,255,255,0.85);
+        margin-top: 8px;
+    }
+    .gradient-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .gradient-success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+    .gradient-warning { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+    .gradient-info { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+    .chart-card {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        border: 1px solid #f0f0f0;
+    }
+    .chart-card h5 {
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .bar-chart {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-around;
+        height: 200px;
+        gap: 8px;
+        padding: 10px 0;
+        border-bottom: 2px solid #e0e0e0;
+    }
+    .bar-item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        max-width: 80px;
+    }
+    .bar {
+        width: 100%;
+        background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+        border-radius: 8px 8px 0 0;
+        transition: all 0.3s ease;
+        position: relative;
+        min-height: 4px;
+        cursor: pointer;
+    }
+    .bar:hover {
+        opacity: 0.85;
+        transform: scaleY(1.02);
+    }
+    .bar-value {
+        position: absolute;
+        top: -25px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #667eea;
+        white-space: nowrap;
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+    .bar:hover .bar-value {
+        opacity: 1;
+    }
+    .bar-label {
+        font-size: 0.75rem;
+        color: #7f8c8d;
+        font-weight: 500;
+    }
+    .donut-chart {
+        position: relative;
+        width: 200px;
+        height: 200px;
+        margin: 0 auto;
+    }
+    .donut-chart svg {
+        transform: rotate(-90deg);
+    }
+    .donut-center {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+    }
+    .donut-center .value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #2c3e50;
+    }
+    .donut-center .label {
+        font-size: 0.8rem;
+        color: #7f8c8d;
+    }
+    .legend {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 20px;
+    }
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.9rem;
+    }
+    .legend-color {
+        width: 14px;
+        height: 14px;
+        border-radius: 4px;
+    }
+    .dashboard-table {
+        background: white;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    }
+    .dashboard-table .table-header {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 16px 20px;
+        border-bottom: 1px solid #dee2e6;
+    }
+    .dashboard-table .table-header h5 {
+        margin: 0;
+        font-weight: 700;
+        color: #2c3e50;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .dashboard-table table {
+        margin: 0;
+    }
+    .dashboard-table th {
+        background: #f8f9fa;
+        color: #495057;
+        font-weight: 600;
+        border: none;
+        padding: 12px 16px;
+    }
+    .dashboard-table td {
+        padding: 12px 16px;
+        vertical-align: middle;
+        border-color: #f0f0f0;
+    }
+    .dashboard-table tbody tr {
+        transition: background 0.2s;
+    }
+    .dashboard-table tbody tr:hover {
+        background: #f8f9fa;
+    }
+    .status-badge {
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        display: inline-block;
+    }
+    .status-awaiting { background: #fff3cd; color: #856404; }
+    .status-pending { background: #f8d7da; color: #721c24; }
+    .status-paid { background: #d4edda; color: #155724; }
+    .status-preparing { background: #cce5ff; color: #004085; }
+    .status-delivered { background: #d1ecf1; color: #0c5460; }
+    .status-unread { background: #ff416c; color: white; }
+    .status-read { background: #e9ecef; color: #495057; }
+    .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 12px;
+    }
+    .quick-action-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 20px 10px;
+        background: white;
+        border: 2px solid #f0f0f0;
+        border-radius: 12px;
+        text-decoration: none;
+        color: #2c3e50;
+        transition: all 0.3s ease;
+        gap: 8px;
+    }
+    .quick-action-btn:hover {
+        border-color: #667eea;
+        background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+        transform: translateY(-3px);
+        color: #667eea;
+    }
+    .quick-action-btn i {
+        font-size: 1.8rem;
+    }
+    .quick-action-btn span {
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-align: center;
+    }
+    .alert-card {
+        border-radius: 12px;
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 12px;
+        border: none;
+    }
+    .alert-card .alert-icon {
+        width: 45px;
+        height: 45px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        flex-shrink: 0;
+    }
+    .alert-warning-custom {
+        background: linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%);
+        color: #856404;
+    }
+    .alert-warning-custom .alert-icon {
+        background: rgba(133, 100, 4, 0.15);
+    }
+    .alert-info-custom {
+        background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+        color: #0c5460;
+    }
+    .alert-info-custom .alert-icon {
+        background: rgba(12, 84, 96, 0.15);
+    }
+    @@media (max-width: 768px) {
+        .stat-card .stat-value { font-size: 1.5rem; }
+        .stat-card .stat-icon { width: 50px; height: 50px; font-size: 1.4rem; }
+        .bar-chart { height: 150px; }
+        .donut-chart { width: 160px; height: 160px; }
+    }
+</style>
+
+<div class="dashboard-container">
+    @if (awaitingOrders > 0 || unreadMessages > 0 || pendingPayments > 0)
+    {
+        <div class="row mb-4">
+            <div class="col-12">
+                @if (awaitingOrders > 0)
+                {
+                    <div class="alert-card alert-warning-custom">
+                        <div class="alert-icon">⏳</div>
+                        <div class="flex-grow-1">
+                            <strong>@awaitingOrders.ToString().ToPersianNumber() سفارش</strong> در انتظار بررسی شما هستند
+                        </div>
+                        <a href="@Url.Action("Orders", "Admin", new { status = "awaiting" })" class="btn btn-sm btn-warning">مشاهده</a>
+                    </div>
+                }
+                @if (unreadMessages > 0)
+                {
+                    <div class="alert-card alert-info-custom">
+                        <div class="alert-icon">💬</div>
+                        <div class="flex-grow-1">
+                            <strong>@unreadMessages.ToString().ToPersianNumber() پیام جدید</strong> از مشتریان دریافت شده است
+                        </div>
+                        <a href="@Url.Action("Messages", "ContactSettings", new { area = "Admin" })" class="btn btn-sm btn-info text-white">مشاهده</a>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    <div class="row g-3 mb-4">
+        <div class="col-lg-3 col-md-6">
+            <div class="stat-card gradient-primary">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="stat-icon">🛒</div>
+                    </div>
+                    <h3 class="stat-value">@todayOrders.ToString().ToPersianNumber()</h3>
+                    <p class="stat-label">سفارشات امروز</p>
+                    <p class="stat-change">مجموع: @totalOrders.ToString().ToPersianNumber() سفارش</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stat-card gradient-success">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="stat-icon">💰</div>
+                    </div>
+                    <h3 class="stat-value">@todayRevenue.ToString("N0").ToPersianNumber()</h3>
+                    <p class="stat-label">درآمد امروز (تومان)</p>
+                    <p class="stat-change">مجموع: @totalRevenue.ToString("N0").ToPersianNumber() تومان</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stat-card gradient-warning">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="stat-icon">👥</div>
+                    </div>
+                    <h3 class="stat-value">@totalUsers.ToString().ToPersianNumber()</h3>
+                    <p class="stat-label">کاربران ثبت‌نام شده</p>
+                    <p class="stat-change">محصولات: @totalProducts.ToString().ToPersianNumber() عدد</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stat-card gradient-info">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="stat-icon">💬</div>
+                    </div>
+                    <h3 class="stat-value">@unreadMessages.ToString().ToPersianNumber()</h3>
+                    <p class="stat-label">پیام‌های خوانده نشده</p>
+                    <p class="stat-change">در انتظار پرداخت: @pendingPayments.ToString().ToPersianNumber()</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row g-3 mb-4">
+        <div class="col-lg-8">
+            <div class="chart-card">
+                <h5>📈 نمودار فروش ۷ روز اخیر</h5>
+                @{
+                    var maxSale = salesData.Any() ? salesData.Max() : 1;
+                    if (maxSale == 0) maxSale = 1;
+                }
+                <div class="bar-chart">
+                    @for (int i = 0; i < salesData.Count; i++)
+                    {
+                        var heightPercent = (salesData[i] / maxSale) * 100;
+                        <div class="bar-item">
+                            <div class="bar" style="height: @(heightPercent)%;">
+                                <div class="bar-value">@salesData[i].ToString("N0").ToPersianNumber()</div>
+                            </div>
+                            <div class="bar-label">@salesLabels[i].ToPersianNumber()</div>
+                        </div>
+                    }
+                </div>
+                <div class="text-center mt-3 text-muted small">
+                    مقادیر به تومان
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="chart-card">
+                <h5>🎯 وضعیت سفارشات</h5>
+                @{
+                    var totalForChart = awaitingCount + pendingCount + paidCount + preparingCount + deliveredCount;
+                    if (totalForChart == 0) totalForChart = 1;
+                    
+                    var awaitingPercent = (awaitingCount * 100.0) / totalForChart;
+                    var pendingPercent = (pendingCount * 100.0) / totalForChart;
+                    var paidPercent = (paidCount * 100.0) / totalForChart;
+                    var preparingPercent = (preparingCount * 100.0) / totalForChart;
+                    var deliveredPercent = (deliveredCount * 100.0) / totalForChart;
+                    
+                    var circumference = 2 * Math.PI * 80;
+                    var awaitingOffset = 0;
+                    var pendingOffset = awaitingPercent * circumference / 100;
+                    var paidOffset = pendingOffset + (pendingPercent * circumference / 100);
+                    var preparingOffset = paidOffset + (paidPercent * circumference / 100);
+                    var deliveredOffset = preparingOffset + (preparingPercent * circumference / 100);
+                }
+                <div class="donut-chart">
+                    <svg width="200" height="200" viewBox="0 0 200 200">
+                        @if (awaitingCount > 0)
+                        {
+                            <circle cx="100" cy="100" r="80" fill="none" stroke="#ffc107" stroke-width="30"
+                                    stroke-dasharray="@(awaitingPercent * circumference / 100) @(circumference)"
+                                    stroke-dashoffset="-@awaitingOffset" />
+                        }
+                        @if (pendingCount > 0)
+                        {
+                            <circle cx="100" cy="100" r="80" fill="none" stroke="#dc3545" stroke-width="30"
+                                    stroke-dasharray="@(pendingPercent * circumference / 100) @(circumference)"
+                                    stroke-dashoffset="-@pendingOffset" />
+                        }
+                        @if (paidCount > 0)
+                        {
+                            <circle cx="100" cy="100" r="80" fill="none" stroke="#28a745" stroke-width="30"
+                                    stroke-dasharray="@(paidPercent * circumference / 100) @(circumference)"
+                                    stroke-dashoffset="-@paidOffset" />
+                        }
+                        @if (preparingCount > 0)
+                        {
+                            <circle cx="100" cy="100" r="80" fill="none" stroke="#007bff" stroke-width="30"
+                                    stroke-dasharray="@(preparingPercent * circumference / 100) @(circumference)"
+                                    stroke-dashoffset="-@preparingOffset" />
+                        }
+                        @if (deliveredCount > 0)
+                        {
+                            <circle cx="100" cy="100" r="80" fill="none" stroke="#17a2b8" stroke-width="30"
+                                    stroke-dasharray="@(deliveredPercent * circumference / 100) @(circumference)"
+                                    stroke-dashoffset="-@deliveredOffset" />
+                        }
+                    </svg>
+                    <div class="donut-center">
+                        <div class="value">@totalStatusOrders.ToString().ToPersianNumber()</div>
+                        <div class="label">کل سفارشات</div>
+                    </div>
+                </div>
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #ffc107;"></div>
+                        <span>در انتظار بررسی: @awaitingCount.ToString().ToPersianNumber()</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #dc3545;"></div>
+                        <span>در انتظار پرداخت: @pendingCount.ToString().ToPersianNumber()</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #28a745;"></div>
+                        <span>پرداخت شده: @paidCount.ToString().ToPersianNumber()</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #007bff;"></div>
+                        <span>در حال آماده‌سازی: @preparingCount.ToString().ToPersianNumber()</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #17a2b8;"></div>
+                        <span>تحویل شده: @deliveredCount.ToString().ToPersianNumber()</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row g-3 mb-4">
+        <div class="col-lg-7">
+            <div class="dashboard-table">
+                <div class="table-header">
+                    <h5>🛒 آخرین سفارشات</h5>
+                </div>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>کد سفارش</th>
+                                <th>مشتری</th>
+                                <th>مبلغ</th>
+                                <th>وضعیت</th>
+                                <th>تاریخ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (recentOrders.Any())
+                            {
+                                @foreach (var order in recentOrders)
+                                {
+                                    var userName = !string.IsNullOrEmpty(order.UserId) && userNames.ContainsKey(order.UserId)
+                                        ? userNames[order.UserId]
+                                        : order.CustomerName ?? "نامشخص";
+                                    var amount = order.FinalTotalAmount ?? order.TotalAmountSnapshot;
+                                    var persianDate = new PersianDateTime(order.CreatedAt).ToString("yyyy/MM/dd");
+                                    var statusClass = order.OrderStatus switch
+                                    {
+                                        OrderStatus.AwaitingReview => "status-awaiting",
+                                        OrderStatus.PendingPayment => "status-pending",
+                                        OrderStatus.Paid => "status-paid",
+                                        OrderStatus.Preparing => "status-preparing",
+                                        OrderStatus.Delivered => "status-delivered",
+                                        _ => ""
+                                    };
+                                    <tr>
+                                        <td><strong>#@order.OrderCode</strong></td>
+                                        <td>@userName</td>
+                                        <td>@amount.ToString("N0").ToPersianNumber() <small>تومان</small></td>
+                                        <td><span class="status-badge @statusClass">@order.OrderStatus.ToFarsi()</span></td>
+                                        <td>@persianDate.ToPersianNumber()</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">هنوز سفارشی ثبت نشده است</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-center p-3 border-top">
+                    <a href="@Url.Action("Orders", "Admin")" class="btn btn-sm btn-outline-primary">مشاهده همه سفارشات</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="dashboard-table">
+                <div class="table-header">
+                    <h5>💬 آخرین پیام‌های تماس</h5>
+                </div>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>نام</th>
+                                <th>موضوع</th>
+                                <th>وضعیت</th>
+                                <th>تاریخ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (recentMessages.Any())
+                            {
+                                @foreach (var msg in recentMessages)
+                                {
+                                    var persianDate = new PersianDateTime(msg.CreatedAt).ToString("MM/dd");
+                                    <tr>
+                                        <td>@msg.FullName</td>
+                                        <td>
+                                            <div style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                                @(msg.Subject.Length > 25 ? msg.Subject.Substring(0, 25) + "..." : msg.Subject)
+                                            </div>
+                                        </td>
+                                        <td>
+                                            @if (msg.IsRead)
+                                            {
+                                                <span class="status-badge status-read">خوانده شده</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="status-badge status-unread">جدید</span>
+                                            }
+                                        </td>
+                                        <td>@persianDate.ToPersianNumber()</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">پیامی دریافت نشده است</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-center p-3 border-top">
+                    <a href="@Url.Action("Messages", "ContactSettings", new { area = "Admin" })" class="btn btn-sm btn-outline-primary">مشاهده همه پیام‌ها</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="chart-card mt-4">
+    <h5>⚡ دسترسی سریع</h5>
+    <div class="quick-actions">
+        <a href="@Url.Action("Orders", "Admin")" class="quick-action-btn">
+            <i>🛒</i>
+            <span>سفارشات</span>
+        </a>
+        @if (ViewBag.IsAdmin == true || ViewBag.IsOwner == true)
+        {
+            <a href="@Url.Action("Index", "Products")" class="quick-action-btn">
+                <i>🍰</i>
+                <span>محصولات</span>
+            </a>
+            <a href="@Url.Action("Index", "SweetItems")" class="quick-action-btn">
+                <i>🍪</i>
+                <span>شیرینی‌ها</span>
+            </a>
+            <a href="@Url.Action("Index", "Users")" class="quick-action-btn">
+                <i>👥</i>
+                <span>کاربران</span>
+            </a>
+            <a href="@Url.Action("Index", "SiteSettings")" class="quick-action-btn">
+                <i>⚙️</i>
+                <span>تنظیمات سایت</span>
+            </a>
+        }
+        @if (ViewBag.IsOrderManager == true || ViewBag.IsAdmin == true || ViewBag.IsOwner == true)
+        {
+            <a href="@Url.Action("Messages", "ContactSettings", new { area = "Admin" })" class="quick-action-btn">
+                <i>💬</i>
+                <span>پیام‌های تماس</span>
+            </a>
+        }
+    </div>
+</div>
+</div>

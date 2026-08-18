@@ -1,0 +1,170 @@
+﻿@using SugarShop.Domain.Entities
+@model ApplicationUser
+@{
+ViewData["Title"] = "ویرایش پروفایل";
+var defaultAvatars = ViewBag.DefaultAvatars as List<string> ?? new List<string>();
+}
+
+<div class="container mt-5 mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold text-dark"><i class="bi bi-person-gear me-2"></i> ویرایش پروفایل</h2>
+        <a asp-action="Index" class="btn btn-outline-secondary rounded-pill shadow-sm">
+        <i class="bi bi-arrow-right"></i> بازگشت به داشبورد
+        </a>
+    </div>
+<div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+<div class="card-body p-4 p-md-5">
+<form asp-action="EditProfile" method="post">
+
+<div class="row g-4">
+<div class="col-lg-6">
+<h5 class="text-primary mb-4 border-bottom pb-2">
+<i class="bi bi-info-circle me-2"></i> اطلاعات پایه
+</h5>
+
+<div class="mb-3">
+<label class="form-label fw-semibold">نام کاربری</label>
+<input asp-for="UserName" class="form-control bg-light" disabled />
+<small class="text-muted">نام کاربری قابل تغییر نیست.</small>
+</div>
+
+<div class="mb-3">
+<label asp-for="Email" class="form-label fw-semibold">ایمیل</label>
+<input asp-for="Email" class="form-control bg-light" disabled />
+</div>
+
+<div class="mb-3">
+<label asp-for="FullName" class="form-label fw-semibold">نام کامل</label>
+<input asp-for="FullName" class="form-control custom-input" placeholder="نام و نام خانوادگی خود را وارد کنید" />
+<span asp-validation-for="FullName" class="text-danger small"></span>
+</div>
+
+<div class="mb-3">
+<label asp-for="PhoneNumber" class="form-label fw-semibold">شماره تلفن</label>
+<input asp-for="PhoneNumber" class="form-control custom-input" placeholder="مثلاً ۰۹۱۲۳۴۵۶۷۸۹" />
+<span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+</div>
+</div>
+<div class="col-lg-6">
+<h5 class="text-primary mb-4 border-bottom pb-2">
+<i class="bi bi-camera me-2"></i> تنظیمات ظاهری
+</h5>
+
+<div class="row">
+<div class="col-md-6 mb-3">
+<label asp-for="BirthDate" class="form-label fw-semibold">تاریخ تولد</label>
+<div class="input-group">
+<persian-date asp-for="BirthDate"></persian-date>
+</div>
+<span asp-validation-for="BirthDate" class="text-danger small"></span>
+</div>
+
+<div class="col-md-6 mb-3">
+<label asp-for="Gender" class="form-label fw-semibold">جنسیت</label>
+<select asp-for="Gender" class="form-select custom-input">
+<option value="">انتخاب کنید</option>
+<option value="Male">مرد</option>
+<option value="Female">زن</option>
+<option value="Other">سایر</option>
+</select>
+</div>
+</div>
+<div class="avatar-section mt-3">
+<label class="form-label fw-semibold d-block">آواتار فعلی</label>
+<div class="d-flex align-items-center gap-3 mb-3">
+@if (!string.IsNullOrEmpty(Model.AvatarPath))
+{
+<div class="position-relative">
+<img src="@Model.AvatarPath" class="rounded-circle border border-3 border-primary shadow-sm" style="width: 80px; height: 80px; object-fit: cover;" />
+</div>
+}
+else
+{
+<div class="rounded-circle bg-light d-flex align-items-center justify-content-center border" style="width: 80px; height: 80px;">
+<i class="bi bi-person fs-1 text-muted"></i>
+</div>
+}
+
+<div class="flex-grow-1">
+<label class="form-label small mb-1">تصویر پروفایل</label>
+<input type="hidden" name="AvatarPath" id="AvatarPath" value="@Model.AvatarPath" />
+<img id="avatarPreview" src="@Model.AvatarPath" class="img-thumbnail mb-1" style="max-height:80px; @(string.IsNullOrEmpty(Model.AvatarPath) ? "display:none;" : "")" />
+<button type="button" class="btn btn-sm btn-outline-primary open-media-picker" data-target="#AvatarPath" data-preview="#avatarPreview"><i class="bi bi-image"></i> انتخاب از کتابخانه</button>
+</div>
+</div>
+
+@if (defaultAvatars.Any())
+{
+<label class="form-label fw-semibold small">یا انتخاب از آواتارهای آماده</label>
+<div class="d-flex flex-wrap gap-2 p-2 bg-light rounded-3">
+@foreach (var avatar in defaultAvatars)
+{
+<img src="@avatar" 
+class="avatar-option shadow-sm"
+onclick="selectAvatar('@avatar')" 
+title="انتخاب این آواتار" />
+}
+</div>
+<input type="hidden" id="selectedAvatar" name="selectedAvatar" />
+<div id="selectedAvatarPreview" class="mt-2"></div>
+}
+</div>
+</div>
+</div>
+<div class="text-center mt-5 pt-4 border-top">
+<button type="submit" class="btn btn-primary btn-lg px-5 rounded-pill shadow">
+<i class="bi bi-check-circle me-2"></i> ذخیره تغییرات پروفایل
+</button>
+</div>
+</form>
+</div>
+</div>
+</div>
+@section Styles {
+<link href="~/lib/persian-datepicker/css/persian-datepicker.css" rel="stylesheet" />
+<style>
+body {
+background-color: #f8f9fa;
+}
+
+.custom-input {
+border: 1.5px solid #e0e0e0;
+transition: all 0.3s ease;
+}
+
+.custom-input:focus {
+border-color: #ff416c;
+box-shadow: 0 0 0 0.25rem rgba(255, 65, 108, 0.15);
+}
+.avatar-option {
+width: 50px;
+height: 50px;
+border-radius: 50%;
+cursor: pointer;
+object-fit: cover;
+transition: all 0.2s ease;
+border: 2px solid transparent;
+}
+.avatar-option:hover {
+transform: scale(1.1);
+border-color: #ff416c;
+}
+.card {
+transition: transform 0.3s ease;
+}
+.form-label {
+margin-bottom: 0.5rem;
+}
+</style>
+}
+@@section Scripts {
+<partial name="_ValidationScriptsPartial" />
+<script>
+function selectAvatar(avatarPath) {
+document.getElementById('selectedAvatar').value = avatarPath;
+document.getElementById('selectedAvatarPreview').innerHTML = 
+'<div class="text-center"><p class="small text-success">انتخاب شد!</p>' + 
+'<img src="' + avatarPath + '" style="width: 60px; border-radius: 50%; border: 2px solid #28a745;" /></div>';
+}
+</script>
+}

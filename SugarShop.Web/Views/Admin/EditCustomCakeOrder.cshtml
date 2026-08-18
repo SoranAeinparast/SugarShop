@@ -1,0 +1,102 @@
+﻿@using SugarShop.Domain.Entities.Sales
+@using MD.PersianDateTime
+@model CustomCakeOrder
+@{
+    ViewData["Title"] = "ویرایش سفارش کیک";
+    Layout = "_AdminLayout";
+    var deliveryDatePersian = Model.DesiredDeliveryDateTime.HasValue 
+        ? new PersianDateTime(Model.DesiredDeliveryDateTime.Value).ToString("yyyy/MM/dd") 
+        : "";
+}
+<div class="container mt-4">
+    <div class="card shadow-sm border-0 rounded-4">
+        <div class="card-header bg-warning text-dark rounded-top-4">
+            <h4 class="mb-0">✏️ ویرایش سفارش کیک #@Model.Id</h4>
+        </div>
+        <div class="card-body p-4">
+            <form asp-action="EditCustomCakeOrder" method="post" id="orderForm">
+                <input type="hidden" asp-for="Id" />
+                @Html.AntiForgeryToken()
+                <div asp-validation-summary="All" class="alert alert-danger"></div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">وزن تقریبی (گرم)</label>
+                        <input asp-for="WeightGrams" class="form-control" type="number" min="500" step="any" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">تعداد نفرات</label>
+                        <input asp-for="Servings" class="form-control" type="number" min="1" max="200" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">طعم کیک</label>
+                        <input asp-for="Flavor" class="form-control" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">شکل کیک</label>
+                        <input asp-for="Shape" class="form-control" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">مواد به کار رفته (اختیاری)</label>
+                        <textarea asp-for="Ingredients" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">نوع مراسم</label>
+                        <select asp-for="Occasion" class="form-select">
+                            <option value="">انتخاب کنید</option>
+                            <option>تولد</option>
+                            <option>سالگرد ازدواج</option>
+                            <option>عروسی</option>
+                            <option>نامزدی</option>
+                            <option>جشن تولد کودک</option>
+                            <option>سایر</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">تاریخ تحویل دلخواه (شمسی)</label>
+                        <input type="text" id="deliveryDatePersian" class="form-control persian-date" value="@deliveryDatePersian" placeholder="مثال: ۱۴۰۴/۰۳/۱۵" />
+                        <input type="hidden" name="desiredDeliveryDatePersian" id="deliveryDatePersianHidden" value="@deliveryDatePersian" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">ساعت تحویل</label>
+                        <input type="time" name="desiredDeliveryTime" class="form-control" value="@(Model.DesiredDeliveryDateTime?.ToString("HH:mm"))" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">توضیحات اضافی</label>
+                        <textarea asp-for="SpecialRequests" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">تصویر نمونه کیک (اختیاری)</label>
+                        <input type="hidden" name="SampleImagePath" id="SampleImagePath" value="@Model.SampleImagePath" />
+                        <img id="sampleImagePreview" src="@Model.SampleImagePath" class="img-thumbnail mb-1" style="max-height:80px; @(string.IsNullOrEmpty(Model.SampleImagePath) ? "display:none;" : "")" />
+                        <button type="button" class="btn btn-sm btn-outline-primary open-media-picker" data-target="#SampleImagePath" data-preview="#sampleImagePreview"><i class="bi bi-image"></i> انتخاب از کتابخانه</button>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">تصویر برای چاپ روی کیک (اختیاری)</label>
+                        <input type="hidden" name="PrintImagePath" id="PrintImagePath" value="@Model.PrintImagePath" />
+                        <img id="printImagePreview" src="@Model.PrintImagePath" class="img-thumbnail mb-1" style="max-height:80px; @(string.IsNullOrEmpty(Model.PrintImagePath) ? "display:none;" : "")" />
+                        <button type="button" class="btn btn-sm btn-outline-primary open-media-picker" data-target="#PrintImagePath" data-preview="#printImagePreview"><i class="bi bi-image"></i> انتخاب از کتابخانه</button>
+                    </div>
+                </div>
+                <div class="mt-4 d-flex justify-content-between">
+                    <button type="submit" class="btn btn-primary px-4 rounded-pill">💾 ذخیره تغییرات</button>
+                    <a asp-action="CustomCakeOrders" class="btn btn-secondary rounded-pill">🔙 انصراف</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        $(function() {
+            $('#deliveryDatePersian').persianDatepicker({
+                format: 'YYYY/MM/DD',
+                autoClose: true,
+                observer: true,
+                onSelect: function() {
+                    $('#deliveryDatePersianHidden').val($('#deliveryDatePersian').val());
+                }
+            });
+        });
+    </script>
+}

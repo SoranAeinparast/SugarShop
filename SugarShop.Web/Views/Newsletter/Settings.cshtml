@@ -1,0 +1,53 @@
+﻿@{
+    ViewData["Title"] = "تنظیمات SMTP";
+    Layout = "_AdminLayout";
+}
+@model SugarShop.Domain.Entities.Newsletter.NewsletterSetting
+<div class="card">
+    <div class="card-header">
+        <h4>⚙️ تنظیمات ارسال ایمیل</h4>
+    </div>
+    <div class="card-body">
+        <form asp-action="Settings" method="post">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">سرور SMTP</label>
+                        <input asp-for="SmtpHost" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">پورت</label>
+                        <input asp-for="SmtpPort" type="number" class="form-control" required />
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input asp-for="EnableSsl" class="form-check-input" />
+                        <label class="form-check-label">SSL</label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">نام کاربری</label>
+                        <input asp-for="Username" class="form-control" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">رمز عبور</label>
+                        <input asp-for="Password" type="password" class="form-control" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">ایمیل فرستنده</label>
+                        <input asp-for="FromEmail" type="email" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">نام فرستنده</label>
+                        <input asp-for="FromName" class="form-control" />
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input asp-for="IsActive" class="form-check-input" />
+                        <label class="form-check-label">فعال</label>
+                    </div>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-success">ذخیره</button>
+        </form>
+    </div>
+</div>

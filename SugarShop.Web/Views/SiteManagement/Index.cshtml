@@ -1,0 +1,105 @@
+﻿@{
+    ViewData["Title"] = "مدیریت سایت";
+    Layout = "_AdminLayout";
+}
+<div class="card">
+    <div class="card-header">
+        <h4>⚙️ مدیریت سایت</h4>
+    </div>
+    <div class="card-body">
+        <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active" id="products-tab" data-bs-toggle="tab" data-bs-target="#products" type="button" role="tab">🍰 مدیریت محصولات</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="pages-tab" data-bs-toggle="tab" data-bs-target="#pages" type="button" role="tab">📄 مدیریت صفحات سایت</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="menu-tab" data-bs-toggle="tab" data-bs-target="#menu" type="button" role="tab">📋 مدیریت منوها</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="discounts-tab" data-bs-toggle="tab" data-bs-target="#discounts" type="button" role="tab">🏷️ مدیریت کدهای تخفیف</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="wallet-tab" data-bs-toggle="tab" data-bs-target="#wallet" type="button" role="tab">💰 مدیریت کیف پول</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="gateways-tab" data-bs-toggle="tab" data-bs-target="#gateways" type="button" role="tab">💳 مدیریت درگاه‌های پرداخت</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="email-tab" data-bs-toggle="tab" data-bs-target="#email" type="button" role="tab">⚙️ تنظیمات ایمیل</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="sliders-tab" data-bs-toggle="tab" data-bs-target="#sliders" type="button" role="tab">🖼️ مدیریت اسلایدها</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="promo-tab" data-bs-toggle="tab" data-bs-target="#promo" type="button" role="tab">📢 مدیریت بنر پرومو</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="splash-tab" data-bs-toggle="tab" data-bs-target="#splash" type="button" role="tab">📱 مدیریت اسپلش</button>
+            </li>
+        </ul>
+        <div class="tab-content mt-3">
+            <div class="tab-pane fade show active" id="products" role="tabpanel">
+                <ul class="nav nav-pills mb-3">
+                    <li class="nav-item"><a class="nav-link active" href="#box-types" data-bs-toggle="tab">📦 جعبه‌ها</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#categories" data-bs-toggle="tab">🏷️ دسته‌بندی‌ها</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#sweet-items" data-bs-toggle="tab">🍪 شیرینی‌ها</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#products-list" data-bs-toggle="tab">💰 محصولات قیمت مشخص</a></li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="box-types"><iframe src="/BoxTypes" style="width:100%; min-height:500px; border:none;"></iframe></div>
+                    <div class="tab-pane fade" id="categories"><iframe src="/Categories" style="width:100%; min-height:500px; border:none;"></iframe></div>
+                    <div class="tab-pane fade" id="sweet-items"><iframe src="/SweetItems" style="width:100%; min-height:500px; border:none;"></iframe></div>
+                    <div class="tab-pane fade" id="products-list"><iframe src="/Products" style="width:100%; min-height:500px; border:none;"></iframe></div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="pages" role="tabpanel">
+                <ul class="nav nav-pills mb-3">
+                    <li class="nav-item"><a class="nav-link active" href="#gallery" data-bs-toggle="tab">🖼️ گالری</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#contact-page" data-bs-toggle="tab">📞 تماس با ما</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" onclick="alert('صفحه درباره ما در دست طراحی است'); return false;">ℹ️ درباره ما</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#academy" data-bs-toggle="tab">🎓 آموزشگاه</a></li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="gallery"><iframe src="/Admin/Gallery" style="width:100%; min-height:500px; border:none;"></iframe></div>
+                    <div class="tab-pane fade" id="contact-page"><iframe src="/Admin/ContactSettings" style="width:100%; min-height:500px; border:none;"></iframe></div>
+                    <div class="tab-pane fade" id="academy">
+                        <ul class="nav nav-pills mb-3">
+                            <li class="nav-item"><a class="nav-link active" href="#educational" data-bs-toggle="tab">📚 محتوای آموزشی</a></li>
+                            <li class="nav-item"><a class="nav-link" href="#ai-settings" data-bs-toggle="tab">🤖 تنظیمات هوشمند</a></li>
+                        </ul>
+                        <div class="tab-content">
+                            <div class="tab-pane fade show active" id="educational"><iframe src="/Admin/EducationalContent" style="width:100%; min-height:400px; border:none;"></iframe></div>
+                            <div class="tab-pane fade" id="ai-settings"><iframe src="/Admin/AIContentSettings" style="width:100%; min-height:400px; border:none;"></iframe></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="menu" role="tabpanel">
+                <iframe src="/Admin/Menu" style="width:100%; min-height:600px; border:none;"></iframe>
+            </div>
+            <div class="tab-pane fade" id="discounts" role="tabpanel">
+                <iframe src="/DiscountCodes" style="width:100%; min-height:600px; border:none;"></iframe>
+            </div>
+            <div class="tab-pane fade" id="wallet" role="tabpanel">
+                <iframe src="/Wallet" style="width:100%; min-height:600px; border:none;"></iframe>
+            </div>
+            <div class="tab-pane fade" id="gateways" role="tabpanel">
+                <iframe src="/PaymentGateways" style="width:100%; min-height:600px; border:none;"></iframe>
+            </div>
+            <div class="tab-pane fade" id="email" role="tabpanel">
+                <iframe src="/Newsletter/Settings" style="width:100%; min-height:600px; border:none;"></iframe>
+            </div>
+            <div class="tab-pane fade" id="sliders" role="tabpanel">
+                <iframe src="/Sliders" style="width:100%; min-height:600px; border:none;"></iframe>
+            </div>
+            <div class="tab-pane fade" id="promo" role="tabpanel">
+                <iframe src="/SiteSettings#promo" style="width:100%; min-height:600px; border:none;"></iframe>
+            </div>
+            <div class="tab-pane fade" id="splash" role="tabpanel">
+                <iframe src="/Admin/Splash" style="width:100%; min-height:600px; border:none;"></iframe>
+            </div>
+        </div>
+    </div>
+</div>

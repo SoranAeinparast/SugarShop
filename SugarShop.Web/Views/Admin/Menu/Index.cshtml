@@ -1,0 +1,69 @@
+﻿@{
+    ViewData["Title"] = "مدیریت منو";
+    Layout = "_AdminLayout";
+}
+@model List<SugarShop.Domain.Entities.MenuItem>
+@{
+    var location = ViewBag.Location as string ?? "header";
+}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h4>📋 مدیریت منو - @(location == "header" ? "هدر" : "فوتر")</h4>
+        <div>
+            <a href="@Url.Action("Index", new { location = "header" })" class="btn btn-sm @(location == "header" ? "btn-primary" : "btn-outline-secondary")">منوی هدر</a>
+            <a href="@Url.Action("Index", new { location = "footer" })" class="btn btn-sm @(location == "footer" ? "btn-primary" : "btn-outline-secondary")">منوی فوتر</a>
+            <a href="@Url.Action("Create", new { location = location })" class="btn btn-sm btn-success ms-2">➕ افزودن آیتم</a>
+        </div>
+    </div>
+    <div class="card-body">
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success">@TempData["Success"]</div>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger">@TempData["Error"]</div>
+        }
+        @if (!Model.Any())
+        {
+            <div class="alert alert-info">هیچ آیتمی در این منو وجود ندارد.</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-striped table-bordered">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>ترتیب</th>
+                            <th>عنوان</th>
+                            <th>آدرس (URL)</th>
+                            <th>آیکون</th>
+                            <th>فعال</th>
+                            <th>عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model)
+                        {
+                            <tr>
+                                <td class="align-middle">@item.Order</td>
+                                <td class="align-middle">@item.Title</td>
+                                <td class="align-middle">@item.Url</td>
+                                <td class="align-middle">@item.Icon</td>
+                                <td class="align-middle">@(item.IsActive ? "✔️" : "❌")</td>
+                                <td class="align-middle">
+                                    <a href="@Url.Action("Edit", new { id = item.Id })" class="btn btn-sm btn-warning">✏️ ویرایش</a>
+                                    <form asp-action="Delete" method="post" style="display:inline-block;" onsubmit="return confirm('آیا از حذف این آیتم اطمینان دارید؟');">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@item.Id" />
+                                        <button type="submit" class="btn btn-sm btn-danger">🗑️ حذف</button>
+                                    </form>
+                                </td
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>

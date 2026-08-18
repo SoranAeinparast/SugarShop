@@ -1,0 +1,39 @@
+﻿@using SugarShop.Domain.Entities.Sales
+@model PaymentGatewayAccount
+@{
+    var gateway = ViewBag.Gateway as PaymentGateway;
+    ViewData["Title"] = $"افزودن حساب جدید برای {gateway?.Title}";
+    Layout = "_AdminLayout";
+}
+<div class="card">
+    <div class="card-header">
+        <h4>➕ افزودن حساب جدید برای @gateway?.Title</h4>
+    </div>
+    <div class="card-body">
+        <form asp-action="CreateAccount" method="post">
+            <input type="hidden" asp-for="GatewayId" value="@gateway?.Id" />
+            <div class="mb-3">
+                <label asp-for="Title" class="form-label">عنوان حساب</label>
+                <input asp-for="Title" class="form-control" required />
+                <small class="text-muted">مثال: حساب اصلی زرین‌پال</small>
+            </div>
+            <div class="mb-3 form-check">
+                <input asp-for="IsActive" class="form-check-input" />
+                <label asp-for="IsActive" class="form-check-label">فعال</label>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">تنظیمات (JSON)</label>
+                <textarea name="configJson" rows="8" class="form-control font-monospace" style="direction: ltr; text-align: left;">@Model.ConfigData</textarea>
+                <small class="text-muted">
+                    مثال برای زرین‌پال:
+                    <pre class="mt-1 p-2 bg-light">{"MerchantId": "xxxx-xxxx-xxxx", "IsTestAccount": true}</pre>
+                    مثال برای بانک ملت:
+                    <pre class="mt-1 p-2 bg-light">{"TerminalId": "123456", "UserName": "myuser", "UserPassword": "mypass"}</pre>
+                </small>
+            </div>
+            <div asp-validation-summary="All" class="alert alert-danger"></div>
+            <button type="submit" class="btn btn-success">💾 ذخیره حساب</button>
+            <a asp-action="Index" class="btn btn-secondary">🔙 بازگشت</a>
+        </form>
+    </div>
+</div>

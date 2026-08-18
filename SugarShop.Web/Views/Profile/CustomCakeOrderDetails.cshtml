@@ -1,0 +1,205 @@
+﻿@using SugarShop.Domain.Entities.Sales
+@using MD.PersianDateTime
+@using SugarShop.Web.Extensions
+@model CustomCakeOrder
+@{
+    ViewData["Title"] = $"جزئیات سفارش کیک #{Model.Id}";
+    var createdDate = new PersianDateTime(Model.CreatedAt);
+    var createdStr = createdDate.ToString("yyyy/MM/dd HH:mm");
+    var statusClass = Model.Status == CustomCakeOrderStatus.Pending ? "bg-warning text-dark" :
+                      (Model.Status == CustomCakeOrderStatus.Accepted ? "bg-success" : "bg-danger");
+    var statusText = Model.Status == CustomCakeOrderStatus.Pending ? "⏳ در انتظار بررسی" :
+                     (Model.Status == CustomCakeOrderStatus.Accepted ? "✅ تأیید شده" : "❌ رد شده");
+}
+<style>
+    .order-detail-card {
+        border-radius: 1rem;
+        transition: transform 0.2s, box-shadow 0.2s;
+        background: #fff;
+        border: none;
+    }
+    .order-detail-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 1rem 2rem rgba(0,0,0,0.1);
+    }
+    .badge-status {
+        font-size: 0.9rem;
+        padding: 0.5rem 1rem;
+        border-radius: 2rem;
+        font-weight: 500;
+    }
+    .info-label {
+        font-weight: 600;
+        color: #6c757d;
+        display: inline-block;
+        width: 120px;
+    }
+    .info-value {
+        font-weight: 500;
+        color: #2c3e50;
+    }
+    .img-thumb-cake {
+        width: 100%;
+        max-height: 200px;
+        object-fit: contain;
+        border-radius: 0.75rem;
+        background: #f8f9fa;
+        padding: 0.5rem;
+        transition: transform 0.2s;
+    }
+    .img-thumb-cake:hover {
+        transform: scale(1.02);
+    }
+    .section-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #d4a056;
+        border-right: 4px solid #d4a056;
+        padding-right: 0.75rem;
+        margin-bottom: 1.5rem;
+    }
+    hr {
+        opacity: 0.3;
+    }
+    @@media (max-width: 768px) {
+        .info-label {
+            width: 100%;
+            margin-bottom: 0.25rem;
+        }
+        .info-value {
+            display: block;
+            margin-bottom: 0.75rem;
+        }
+    }
+</style>
+<div class="container mt-4">
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card order-detail-card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white rounded-top-4 d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">🎂 جزئیات سفارش کیک #@Model.Id</h4>
+                    <a asp-action="CustomCakeOrders" class="btn btn-sm btn-light rounded-pill">← بازگشت به لیست</a>
+                </div>
+                <div class="card-body p-4">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-2 border-bottom">
+                        <div>
+                            <span class="badge-status @statusClass">@statusText</span>
+                        </div>
+                        <div class="text-muted small">📅 ثبت: @createdStr.ToPersianNumber()</div>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-md-6 mb-3">
+                            <div class="info-label">وزن تقریبی:</div>
+                            <div class="info-value">@(Model.WeightGrams?.ToString().ToPersianNumber() ?? "-") گرم</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="info-label">تعداد نفرات:</div>
+                            <div class="info-value">@(Model.Servings?.ToString().ToPersianNumber() ?? "-") نفر</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="info-label">طعم کیک:</div>
+                            <div class="info-value">@(Model.Flavor ?? "-")</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="info-label">شکل کیک:</div>
+                            <div class="info-value">@(Model.Shape ?? "-")</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="info-label">مواد به کار رفته:</div>
+                            <div class="info-value">@(Model.Ingredients ?? "-")</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="info-label">نوع مراسم:</div>
+                            <div class="info-value">@(Model.Occasion ?? "-")</div>
+                        </div>
+                        @if (Model.DesiredDeliveryDateTime.HasValue)
+                        {
+                            var deliveryDate = new PersianDateTime(Model.DesiredDeliveryDateTime.Value);
+                            var deliveryStr = deliveryDate.ToString("yyyy/MM/dd HH:mm");
+                            <div class="col-12 mb-3">
+                                <div class="info-label">تاریخ تحویل دلخواه:</div>
+                                <div class="info-value">@deliveryStr.ToPersianNumber()</div>
+                            </div>
+                        }
+                    </div>
+                    @if (!string.IsNullOrEmpty(Model.SpecialRequests))
+                    {
+                        <div class="mb-4">
+                            <div class="section-title">📝 توضیحات اضافی</div>
+                            <div class="p-3 bg-light rounded-3">@Model.SpecialRequests</div>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.AdminNotes))
+                    {
+                        <div class="mb-4">
+                            <div class="section-title">💬 پیام فروشگاه</div>
+                            <div class="p-3 bg-warning bg-opacity-10 rounded-3 border-start border-warning border-4">@Model.AdminNotes</div>
+                        </div>
+                    }
+                    @if (Model.FinalPrice.HasValue)
+                    {
+                        <div class="mb-4">
+                            <div class="section-title">💰 هزینه نهایی</div>
+                            <div class="d-flex align-items-center justify-content-between flex-wrap">
+                                <span class="fs-2 fw-bold text-success">@Model.FinalPrice.Value.ToString("N0").ToPersianNumber() تومان</span>
+                                @if (Model.Status == CustomCakeOrderStatus.Accepted && !Model.IsPaid)
+                                {
+                                    <form asp-action="PayCustomCakeOrder" method="post">
+                                        <input type="hidden" name="id" value="@Model.Id" />
+                                        <button type="submit" class="btn btn-primary rounded-pill px-4 py-2">💳 پرداخت سفارش</button>
+                                    </form>
+                                }
+                                else if (Model.IsPaid)
+                                {
+                                    <span class="badge bg-success fs-6 p-2">✅ پرداخت شده</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            @if (!string.IsNullOrEmpty(Model.SampleImagePath) || !string.IsNullOrEmpty(Model.PrintImagePath))
+            {
+                <div class="card order-detail-card shadow-sm mb-4">
+                    <div class="card-header bg-light text-dark fw-bold rounded-top-4">📸 تصاویر سفارش</div>
+                    <div class="card-body p-3">
+                        @if (!string.IsNullOrEmpty(Model.SampleImagePath))
+                        {
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">تصویر نمونه کیک</label>
+                                <a href="@Model.SampleImagePath" target="_blank">
+                                    <img src="@Model.SampleImagePath" class="img-thumb-cake" alt="نمونه کیک" />
+                                </a>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(Model.PrintImagePath))
+                        {
+                            <div>
+                                <label class="form-label fw-semibold">تصویر برای چاپ روی کیک</label>
+                                <a href="@Model.PrintImagePath" target="_blank">
+                                    <img src="@Model.PrintImagePath" class="img-thumb-cake" alt="تصویر چاپ" />
+                                </a>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            <div class="card order-detail-card shadow-sm">
+                <div class="card-header bg-light text-dark fw-bold rounded-top-4">🔗 لینک‌های مفید</div>
+                <div class="card-body p-3">
+                    <a asp-action="CustomCakeOrders" class="btn btn-outline-secondary w-100 mb-2 rounded-pill">← لیست سفارشات من</a>
+                    <a asp-controller="CustomCakeOrder" asp-action="Create" class="btn btn-outline-primary w-100 rounded-pill">+ ثبت سفارش جدید</a>
+                    @if (Model.Status == CustomCakeOrderStatus.Pending)
+                    {
+                        <form asp-action="DeleteCustomCakeOrder" method="post" class="d-inline" onsubmit="return confirm('آیا از حذف این سفارش اطمینان دارید؟');">
+                            <input type="hidden" name="id" value="@Model.Id" />
+                            <button type="submit" class="btn btn-danger rounded-pill px-4">🗑️ حذف سفارش</button>
+                        </form>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

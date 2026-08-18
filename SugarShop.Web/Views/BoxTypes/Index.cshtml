@@ -1,0 +1,42 @@
+﻿@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "مدیریت جعبه‌ها";
+}
+@model List<SugarShop.Domain.Entities.BoxType>
+<div style="padding:20px;">
+    <h2>📦 لیست جعبه‌ها</h2>
+    <p>
+        <a href="@Url.Action("Create")" class="btn btn-primary">➕ افزودن جدید</a>
+    </p>
+    <table class="table table-bordered" style="width:100%; border-collapse:collapse;">
+        <thead>
+            <tr>
+                <th style="border:1px solid #ddd; padding:8px;">عنوان</th>
+                <th style="border:1px solid #ddd; padding:8px;">ظرفیت (گرم)</th>
+                <th style="border:1px solid #ddd; padding:8px;">حداکثر ردیف</th>
+                <th style="border:1px solid #ddd; padding:8px;">ترتیب</th>
+                <th style="border:1px solid #ddd; padding:8px;">فعال</th>
+                <th style="border:1px solid #ddd; padding:8px;">عملیات</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td style="border:1px solid #ddd; padding:8px;">@item.TitleFa</td>
+                    <td style="border:1px solid #ddd; padding:8px;">@item.CapacityGrams</td>
+                    <td style="border:1px solid #ddd; padding:8px;">@item.MaxRows</td>
+                    <td style="border:1px solid #ddd; padding:8px;">@item.SortOrder</td>
+                    <td style="border:1px solid #ddd; padding:8px;">@(item.IsActive ? "✔️ فعال" : "❌ غیرفعال")</td>
+                    <td style="border:1px solid #ddd; padding:8px;">
+                        <a href="@Url.Action("Edit", new { id = item.Id })" class="btn btn-sm btn-warning">ویرایش</a>
+                        <form asp-action="Delete" method="post" style="display:inline;">
+                            <input type="hidden" name="id" value="@item.Id" />
+                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('حذف شود؟')">حذف</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

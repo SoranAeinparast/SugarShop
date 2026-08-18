@@ -1,0 +1,12 @@
+# Secrets - never commit these
+appsettings.Production.json
+appsettings.Development.json
+
+# Build outputs
+bin/
+obj/
+
+# User-specific files
+*.user
+*.suo
+.vs/

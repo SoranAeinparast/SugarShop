@@ -1,0 +1,71 @@
+﻿@using MD.PersianDateTime
+@using SugarShop.Web.Extensions
+@model SugarShop.Domain.Entities.EducationalContent
+@{
+    ViewData["Title"] = Model.Title;
+}
+<div class="container mt-4">
+    <article class="card shadow-lg border-0 p-4">
+        <div class="row">
+            <div class="col-md-8">
+                <h1 class="display-5 fw-bold mb-3">@Model.Title</h1>
+                <div class="d-flex gap-3 text-muted small mb-4">
+                    @{
+                        string dateString = "-";
+                        if (Model.PublishedAt.HasValue)
+                        {
+                            dateString = new PersianDateTime(Model.PublishedAt.Value).ToString("yyyy/MM/dd").ToPersianNumber();
+                        }
+                    }
+                    <span><i class="bi bi-calendar3"></i> @dateString</span>
+                    <span><i class="bi bi-tag"></i> @(Model.Category ?? "آموزش")</span>
+                </div>
+            <div class="col-md-4 text-end">
+                @if (!string.IsNullOrEmpty(Model.FeaturedImageUrl) && !Model.FeaturedImageUrl.Contains("placeholder"))
+                {
+                    <img src="@Model.FeaturedImageUrl" class="img-fluid rounded shadow" style="max-height: 200px; object-fit: cover;" alt="@Model.Title">
+                }
+                else
+                {
+                    <div class="bg-warning bg-opacity-25 p-3 rounded text-center">
+                        <i class="bi bi-image" style="font-size: 4rem; color: #d4a056;"></i>
+                        <p class="text-muted small">تصویر شاخص</p>
+                    </div>
+                }
+            </div>
+        </div>
+        <div class="mt-4">
+            <div class="educational-content" style="font-size: 1.1rem; line-height: 1.9; color: #2c3e50;">
+                @Html.Raw(Model.BodyHtml)
+            </div>
+        </div>
+        <div class="mt-4 pt-3 border-top">
+            <a href="/Educational/Index" class="btn btn-outline-secondary rounded-pill">
+                <i class="bi bi-arrow-right"></i> بازگشت به آموزش‌ها
+            </a>
+        </div>
+            </article>
+        </div>
+<style>
+    .educational-content h2 {
+        color: #d4a056;
+        border-right: 4px solid #d4a056;
+        padding-right: 15px;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+        font-weight: 700;
+    }
+    .educational-content ul, .educational-content ol {
+        padding-right: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .educational-content li {
+        margin-bottom: 0.5rem;
+    }
+    .educational-content strong {
+        color: #2c3e50;
+    }
+    .educational-content p {
+        margin-bottom: 1.2rem;
+    }
+</style>

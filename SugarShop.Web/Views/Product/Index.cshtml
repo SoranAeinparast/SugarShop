@@ -1,0 +1,100 @@
+﻿@model List<SugarShop.Domain.Entities.Product>
+@{
+    ViewData["Title"] = "محصولات";
+}
+<div class="container mt-4">
+    <h2 class="mb-4">🛍️ محصولات</h2>
+    @if (!Model.Any())
+    {
+        <div class="alert alert-info">هیچ محصولی یافت نشد.</div>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var product in Model)
+            {
+                <div class="col-md-4 col-sm-6 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        @if (!string.IsNullOrEmpty(product.ImagePath))
+                        {
+                            <img src="@product.ImagePath" class="card-img-top" alt="@product.TitleFa" style="height: 200px; object-fit: cover;">
+                        }
+                        else
+                        {
+                            <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
+                                <span class="text-muted">🖼️ بدون تصویر</span>
+                            </div>
+                        }
+                        <div class="card-body">
+                            <h5 class="card-title">@product.TitleFa</h5>
+                            <p class="card-text">
+                                <strong>قیمت:</strong> @product.Price.ToString("N0") تومان<br />
+                                <strong>وزن:</strong> @(product.WeightGrams.HasValue ? $"{product.WeightGrams.Value} گرم" : "-")<br />
+                                <strong>دسته:</strong> @(product.Category?.TitleFa ?? "-")<br />
+                                <strong>موجودی:</strong>
+                                @if (product.Inventory > 0)
+                                {
+                                    <span class="badge bg-success">@product.Inventory عدد</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">ناموجود</span>
+                                }
+                            </p>
+                        </div>
+                        <div class="card-footer bg-transparent border-top-0">
+                            @if (product.Inventory > 0 && product.IsActive)
+                            {
+                                @if (product.Category != null && !product.Category.RequiresBoxSelection)
+                                {
+                                    <button class="btn btn-primary btn-sm w-100 add-to-cart-product" data-product-id="@product.Id">
+                                        ➕ افزودن به سبد خرید
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-success btn-sm w-100 add-row" data-sweet-id="@product.Id">
+                                        📦 افزودن به جعبه
+                                    </button>
+                                }
+                            }
+                            else
+                            {
+                                <button class="btn btn-secondary btn-sm w-100" disabled>ناموجود</button>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            $('.add-to-cart-product').click(function() {
+                var productId = $(this).data('product-id');
+                var $btn = $(this);
+                $btn.prop('disabled', true).text('در حال افزودن...');
+                const csrfToken = $('input[name="__RequestVerificationToken"]').val();
+                $.ajax({
+                    url: '/Cart/AddProductToCart',
+                    type: 'POST',
+                    headers: { 'RequestVerificationToken': csrfToken },
+                    data: { productId: productId, quantity: 1 }
+                })
+                    .done(function() {
+                        location.reload();
+                    })
+                    .fail(function(xhr) {
+                        alert('خطا: ' + (xhr.responseText || 'افزودن به سبد خرید با مشکل مواجه شد.'));
+                        $btn.prop('disabled', false).text('➕ افزودن به سبد خرید');
+                    });
+            });
+            $('.add-row').click(function() {
+                var sweetId = $(this).data('sweet-id');
+                window.location.href = '/Box/Status?addSweetId=' + sweetId;
+            });
+        });
+    </script>
+}

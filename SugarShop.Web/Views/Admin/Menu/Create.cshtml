@@ -1,0 +1,51 @@
+﻿@{
+    ViewData["Title"] = "افزودن آیتم منو";
+    Layout = "_AdminLayout";
+}
+@model SugarShop.Domain.Entities.MenuItem
+@{
+    var location = ViewBag.Location as string ?? "header";
+}
+<div class="card">
+    <div class="card-header">
+        <h4>➕ افزودن آیتم جدید به منوی @(location == "header" ? "هدر" : "فوتر")</h4>
+    </div>
+    <div class="card-body">
+        <form asp-action="Create" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="Location" value="@location" />
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">عنوان منو</label>
+                        <input asp-for="Title" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">آدرس (URL)</label>
+                        <input asp-for="Url" class="form-control" placeholder="/ یا /Home/Index" required />
+                        <small class="text-muted">مثال: /Category/cakes یا /Product</small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">ترتیب نمایش</label>
+                        <input asp-for="Order" type="number" class="form-control" value="0" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">آیکون (اختیاری)</label>
+                        <input asp-for="Icon" class="form-control" placeholder="مثال: 🏠" />
+                        <label class="form-label">🏠   </label>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input asp-for="IsActive" class="form-check-input" />
+                        <label class="form-check-label">فعال</label>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-3">
+                <button type="submit" class="btn btn-success">✅ ذخیره</button>
+                <a href="@Url.Action("Index", new { location = location })" class="btn btn-secondary">↩️ انصراف</a>
+            </div>
+        </form>
+    </div>
+</div>

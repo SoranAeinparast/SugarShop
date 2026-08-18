@@ -1,0 +1,396 @@
+﻿@using Microsoft.AspNetCore.Identity
+@using SugarShop.Domain.Entities
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - پنل مدیریت</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.rtl.min.css" />
+    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/lib/persian-datepicker/css/persian-datepicker.css" />
+    <style>
+        html, body {
+            background-color: #f8f9fa !important;
+            color: #212529 !important;
+        }
+        body.theme-dark,
+        body:not(.theme-light) {
+            background-color: #f8f9fa !important;
+            color: #212529 !important;
+        }
+        .sidebar-nav li.active > a {
+            background-color: rgba(44, 82, 130, 0.18) !important;
+            color: #1a365d !important;
+            border-right: 4px solid #2c5282;
+            font-weight: 600;
+            position: relative;
+            transition: all 0.25s ease;
+        }
+        .sidebar-nav li.active > a::before {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: linear-gradient(180deg, #2c5282, #1a365d);
+            border-radius: 0 4px 4px 0;
+        }
+        .sidebar-nav li.active > a span {
+            color: #1a365d !important;
+            font-weight: 600;
+        }
+        .sidebar-nav li.active > a:hover {
+            background-color: rgba(44, 82, 130, 0.25) !important;
+        }
+        .sidebar-nav li > a {
+            transition: background-color 0.25s ease, color 0.25s ease, border-right 0.25s ease;
+        }
+        .sidebar-nav {
+            scroll-behavior: smooth;
+        }
+    </style>
+    @await RenderSectionAsync("Styles", required: false)
+    @await Component.InvokeAsync("ThemeStyles")
+</head>
+<body>
+    <script>
+        try {
+            localStorage.removeItem('theme');
+            localStorage.removeItem('admin-theme');
+            localStorage.removeItem('darkMode');
+        } catch(e) {}
+        document.body.classList.remove('theme-dark');
+        document.body.classList.add('theme-light');
+    </script>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    @{
+        var user = await UserManager.GetUserAsync(User);
+        var isOwner = user != null && await UserManager.IsInRoleAsync(user, "Owner");
+        var isAdmin = user != null && await UserManager.IsInRoleAsync(user, "Admin");
+        var isOrderManager = user != null && await UserManager.IsInRoleAsync(user, "OrderManager");
+    }
+    <div class="admin-wrapper">
+        <aside class="admin-sidebar" id="adminSidebar">
+            <div class="sidebar-header">
+                <h3>پنل مدیریت</h3>
+            </div>
+            <nav class="sidebar-nav">
+                <ul>
+                    @if (isAdmin || isOwner || isOrderManager)
+                    {
+                        <li><a asp-area="" asp-controller="Admin" asp-action="Index">📊 <span>داشبورد</span></a></li>
+                        @if (isOwner)
+                        {
+                            <li class="nav-divider">SORSNSOFT</li>
+                            <li><a asp-area="Admin" asp-controller="Theme" asp-action="Index">🔑<span style="font-weight: bold; color: red;">OWNER ACCESS</span> 🔑</a></li>
+                        }
+                         @if (isAdmin || isOwner)
+                         {
+                        <li class="nav-divider">خبرنامه</li>
+                        <li><a asp-area="" asp-controller="Newsletter" asp-action="Subscribers">📧 <span>مشترکین خبرنامه</span></a></li>
+                        <li><a asp-area="" asp-controller="Newsletter" asp-action="Send">📨 <span>ارسال خبرنامه</span></a></li>
+                         }
+                    }
+                    @if (isAdmin || isOrderManager || isOwner)
+                    {
+                        <li class="nav-divider">مدیریت فروش</li>
+                        <li><a asp-area="" asp-controller="Admin" asp-action="Orders">🛒 <span>سفارشات مشتریان</span></a></li>
+                        <li><a asp-area="" asp-controller="Admin" asp-action="CustomCakeOrders">🎂 <span>کیک های سفارشی</span></a></li>
+                    }
+                    @if (isAdmin || isOwner)
+                    {
+                        <li><a asp-area="" asp-controller="DiscountCodes" asp-action="Index">🏷️ <span>کدهای تخفیف</span></a></li>
+                        <li class="nav-divider">مدیریت محصولات</li>
+                        <li><a asp-area="" asp-controller="Products" asp-action="Index">🍰 <span>محصولات قیمت مشخص</span></a></li>
+                        <li><a asp-area="" asp-controller="SweetItems" asp-action="Index">🍪 <span>شیرینی‌ها</span></a></li>
+                        <li><a asp-area="" asp-controller="Categories" asp-action="Index">🏷️ <span>دسته‌بندی‌ها</span></a></li>
+                        <li><a asp-area="" asp-controller="BoxTypes" asp-action="Index">📦 <span>جعبه‌ها</span></a></li>
+                        <li><a asp-area="Admin" asp-controller="CategoryHeaderSettings" asp-action="Index">🎨 <span>تنظیمات هدر دسته‌بندی</span></a></li>
+
+                    }
+                    @if (isAdmin || isOrderManager || isOwner)
+                    {
+                        <li class="nav-divider">مدیریت کاربران و ارتباطات</li>
+                        @if (isAdmin || isOwner)
+                        {
+                            <li><a asp-area="" asp-controller="Users" asp-action="Index">👥 <span>کاربران</span></a></li>
+                        }
+                        <li><a asp-area="" asp-controller="Tickets" asp-action="Index">📨 <span>پیام‌ها / تیکت ها</span></a></li>
+                        @if (isOrderManager)
+                        {
+                            <li><a asp-area="Admin" asp-controller="ContactSettings" asp-action="Messages">📨 <span>پیام‌های فرم تماس</span></a></li>
+                        }
+                    }
+                    @if (isAdmin || isOwner)
+                    {
+                        <li class="nav-divider">مدیریت ظاهر و صفحات</li>
+                        <li><a asp-area="" asp-controller="Sliders" asp-action="Index">🖼️ <span>اسلایدرها</span></a></li>
+                        <li><a asp-area="" asp-controller="Admin" asp-action="Splash">🖼️ <span>تنظیم اسپلش</span></a></li>
+                        <li><a href="/Admin/Gallery">🖼️ <span>گالری تصاویر و ویدئو</span></a></li>
+                        <li><a asp-area="Admin" asp-controller="MediaLibrary" asp-action="Index">📚 <span>کتابخانه رسانه</span></a></li>
+                        <li><a asp-area="Admin" asp-controller="ContactSettings" asp-action="Index">📞 <span>تنظیمات تماس با ما</span></a></li>
+                        <li><a asp-area="Admin" asp-controller="AboutUsSettings" asp-action="Index">📖 <span>تنظیمات صفحه درباره ما</span></a></li>
+                        
+                        <li class="nav-divider">تنظیمات</li>
+                        <li><a asp-area="" asp-controller="SiteSettings" asp-action="Index">⚙️ <span>تنظیمات سایت</span></a></li>
+                        <li><a asp-area="" asp-controller="Newsletter" asp-action="Settings">⚙️ <span>تنظیمات ایمیل</span></a></li>
+                        <li><a asp-area="Admin" asp-controller="ContactSettings" asp-action="Messages">📨 <span>پیام‌های فرم تماس</span></a></li>
+                        <li><a asp-area="" asp-controller="Menu" asp-action="Index">📋 <span>مدیریت منو</span></a></li>
+                        <li><a asp-area="" asp-controller="PaymentGateways" asp-action="Index">💳 <span>مدیریت درگاه‌ها</span></a></li>
+                        <li><a asp-area="" asp-controller="Wallet" asp-action="Index">💰 <span>مدیریت کیف پول</span></a></li>
+                        <li><a asp-area="Admin" asp-controller="EducationalContent" asp-action="Index">📚 <span>مدیریت محتوای آموزشی</span></a></li>
+                        <li><a asp-area="Admin" asp-controller="AIContentSettings" asp-action="Index">🤖 <span>تنظیمات تولید محتوای هوشمند</span></a></li>
+                    }
+                </ul>
+            </nav>
+        </aside>
+        <main class="admin-main">
+            <header class="admin-header">
+                <button class="sidebar-toggle" id="sidebarToggle">☰</button>
+                <div class="header-title">@ViewData["Title"]</div>
+                <div class="header-user">
+                    <span>@User.Identity?.Name</span>
+                    <form asp-area="" asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-sm btn-outline-danger ms-2">خروج</button>
+                    </form>
+                </div>
+            </header>
+            <div class="admin-content">
+                @RenderBody()
+            </div>
+        </main>
+    </div>
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/lib/persian-datepicker/js/persian-date.js"></script>
+    <script src="~/lib/persian-datepicker/js/persian-datepicker.js"></script>
+    <script>
+        $(document).ready(function() {
+            const currentPath = window.location.pathname.toLowerCase().replace(/\/$/, '');
+            const currentSearch = window.location.search.toLowerCase();
+            let activeLinkFound = false;
+            $('.sidebar-nav a').each(function() {
+                const href = $(this).attr('href');
+                if (!href || href === '#' || href === '') return;
+                try {
+                    const linkUrl = new URL(href, window.location.origin);
+                    const linkPath = linkUrl.pathname.toLowerCase().replace(/\/$/, '');
+                    const linkSearch = linkUrl.search.toLowerCase();
+                    if (linkPath === currentPath && linkSearch === currentSearch && linkSearch !== '') {
+                        $('.sidebar-nav li').removeClass('active');
+                        $(this).parent('li').addClass('active');
+                        activeLinkFound = true;
+                        return false;
+                    }
+                } catch (e) { }
+            });
+            if (!activeLinkFound) {
+                $('.sidebar-nav a').each(function() {
+                    const href = $(this).attr('href');
+                    if (!href || href === '#' || href === '') return;
+                    try {
+                        const linkUrl = new URL(href, window.location.origin);
+                        const linkPath = linkUrl.pathname.toLowerCase().replace(/\/$/, '');
+                        if (linkPath === currentPath) {
+                            $('.sidebar-nav li').removeClass('active');
+                            $(this).parent('li').addClass('active');
+                            activeLinkFound = true;
+                            return false;
+                        }
+                    } catch (e) { }
+                });
+            }
+            if (!activeLinkFound && currentPath) {
+                const pathSegments = currentPath.split('/').filter(s => s);
+                for (let i = pathSegments.length; i >= 2; i--) {
+                    const prefix = '/' + pathSegments.slice(0, i).join('/');
+                    $('.sidebar-nav a').each(function() {
+                        const href = $(this).attr('href');
+                        if (!href || href === '#' || href === '') return;
+                        try {
+                            const linkUrl = new URL(href, window.location.origin);
+                            const linkPath = linkUrl.pathname.toLowerCase().replace(/\/$/, '');
+                            if (linkPath === prefix) {
+                                $('.sidebar-nav li').removeClass('active');
+                                $(this).parent('li').addClass('active');
+                                activeLinkFound = true;
+                                return false;
+                            }
+                        } catch (e) { }
+                    });
+                    if (activeLinkFound) break;
+                }
+            }
+            const $activeItem = $('.sidebar-nav li.active').first();
+            if ($activeItem.length) {
+                const sidebar = document.querySelector('.sidebar-nav');
+                const item = $activeItem[0];
+                if (sidebar && item) {
+                    const sidebarRect = sidebar.getBoundingClientRect();
+                    const itemRect = item.getBoundingClientRect();
+                    if (itemRect.top < sidebarRect.top || itemRect.bottom > sidebarRect.bottom) {
+                        item.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    }
+                }
+            }
+            $('.sidebar-nav a').on('click', function(e) {
+                const href = $(this).attr('href');
+                if (!href || href.startsWith('http') && !href.startsWith(window.location.origin)) return;
+                $('.sidebar-nav li').removeClass('active');
+                $(this).parent('li').addClass('active');
+                this.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                if (window.innerWidth <= 992) {
+                    $('#adminSidebar').removeClass('show');
+                    $('#sidebarOverlay').removeClass('show');
+                    $('body').removeClass('sidebar-open');
+                }
+            });
+            $('#sidebarToggle').click(function() {
+                if (window.innerWidth <= 992) {
+                    $('#adminSidebar').toggleClass('show');
+                    $('#sidebarOverlay').toggleClass('show');
+                    $('body').toggleClass('sidebar-open');
+                } else {
+                    $('#adminSidebar').toggleClass('collapsed');
+                }
+            });
+
+            $('#sidebarOverlay').click(function() {
+                $('#adminSidebar').removeClass('show');
+                $(this).removeClass('show');
+                $('body').removeClass('sidebar-open');
+            });
+
+            $(window).on('resize', function() {
+                if (window.innerWidth > 992) {
+                    $('#adminSidebar').removeClass('show');
+                    $('#sidebarOverlay').removeClass('show');
+                    $('body').removeClass('sidebar-open');
+                }
+            });
+        });
+
+// ============================================================
+//  منطق مودال انتخاب‌گر فایل سراسری (Global Media Picker) - نسخه اصلاح‌شده
+// ============================================================
+let currentTargetInput = null;
+let currentPreviewImg = null;
+
+$(document).on('click', '.open-media-picker', function(e) {
+    e.preventDefault();
+    
+    let targetSelector = $(this).data('target');
+    let previewSelector = $(this).data('preview');
+    
+    // ✅ اصلاح: اطمینان از وجود فقط یک # در ابتدای سلکتورها
+    if (targetSelector && !targetSelector.startsWith('#')) targetSelector = '#' + targetSelector;
+    if (previewSelector && !previewSelector.startsWith('#')) previewSelector = '#' + previewSelector;
+
+    currentTargetInput = targetSelector ? $(targetSelector) : null;
+    currentPreviewImg = previewSelector ? $(previewSelector) : null;
+
+    // باز کردن مودال و بارگذاری داده‌ها
+    $('#mediaPickerModal').modal('show');
+    loadPickerFiles();
+});
+
+function loadPickerFiles(search = '', type = 'All') {
+    const grid = $('#pickerGrid');
+    grid.html('<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">در حال بارگذاری...</p></div>');
+
+    $.ajax({
+        url: '/Admin/MediaLibrary/PickerData',
+        type: 'GET',
+        data: { search: search, type: type },
+        success: function(response) {
+            grid.empty();
+            if (response.length === 0) {
+                grid.html('<div class="col-12 text-center text-muted py-4">هیچ فایلی یافت نشد.</div>');
+                return;
+            }
+
+            response.forEach(file => {
+                const isImage = file.fileType === 'Image';
+                const icon = isImage ? '' : `<i class="bi bi-file-earmark-text" style="font-size: 3rem; color: #999;"></i>`;
+                const imgTag = isImage ? `<img src="${file.filePath}" class="img-fluid rounded" style="height: 120px; width: 100%; object-fit: cover;" />` : `<div class="d-flex align-items-center justify-content-center bg-light rounded" style="height: 120px;">${icon}</div>`;
+
+                const html = `
+                    <div class="col-6 col-md-4">
+                        <div class="card h-100 media-picker-item" data-path="${file.filePath}" style="cursor: pointer; border: 2px solid transparent; transition: all 0.2s;">
+                            <div class="p-2">
+                                ${imgTag}
+                            </div>
+                            <div class="card-body p-2 text-center">
+                                <small class="text-truncate d-block" title="${file.originalName}">${file.originalName}</small>
+                                <span class="badge bg-secondary mt-1" style="font-size: 0.65rem;">${file.fileType}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                grid.append(html);
+            });
+        },
+        error: function() {
+            grid.html('<div class="col-12 text-center text-danger py-4">خطا در دریافت اطلاعات.</div>');
+        }
+    });
+}
+
+// ✅ انتخاب فایل از داخل مودال (با پشتیبانی هوشمند از img، video و div)
+$(document).on('click', '.media-picker-item', function() {
+    const filePath = $(this).data('path');
+    
+    // ۱. قرار دادن مسیر در اینپوت هدف
+    if (currentTargetInput && currentTargetInput.length) {
+        currentTargetInput.val(filePath);
+    }
+    
+    // ۲. به‌روزرسانی هوشمند پیش‌نمایش
+    if (currentPreviewImg && currentPreviewImg.length) {
+        const isVideo = filePath.match(/\.(mp4|webm|mov)$/i);
+        
+        if (currentPreviewImg.is('img')) {
+            // اگر المان مستقیماً img است
+            currentPreviewImg.attr('src', filePath).show();
+        } 
+        else if (currentPreviewImg.is('video')) {
+            // اگر المان مستقیماً video است
+            currentPreviewImg.attr('src', filePath).show();
+        } 
+        else {
+            // اگر المان یک container (مثل div) است، محتوای آن را بازنویسی کن
+            if (isVideo) {
+                currentPreviewImg.html(`<video src="${filePath}" controls style="max-width: 100%; max-height: 300px; border-radius: 8px;"></video>`);
+            } else {
+                currentPreviewImg.html(`<img src="${filePath}" alt="پیش‌نمایش" style="max-width: 100%; max-height: 300px; border-radius: 8px;" />`);
+            }
+        }
+    }
+
+    // . بستن مودال
+    $('#mediaPickerModal').modal('hide');
+});
+
+// فیلتر کردن در داخل مودال
+let searchTimeout;
+$('#pickerSearch').on('input', function() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        loadPickerFiles($(this).val(), $('#pickerType').val());
+    }, 500);
+});
+
+$('#pickerType').on('change', function() {
+    loadPickerFiles($('#pickerSearch').val(), $(this).val());
+});
+    </script>
+    @await RenderSectionAsync("Scripts", required: false)
+
+    <partial name="_MediaPickerModal" />
+</body>
+</html>

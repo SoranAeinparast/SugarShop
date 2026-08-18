@@ -1,0 +1,352 @@
+﻿@using SugarShop.Web.SessionModels
+@model BoxSessionState
+@{
+    ViewData["Title"] = "چیدن شیرینی در جعبه";
+    var selectedBox = ViewBag.SelectedBoxType as SugarShop.Domain.Entities.BoxType;
+    var boxTypes = ViewBag.BoxTypes as List<SugarShop.Domain.Entities.BoxType>;
+    var sweetItems = ViewBag.SweetItems as List<SugarShop.Domain.Entities.SweetItem>;
+    var returnToOrder = ViewBag.ReturnToOrder as int?;
+}
+@if (TempData["BoxFullMessage"] != null)
+{
+    <div class="alert alert-success text-center" style="position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9999; width:80%;">
+        @TempData["BoxFullMessage"]
+    </div>
+}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-lg-7">
+            <div class="box-container">
+                <div class="box-header">
+                    <h3 class="box-title">📦 @(selectedBox?.TitleFa ?? "جعبه شیرینی")</h3>
+                    @if (selectedBox != null)
+                    {
+                        <div class="box-capacity">ظرفیت: @selectedBox.CapacityGrams گرم | @selectedBox.MaxRows ردیف</div>
+                    }
+                </div>
+                <div class="box-grid" id="boxGrid">
+                    @if (Model.Items.Count == 0)
+                    {
+                        <div class="empty-box">🍪 جعبه خالی است<br /><small>از شیرینی‌های زیر انتخاب کنید</small></div>
+                    }
+                    else
+                    {
+                        for (int i = 0; i < Model.Items.Count; i++)
+                        {
+                            var item = Model.Items[i];
+                            <div class="box-row" data-row-index="@i">
+                                <div class="row-content">
+                                    <span class="row-number">ردیف @(i+1)</span>
+                                    <span class="row-name">🍬 @item.TitleFaSnapshot</span>
+                                    <span class="row-weight">~@item.ApproxWeightGrams گرم</span>
+                                </div>
+                                <div class="row-actions">
+                                    <button type="button" class="btn-replace" data-row="@i" title="جایگزینی">🔄</button>
+                                    <button type="button" class="btn-remove" data-row="@i" title="حذف">✖️</button>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+                <div class="box-footer">
+                    <div class="stats">
+                        <span>📊 @Model.TotalRowsUsed از @(selectedBox?.MaxRows ?? 0) ردیف</span>
+                        <span>⚖️ @Model.TotalApproxWeightGrams از @(selectedBox?.CapacityGrams ?? 0) گرم</span>
+                    </div>
+                    <div class="box-actions">
+                        <button type="button" class="btn-change-box" id="changeBoxBtn" @(selectedBox == null ? "disabled" : "")>🔄 تغییر جعبه</button>
+                        <button type="button" class="btn-clear" id="clearBoxBtn">🗑️ خالی کردن</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="card mb-4">
+                <div class="card-header"><h4>انتخاب جعبه</h4></div>
+                <div class="card-body">
+                    <div class="box-type-list">
+                        @foreach (var box in boxTypes)
+                        {
+                            <div class="box-type-item @(selectedBox?.Id == box.Id ? "active" : "")">
+                                <div class="box-type-info">
+                                    <strong>@box.TitleFa</strong>
+                                    <small>@box.CapacityGrams گرم / @box.MaxRows ردیف</small>
+                                </div>
+                                @if (selectedBox?.Id != box.Id)
+                                {
+                                    <button class="btn-select-box" data-box-id="@box.Id">انتخاب</button>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-success">انتخاب شده</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h4>شیرینی‌ها</h4></div>
+                <div class="card-body sweet-list">
+                    @foreach (var sweet in sweetItems)
+                    {
+                        <div class="sweet-item">
+                            <div class="sweet-image">
+                                @if (!string.IsNullOrEmpty(sweet.ImagePath))
+                                {
+                                    <img src="@sweet.ImagePath" alt="@sweet.TitleFa" />
+                                }
+                                else
+                                {
+                                    <div class="sweet-placeholder">🍪</div>
+                                }
+                            </div>
+                            <div class="sweet-info">
+                                <div class="sweet-name">@sweet.TitleFa</div>
+                                <div class="sweet-details">
+                                    <small>⚖️ ~@sweet.ApproxWeightGrams گرم/عدد</small>
+                                    <small>💰 @sweet.PricePerKg.ToString("N0") تومان/کیلو</small>
+                                </div>
+                                <div class="sweet-actions">
+                                    <button class="btn-add-row" data-sweet-id="@sweet.Id">➕ افزودن ردیف</button>
+                                    <button class="btn-desc" data-sweet-name="@sweet.TitleFa" data-sweet-desc="@sweet.Description">📖 توضیحات</button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row mt-4">
+        <div class="col-12 text-center">
+            <button class="btn-submit-cart" id="addToCartBtn" @(Model.Items.Count == 0 || selectedBox == null ? "disabled" : "")>🛒 افزودن به سبد خرید</button>
+            <button class="btn-cancel" id="cancelBtn">❌ انصراف</button>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="sweetDescModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="descModalTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="descModalBody"></div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="changeBoxModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">تغییر جعبه</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>جعبه جدید را انتخاب کنید:</p>
+                <div id="changeBoxList">
+                    @foreach (var box in boxTypes)
+                    {
+                        <div class="change-box-option" data-box-id="@box.Id">
+                            <strong>@box.TitleFa</strong>
+                            <small>@box.CapacityGrams گرم / @box.MaxRows ردیف</small>
+                        </div>
+                    }
+                </div>
+                <div id="changeBoxError" class="alert alert-danger mt-3" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">انصراف</button>
+                <button type="button" class="btn btn-primary" id="confirmChangeBoxBtn">تغییر جعبه</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="replaceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">جایگزینی شیرینی</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>شیرینی جدید را انتخاب کنید:</p>
+                <select id="replaceSweetSelect" class="form-select">
+                    @foreach (var sweet in sweetItems)
+                    {
+                        <option value="@sweet.Id" data-weight="@sweet.ApproxWeightGrams">
+                            @sweet.TitleFa (~@sweet.ApproxWeightGrams گرم)
+                        </option>
+                    }
+                </select>
+                <div id="replaceError" class="alert alert-danger mt-3" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">انصراف</button>
+                <button type="button" class="btn btn-primary" id="confirmReplaceBtn">تایید</button>
+            </div>
+        </div>
+    </div>
+</div>
+<style>
+    .box-container {
+        border: 3px solid #d4a056;
+        border-radius: 20px;
+        background: #fdf8f0;
+        overflow: hidden;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    }
+    .box-header {
+        background: #d4a056;
+        color: white;
+        padding: 15px;
+        text-align: center;
+    }
+    .box-title { margin: 0; font-size: 1.4rem; }
+    .box-capacity { font-size: 0.85rem; opacity: 0.9; }
+    .box-grid { min-height: 300px; padding: 15px; }
+    .empty-box { text-align: center; padding: 50px; color: #999; font-size: 1.2rem; }
+    .box-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: white;
+        border: 1px solid #e0d5c0;
+        border-radius: 12px;
+        padding: 10px 15px;
+        margin-bottom: 10px;
+        transition: all 0.2s;
+    }
+    .box-row:hover { background: #fff8ef; border-color: #d4a056; }
+    .row-content { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+    .row-number { background: #d4a056; color: white; padding: 2px 8px; border-radius: 20px; font-size: 0.75rem; }
+    .row-name { font-weight: bold; }
+    .row-weight { color: #666; font-size: 0.8rem; }
+    .row-actions { display: flex; gap: 8px; }
+    .btn-replace, .btn-remove { background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 5px; border-radius: 8px; transition: all 0.2s; }
+    .btn-replace:hover { background: #e0e0e0; }
+    .btn-remove:hover { background: #ffe0e0; color: red; }
+    .box-footer { background: #f0e8d8; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .stats { display: flex; gap: 20px; font-size: 0.85rem; }
+    .btn-change-box, .btn-clear { padding: 6px 12px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; }
+    .btn-change-box { background: #d4a056; color: white; }
+    .btn-change-box:disabled { background: #ccc; cursor: not-allowed; }
+    .btn-clear { background: #dc3545; color: white; }
+    .box-type-list { display: flex; flex-direction: column; gap: 10px; }
+    .box-type-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid #ddd; border-radius: 10px; background: #f9f9f9; }
+    .box-type-item.active { background: #e8f5e9; border-color: #4caf50; }
+    .btn-select-box { background: #d4a056; color: white; border: none; padding: 5px 12px; border-radius: 8px; cursor: pointer; }
+    .sweet-list { max-height: 500px; overflow-y: auto; }
+    .sweet-item { display: flex; gap: 12px; padding: 10px; border-bottom: 1px solid #eee; align-items: center; }
+    .sweet-image img, .sweet-placeholder { width: 60px; height: 60px; border-radius: 12px; object-fit: cover; background: #f0e8d8; display: flex; align-items: center; justify-content: center; font-size: 2rem; }
+    .sweet-info { flex: 1; }
+    .sweet-name { font-weight: bold; margin-bottom: 5px; }
+    .sweet-details { display: flex; gap: 15px; margin-bottom: 8px; font-size: 0.75rem; color: #666; }
+    .sweet-actions { display: flex; gap: 8px; }
+    .btn-add-row, .btn-desc { padding: 4px 10px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.75rem; }
+    .btn-add-row { background: #28a745; color: white; }
+    .btn-add-row:disabled { background: #ccc; cursor: not-allowed; }
+    .btn-desc { background: #17a2b8; color: white; }
+    .btn-submit-cart { background: #d4a056; color: white; border: none; padding: 12px 30px; border-radius: 30px; font-size: 1.1rem; font-weight: bold; cursor: pointer; margin: 10px; }
+    .btn-submit-cart:disabled { background: #ccc; cursor: not-allowed; }
+    .btn-cancel { background: #6c757d; color: white; border: none; padding: 12px 30px; border-radius: 30px; cursor: pointer; }
+    .change-box-option { padding: 10px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+    .change-box-option:hover { background: #f0e8d8; border-color: #d4a056; }
+</style>
+@section Scripts {
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            let selectedChangeBoxId = null;
+            function showError(message) { alert('❌ ' + message); }
+            $('.btn-select-box').click(function() {
+                var boxId = $(this).data('box-id');
+                var $btn = $(this);
+                $btn.prop('disabled', true).text('در حال اعمال...');
+                $.post('/Box/SelectBoxType', { boxTypeId: boxId })
+                    .done(function() { location.reload(); })
+                    .fail(function(xhr) { $btn.prop('disabled', false).text('انتخاب'); showError(xhr.responseText); });
+            });
+            $('.btn-add-row').click(function() {
+                var sweetId = $(this).data('sweet-id');
+                var $btn = $(this);
+                $btn.prop('disabled', true).text('در حال افزودن...');
+                $.post('/Box/AddRow', { sweetItemId: sweetId })
+                    .done(function() { location.reload(); })
+                    .fail(function(xhr) { $btn.prop('disabled', false).text('➕ افزودن ردیف'); showError(xhr.responseText); });
+            });
+            $(document).on('click', '.btn-remove', function() {
+                var rowIndex = $(this).data('row');
+                if (confirm('این ردیف حذف شود؟')) {
+                    $.post('/Box/RemoveRow', { rowIndex: rowIndex })
+                        .done(function() { location.reload(); })
+                        .fail(function(xhr) { showError(xhr.responseText); });
+                }
+            });
+            $('#clearBoxBtn').click(function() {
+                if (confirm('کل جعبه خالی شود؟')) {
+                    $.post('/Box/Clear')
+                        .done(function() { location.reload(); })
+                        .fail(function(xhr) { showError(xhr.responseText); });
+                }
+            });
+            $('#changeBoxBtn').click(function() {
+                $('#changeBoxModal').modal('show');
+            });
+            $('.change-box-option').click(function() {
+                $('.change-box-option').css('background', '');
+                $(this).css('background', '#e8f5e9');
+                selectedChangeBoxId = $(this).data('box-id');
+            });
+            $('#confirmChangeBoxBtn').click(function() {
+                if (!selectedChangeBoxId) { $('#changeBoxError').text('لطفاً یک جعبه انتخاب کنید.').show(); return; }
+                $.post('/Box/ChangeBoxType', { newBoxTypeId: selectedChangeBoxId })
+                    .done(function() { $('#changeBoxModal').modal('hide'); location.reload(); })
+                    .fail(function(xhr) { $('#changeBoxError').text(xhr.responseText).show(); });
+            });
+            let currentReplaceRow = null;
+            $(document).on('click', '.btn-replace', function() {
+                currentReplaceRow = $(this).data('row');
+                $('#replaceModal').modal('show');
+                $('#replaceError').hide();
+            });
+            $('#confirmReplaceBtn').click(function() {
+                var newSweetId = $('#replaceSweetSelect').val();
+                if (!newSweetId) return;
+                $.post('/Box/ReplaceRow', { rowIndex: currentReplaceRow, sweetItemId: newSweetId })
+                    .done(function() { $('#replaceModal').modal('hide'); location.reload(); })
+                    .fail(function(xhr) { $('#replaceError').text(xhr.responseText).show(); });
+            });
+            $('.btn-desc').click(function() {
+                var name = $(this).data('sweet-name');
+                var desc = $(this).data('sweet-desc') || 'توضیحاتی ثبت نشده';
+                $('#descModalTitle').text(name);
+                $('#descModalBody').text(desc);
+                $('#sweetDescModal').modal('show');
+            });
+            $('#addToCartBtn').click(function() {
+                var $btn = $(this);
+                $btn.prop('disabled', true).text('در حال انتقال...');
+                var returnToOrder = '@returnToOrder';
+                var url = '/Box/AddToCart';
+                if (returnToOrder && returnToOrder !== '') {
+                    url = '/Box/AddToCart?orderId=' + returnToOrder;
+                }
+                $.post(url)
+                    .done(function() {
+                        if (returnToOrder && returnToOrder !== '') {
+                            window.location.href = '/Admin/OrderDetails/' + returnToOrder;
+                        } else {
+                            window.location.href = '/Cart';
+                        }
+                    })
+                    .fail(function(xhr) {
+                        $btn.prop('disabled', false).text('🛒 افزودن به سبد خرید');
+                        showError(xhr.responseText || 'خطا در افزودن');
+                    });
+            });
+            $('#cancelBtn').click(function() { window.location.href = '/'; });
+        });
+    </script>
+}

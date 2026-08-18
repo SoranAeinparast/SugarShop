@@ -1,0 +1,77 @@
+﻿@{
+    ViewData["Title"] = "دسترسی غیر مجاز";
+    Layout = "_Layout";
+}
+
+<style>
+    .error-page {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .error-card {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        max-width: 500px;
+        width: 100%;
+        padding: 50px 30px;
+        text-align: center;
+    }
+
+    .error-icon {
+        font-size: 5rem;
+        margin-bottom: 20px;
+        animation: shake 0.5s;
+    }
+
+    @@keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-10px); }
+        75% { transform: translateX(10px); }
+    }
+
+    .error-card h1 {
+        color: #dc3545;
+        font-size: 2rem;
+        margin-bottom: 15px;
+    }
+
+    .error-card p {
+        color: #6c757d;
+        font-size: 1.1rem;
+        margin-bottom: 30px;
+    }
+
+    .btn-home {
+        display: inline-block;
+        padding: 12px 30px;
+        background: linear-gradient(135deg, #d4a056 0%, #b8860b 100%);
+        color: white;
+        text-decoration: none;
+        border-radius: 10px;
+        font-weight: 700;
+        transition: all 0.3s;
+    }
+
+    .btn-home:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(212, 160, 86, 0.4);
+        color: white;
+    }
+</style>
+
+<div class="error-page">
+    <div class="error-card">
+        <div class="error-icon">🚫</div>
+        <h1>دسترسی ممنوع</h1>
+        <p>شما اجازه دسترسی به این صفحه را ندارید. لطفاً با حساب کاربری مناسب وارد شوید.</p>
+        <a href="@Url.Action("Login")" class="btn-home">
+            <i class="bi bi-box-arrow-in-right"></i> ورود به حساب
+        </a>
+    </div>
+</div>

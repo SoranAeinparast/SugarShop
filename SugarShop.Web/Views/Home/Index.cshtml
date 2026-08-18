@@ -1,0 +1,620 @@
+﻿@model SugarShop.Web.ViewModels.HomeIndexVm
+@{
+    ViewData["Title"] = "خانه";
+}
+@if (ViewBag.ShowSplash == true && !string.IsNullOrEmpty(ViewBag.SplashVideoPath))
+{
+    <div id="splashContainer">
+        <video id="splashVideo" autoplay muted playsinline>
+            <source src="@ViewBag.SplashVideoPath" type="video/mp4">
+            مرورگر شما از ویدئو پشتیبانی نمی‌کند.
+        </video>
+        <button id="enterButton">@ViewBag.SplashButtonText</button>
+    </div>
+}
+<div id="mainContent" class="@(ViewBag.ShowSplash == true ? "splash-hidden" : "")">
+    @if (ViewBag.SubscribeMessage != null)
+    {
+        <div class="alert alert-success text-center alert-dismissible fade show" role="alert">
+            @ViewBag.SubscribeMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (Model.Sliders != null && Model.Sliders.Any())
+    {
+        <div class="full-bleed">
+            <div id="mainSlider" class="carousel slide mb-5" data-bs-ride="carousel">
+                <div class="carousel-indicators">
+                    @for (int i = 0; i < Model.Sliders.Count; i++)
+                    {
+                        <button type="button" data-bs-target="#mainSlider" data-bs-slide-to="@i" class="@(i == 0 ? "active" : "")" aria-current="@(i == 0 ? "true" : "false")" aria-label="Slide @(i+1)"></button>
+                    }
+                </div>
+                <div class="carousel-inner rounded-4 overflow-hidden shadow">
+                    @for (int i = 0; i < Model.Sliders.Count; i++)
+                    {
+                        var slider = Model.Sliders[i];
+                        <div class="carousel-item @(i == 0 ? "active" : "")">
+                            @if (!string.IsNullOrEmpty(slider.ImagePath))
+                            {
+                                if (slider.IsVideo)
+                                {
+                                    <video class="d-block w-100" style="height: 100%; object-fit: cover;" autoplay muted loop playsinline>
+                                        <source src="@slider.ImagePath" type="video/webm">
+                                        <source src="@slider.ImagePath" type="video/mp4">
+                                        مرورگر شما از ویدیو پشتیبانی نمی‌کند.
+                                    </video>
+                                }
+                                else
+                                {
+                                    <img src="@slider.ImagePath" class="d-block w-100" alt="@slider.Title" style="object-fit: cover;">
+                                }
+                            }
+                            else
+                            {
+                                <div class="bg-secondary d-flex align-items-center justify-content-center h-100">
+                                    <span class="text-white">@slider.Title</span>
+                                </div>
+                            }
+                            <div class="carousel-caption">
+                                <h3>@slider.Title</h3>
+                                @if (!string.IsNullOrEmpty(slider.Subtitle))
+                                {
+                                    <p>@slider.Subtitle</p>
+                                }
+                                @if (!string.IsNullOrEmpty(slider.ButtonText) && !string.IsNullOrEmpty(slider.ButtonUrl))
+                                {
+                                    <a href="@slider.ButtonUrl" class="btn btn-warning fw-bold">@slider.ButtonText</a>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+                <button class="carousel-control-prev" type="button" data-bs-target="#mainSlider" data-bs-slide="prev">
+                    <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                    <span class="visually-hidden">قبلی</span>
+                </button>
+                <button class="carousel-control-next" type="button" data-bs-target="#mainSlider" data-bs-slide="next">
+                    <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                    <span class="visually-hidden">بعدی</span>
+                </button>
+            </div>
+        </div>
+    }
+    <h3 class="mt-5 mb-4 text-center">ویترین فروشگاه</h3>
+    @if (Model.Categories == null || !Model.Categories.Any())
+    {
+        <div class="alert alert-info text-center py-5">
+            دسته‌بندی فعلاً ثبت نشده است.
+        </div>
+    }
+    else
+    {
+        <div class="category-grid">
+            @foreach (var cat in Model.Categories)
+            {
+                <a class="category-card" href="/Category/@cat.Slug">
+                    <div class="category-card__inner">
+                        <div class="category-card__title">@cat.TitleFa</div>
+                        @if (!string.IsNullOrWhiteSpace(cat.ImagePath))
+                        {
+                            <img class="category-card__img" src="@cat.ImagePath" alt="@cat.TitleFa" loading="lazy" />
+                        }
+                    </div>
+                </a>
+            }
+        </div>
+    }
+    @if (Model.SiteSetting != null && Model.SiteSetting.PromoEnabled)
+    {
+        var sliderImages = string.IsNullOrEmpty(Model.SiteSetting.PromoSliderImages)
+            ? new List<string>()
+            : System.Text.Json.JsonSerializer.Deserialize<List<string>>(Model.SiteSetting.PromoSliderImages) ?? new List<string>();
+        sliderImages = sliderImages.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+        if (Model.SiteSetting.PromoSpecialEffectEnabled)
+        {
+            <style>
+                .promo-electric-wrapper {
+                    position: relative;
+                    margin: 80px 0;
+                    border-radius: 24px;
+                    background: @(Model.SiteSetting.PromoBgColor ?? "#b8860b");
+                    z-index: 1;
+                }
+                .electric-border-layer {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 3px;
+                    bottom: 0;
+                    border-radius: 24px;
+                    border: 4px solid rgba(255,255,255,0.8);
+                    filter: url(#turbulent-displace);
+                    pointer-events: none;
+                    z-index: 2;
+                }
+                .glow-layer-1, .glow-layer-2 {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    border-radius: 24px;
+                    pointer-events: none;
+                    z-index: 2;
+                }
+                .glow-layer-1 {
+                    border: 2px solid rgba(252, 162, 72, 0.6);
+                    filter: blur(1px);
+                }
+                .glow-layer-2 {
+                    border: 2px solid #e6e4e4;
+                    filter: blur(4px);
+                }
+                .overlay-electric {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    border-radius: 24px;
+                    mix-blend-mode: overlay;
+                    background: linear-gradient(-30deg, white, transparent 30%, transparent 70%, white);
+                    filter: blur(16px);
+                    opacity: 0.5;
+                    pointer-events: none;
+                    z-index: 2;
+                }
+                .background-glow-electric {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    border-radius: 24px;
+                    filter: blur(32px);
+                    background: radial-gradient(circle at 30% 50%, #fdf8f5, transparent);
+                    opacity: 0.4;
+                    z-index: 0;
+                    pointer-events: none;
+                }
+                .promo-content-electric {
+                    position: relative;
+                    padding: 70px 50px;
+                    color: white;
+                    z-index: 3;
+                }
+                .promo-badge-electric {
+                    display: inline-block;
+                    background: rgba(255,255,255,0.2);
+                    padding: 8px 18px;
+                    border-radius: 999px;
+                    margin-bottom: 20px;
+                    font-size: 0.9rem;
+                    backdrop-filter: blur(10px);
+                }
+                .promo-title-electric {
+                    font-size: 3rem;
+                    font-weight: 800;
+                    margin-bottom: 20px;
+                }
+                .promo-text-electric {
+                    font-size: 1.15rem;
+                    line-height: 1.8;
+                    max-width: 650px;
+                }
+                .promo-actions-electric {
+                    margin-top: 30px;
+                    display: flex;
+                    gap: 15px;
+                    flex-wrap: wrap;
+                }
+                @@media (max-width: 991px) {
+                    .promo-content-electric { padding: 40px 25px; text-align: center; }
+                    .promo-title-electric { font-size: 2rem; }
+                    .promo-text-electric { font-size: 1rem; }
+                    .promo-actions-electric { justify-content: center; }
+                }
+            </style>
+            <svg style="position: absolute; width: 0; height: 0;">
+                <defs>
+                    <filter id="turbulent-displace" colorInterpolationFilters="sRGB" x="-20%" y="-20%" width="140%" height="140%">
+                        <feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="10" result="noise1" seed="1" />
+                        <feOffset in="noise1" dx="0" dy="0" result="offsetNoise1"><animate attributeName="dy" values="700;0" dur="6s" repeatCount="indefinite" calcMode="linear" /></feOffset>
+                        <feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="10" result="noise2" seed="1" />
+                        <feOffset in="noise2" dx="0" dy="0" result="offsetNoise2"><animate attributeName="dy" values="0;-700" dur="6s" repeatCount="indefinite" calcMode="linear" /></feOffset>
+                        <feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="10" result="noise3" seed="2" />
+                        <feOffset in="noise3" dx="0" dy="0" result="offsetNoise3"><animate attributeName="dx" values="490;0" dur="6s" repeatCount="indefinite" calcMode="linear" /></feOffset>
+                        <feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="10" result="noise4" seed="2" />
+                        <feOffset in="noise4" dx="0" dy="0" result="offsetNoise4"><animate attributeName="dx" values="0;-490" dur="6s" repeatCount="indefinite" calcMode="linear" /></feOffset>
+                        <feComposite in="offsetNoise1" in2="offsetNoise2" result="part1" />
+                        <feComposite in="offsetNoise3" in2="offsetNoise4" result="part2" />
+                        <feBlend in="part1" in2="part2" mode="color-dodge" result="combinedNoise" />
+                        <feDisplacementMap in="SourceGraphic" in2="combinedNoise" scale="30" xChannelSelector="R" yChannelSelector="B" />
+                    </filter>
+                </defs>
+            </svg>
+            <div class="promo-electric-wrapper">
+                <div class="electric-border-layer"></div>
+                <div class="glow-layer-1"></div>
+                <div class="glow-layer-2"></div>
+                <div class="overlay-electric"></div>
+                <div class="background-glow-electric"></div>
+                <div class="promo-content-electric">
+                    <div class="row align-items-center">
+                        <div class="col-lg-7">
+                            @if (!string.IsNullOrEmpty(Model.SiteSetting.PromoBadgeText))
+                            {
+                                <div class="promo-badge-electric" style="color: @(Model.SiteSetting.PromoBadgeTextColor ?? "#ffffff");">
+                                    @Model.SiteSetting.PromoBadgeText
+                                </div>
+                            }
+                            <div class="promo-title-electric" style="color: @(Model.SiteSetting.PromoTitleColor ?? "#ffffff");">
+                                @(string.IsNullOrEmpty(Model.SiteSetting.PromoTitle) ? "پیشنهاد ویژه" : Model.SiteSetting.PromoTitle)
+                            </div>
+                            <div class="promo-text-electric" style="color: @(Model.SiteSetting.PromoTextColor ?? "#f8f9fa");">
+                                @(string.IsNullOrEmpty(Model.SiteSetting.PromoText) ? "شیرینی تازه، طعم ماندگار" : Model.SiteSetting.PromoText)
+                            </div>
+                            <div class="promo-actions-electric">
+                                @if (!string.IsNullOrEmpty(Model.SiteSetting.PromoButton1Text))
+                                {
+                                    <a href="@(Model.SiteSetting.PromoButton1Url ?? "#")" class="btn btn-lg px-4" style="background-color: @(Model.SiteSetting.PromoButton1BgColor ?? "#ffc107"); color: @(Model.SiteSetting.PromoButton1TextColor ?? "#000000"); border: none;">
+                                        @Model.SiteSetting.PromoButton1Text
+                                    </a>
+                                }
+                                @if (!string.IsNullOrEmpty(Model.SiteSetting.PromoButton2Text))
+                                {
+                                    <a href="@(Model.SiteSetting.PromoButton2Url ?? "#")" class="btn btn-lg px-4" style="background-color: @(Model.SiteSetting.PromoButton2BgColor ?? "transparent"); color: @(Model.SiteSetting.PromoButton2TextColor ?? "#ffffff"); border: 1px solid #ffffff;">
+                                        @Model.SiteSetting.PromoButton2Text
+                                    </a>
+                                }
+                            </div>
+                        </div>
+                        <div class="col-lg-5 text-center">
+                            @if (sliderImages.Any())
+                            {
+                                <div id="promoSlider" class="carousel slide" data-bs-ride="carousel">
+                                    <div class="carousel-inner">
+                                        @for (int i = 0; i < sliderImages.Count; i++)
+                                        {
+                                            <div class="carousel-item @(i == 0 ? "active" : "")">
+                                                @if (sliderImages[i].EndsWith(".mp4") || sliderImages[i].EndsWith(".webm"))
+                                                {
+                                                    <video class="d-block w-100" style="max-height:260px; object-fit:cover;" autoplay muted loop>
+                                                        <source src="@sliderImages[i]" type="video/mp4">
+                                                    </video>
+                                                }
+                                                else
+                                                {
+                                                    <img src="@sliderImages[i]" class="d-block w-100 promo-image" style="max-height:260px; object-fit:contain;" />
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                    @if (sliderImages.Count > 1)
+                                    {
+                                        <button class="carousel-control-prev" type="button" data-bs-target="#promoSlider" data-bs-slide="prev"><span class="carousel-control-prev-icon"></span></button>
+                                        <button class="carousel-control-next" type="button" data-bs-target="#promoSlider" data-bs-slide="next"><span class="carousel-control-next-icon"></span></button>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <img src="/images/promo-cake.png" alt="Promo" class="promo-image">
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <style>
+                .promo-section { margin: 80px 0; }
+                .promo-banner { position: relative; overflow: hidden; border-radius: 24px; padding: 70px 50px; color: #fff; box-shadow: 0 20px 50px rgba(0,0,0,.15); transition: background-color 0.3s ease; }
+                .promo-overlay { position: absolute; inset: 0; background: radial-gradient(circle at top right, rgba(255,255,255,.25), transparent 40%); pointer-events: none; }
+                .promo-badge { display: inline-block; background: rgba(255,255,255,.2); padding: 8px 18px; border-radius: 999px; margin-bottom: 20px; font-size: .9rem; backdrop-filter: blur(10px); }
+                .promo-title { font-size: 3rem; font-weight: 800; margin-bottom: 20px; }
+                .promo-text { font-size: 1.15rem; line-height: 1.8; max-width: 650px; }
+                .promo-actions { margin-top: 30px; display: flex; gap: 15px; flex-wrap: wrap; }
+                .promo-image { max-width: 100%; max-height: 320px; filter: drop-shadow(0 15px 25px rgba(0,0,0,.25)); }
+                @@media (max-width: 991px) {
+                    .promo-banner { padding: 40px 25px; text-align: center; }
+                    .promo-title { font-size: 2rem; }
+                    .promo-text { font-size: 1rem; }
+                    .promo-actions { justify-content: center; }
+                }
+            </style>
+            <section class="promo-section">
+                <div class="promo-banner" style="background-color: @(Model.SiteSetting.PromoBgColor ?? "#b8860b");">
+                    <div class="promo-overlay"></div>
+                    <div class="container">
+                        <div class="row align-items-center">
+                            <div class="col-lg-7">
+                                @if (!string.IsNullOrEmpty(Model.SiteSetting.PromoBadgeText))
+                                {
+                                    <span class="promo-badge" style="color: @(Model.SiteSetting.PromoBadgeTextColor ?? "#ffffff");">@Model.SiteSetting.PromoBadgeText</span>
+                                }
+                                <h2 class="promo-title" style="color: @(Model.SiteSetting.PromoTitleColor ?? "#ffffff");">
+                                    @(string.IsNullOrEmpty(Model.SiteSetting.PromoTitle) ? "پیشنهاد ویژه" : Model.SiteSetting.PromoTitle)
+                                </h2>
+                                <p class="promo-text" style="color: @(Model.SiteSetting.PromoTextColor ?? "#f8f9fa");">
+                                    @(string.IsNullOrEmpty(Model.SiteSetting.PromoText) ? "شیرینی تازه، طعم ماندگار" : Model.SiteSetting.PromoText)
+                                </p>
+                                <div class="promo-actions">
+                                    @if (!string.IsNullOrEmpty(Model.SiteSetting.PromoButton1Text))
+                                    {
+                                        <a href="@(Model.SiteSetting.PromoButton1Url ?? "#")" class="btn btn-lg px-4 btn-promo1" style="background-color: @(Model.SiteSetting.PromoButton1BgColor ?? "#ffc107"); color: @(Model.SiteSetting.PromoButton1TextColor ?? "#000000"); border: none;">
+                                            @Model.SiteSetting.PromoButton1Text
+                                        </a>
+                                    }
+                                    @if (!string.IsNullOrEmpty(Model.SiteSetting.PromoButton2Text))
+                                    {
+                                        <a href="@(Model.SiteSetting.PromoButton2Url ?? "#")" class="btn btn-lg px-4 btn-promo2" style="background-color: @(Model.SiteSetting.PromoButton2BgColor ?? "transparent"); color: @(Model.SiteSetting.PromoButton2TextColor ?? "#ffffff"); border: 1px solid #ffffff;">
+                                            @Model.SiteSetting.PromoButton2Text
+                                        </a>
+                                    }
+                                </div>
+                            </div>
+                            <div class="col-lg-5 text-center">
+                                @if (sliderImages.Any())
+                                {
+                                    <div id="promoSlider" class="carousel slide" data-bs-ride="carousel">
+                                        <div class="carousel-inner">
+                                            @for (int i = 0; i < sliderImages.Count; i++)
+                                            {
+                                                <div class="carousel-item @(i == 0 ? "active" : "")">
+                                                    @if (sliderImages[i].EndsWith(".mp4") || sliderImages[i].EndsWith(".webm"))
+                                                    {
+                                                        <video class="d-block w-100" style="max-height: 260px; object-fit: cover;" autoplay muted loop playsinline>
+                                                            <source src="@sliderImages[i]" type="video/mp4">
+                                                        </video>
+                                                    }
+                                                    else
+                                                    {
+                                                        <img src="@sliderImages[i]" class="d-block w-100 promo-image" style="max-height: 260px; object-fit: contain;" />
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                        @if (sliderImages.Count > 1)
+                                        {
+                                            <button class="carousel-control-prev" type="button" data-bs-target="#promoSlider" data-bs-slide="prev">
+                                                <span class="carousel-control-prev-icon"></span>
+                                            </button>
+                                            <button class="carousel-control-next" type="button" data-bs-target="#promoSlider" data-bs-slide="next">
+                                                <span class="carousel-control-next-icon"></span>
+                                            </button>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <img src="/images/promo-cake.png" alt="Promo" class="promo-image">
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        }
+    }
+    <style>
+        #splashContainer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 9999;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            transition: transform 0.8s cubic-bezier(0.65, 0, 0.35, 1);
+            transform: translateY(0);
+        }
+        #splashContainer.slide-up {
+            transform: translateY(-100%);
+        }
+        #splashVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        #enterButton {
+            position: absolute;
+            bottom: 15%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 16px 48px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #d4a056, #b8860b);
+            color: #fff;
+            border: none;
+            border-radius: 50px;
+            box-shadow: 0 8px 30px rgba(212, 160, 86, 0.5);
+            cursor: pointer;
+            z-index: 10;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease, transform 0.3s ease;
+            animation: none;
+        }
+        #enterButton.show {
+            opacity: 1;
+            pointer-events: auto;
+            animation: pulse 2s infinite ease-in-out;
+        }
+        #enterButton:hover {
+            transform: translateX(-50%) scale(1.05);
+            box-shadow: 0 12px 40px rgba(212, 160, 86, 0.7);
+        }
+        @@keyframes pulse {
+            0% { box-shadow: 0 8px 30px rgba(212, 160, 86, 0.4); }
+            50% { box-shadow: 0 8px 50px rgba(212, 160, 86, 0.8); }
+            100% { box-shadow: 0 8px 30px rgba(212, 160, 86, 0.4); }
+        }
+        #mainContent {
+            opacity: 1;
+            transform: translateY(0);
+            transition: all 0.8s cubic-bezier(0.65, 0, 0.35, 1);
+            min-height: 100vh;
+        }
+        #mainContent.splash-hidden {
+            opacity: 0;
+            transform: translateY(100vh);
+            pointer-events: none;
+        }
+        #mainContent.slide-in {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+        .category-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        .category-card {
+            text-decoration: none;
+            color: inherit;
+            border-radius: 1rem;
+            overflow: hidden;
+            border: 1px solid rgba(0,0,0,0.08);
+            background: #fff;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+            display: block;
+        }
+        .category-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 28px rgba(0,0,0,0.12);
+            border-color: #ffb200;
+        }
+        .category-card__inner {
+            padding: 1.2rem;
+            text-align: center;
+        }
+        .category-card__title {
+            font-weight: 800;
+            font-size: 1.1rem;
+            margin-bottom: 0.75rem;
+        }
+        .category-card__img {
+            width: 100%;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        .full-bleed {
+            width: 100vw;
+            margin-left: calc(50% - 50vw);
+            margin-right: calc(50% - 50vw);
+        }
+        .full-bleed .carousel-inner {
+            height: 560px;
+        }
+        .full-bleed .carousel-item {
+            height: 560px;
+        }
+        .full-bleed .carousel-item img,
+        .full-bleed .carousel-item video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .full-bleed .carousel-item .bg-secondary {
+            height: 100%;
+        }
+        @@media (max-width: 768px) {
+            .carousel-caption h3 {
+                font-size: 1.2rem;
+            }
+            .carousel-caption p {
+                font-size: 0.8rem;
+                margin-bottom: 0.5rem;
+            }
+            .carousel-caption .btn {
+                font-size: 0.75rem;
+                padding: 0.25rem 0.75rem;
+            }
+            .category-card__title {
+                font-size: 0.9rem;
+            }
+            .full-bleed .carousel-inner,
+            .full-bleed .carousel-item {
+                height: 300px;
+            }
+            #enterButton {
+                padding: 12px 32px;
+                font-size: 1.1rem;
+                bottom: 20%;
+            }
+        }
+    </style>
+</div>
+@section Scripts {
+    @if (ViewBag.ShowSplash == true && !string.IsNullOrEmpty(ViewBag.SplashVideoPath))
+    {
+        <script>
+            (function() {
+                const splashContainer = document.getElementById('splashContainer');
+                const splashVideo = document.getElementById('splashVideo');
+                const enterButton = document.getElementById('enterButton');
+                const mainContent = document.getElementById('mainContent');
+                document.body.style.overflow = 'hidden';
+                let buttonShown = false;
+                function showEnterButton() {
+                    if (buttonShown) return;
+                    buttonShown = true;
+                    enterButton.classList.add('show');
+                    console.log('✅ دکمه ورود نمایش داده شد.');
+                }
+                function playVideo() {
+                    splashVideo.play().catch(function(err) {
+                        console.warn('⚠️ پخش خودکار ممکن نیست:', err);
+                        setTimeout(showEnterButton, 3000);
+                    });
+                }
+                playVideo();
+                splashVideo.addEventListener('ended', function() {
+                    showEnterButton();
+                });
+                setTimeout(function() {
+                    if (!buttonShown) {
+                        showEnterButton();
+                        if (splashVideo.paused) {
+                            enterButton.textContent = '⏳ ورود به سایت';
+                        }
+                    }
+                }, 7000);
+                splashVideo.style.cursor = 'default';
+                enterButton.addEventListener('click', function() {
+                    splashContainer.classList.add('slide-up');
+                    mainContent.classList.remove('splash-hidden');
+                    setTimeout(function() {
+                        mainContent.classList.add('slide-in');
+                    }, 100);
+                    setTimeout(function() {
+                        splashContainer.style.display = 'none';
+                        document.body.style.overflow = 'auto';
+                    }, 900);
+                    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+                    fetch('/Home/SetSplashShown', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'RequestVerificationToken': token
+                        },
+                        body: ''
+                    }).catch(err => console.log('⚠️ خطا در ثبت وضعیت اسپلش:', err));
+                });
+                console.log('🎬 اسپلش ویدئو با افکت اسلاید بالا آماده شد.');
+            })();
+        </script>
+    }
+}

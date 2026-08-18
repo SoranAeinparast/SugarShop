@@ -1,0 +1,70 @@
+﻿@model SugarShop.Domain.Entities.Wallet
+@using MD.PersianDateTime
+@using SugarShop.Web.Extensions
+@{
+    ViewData["Title"] = "کیف پول";
+    var transactions = ViewBag.Transactions as List<SugarShop.Domain.Entities.WalletTransaction>;
+    string GetPersianTransactionType(string type)
+    {
+        return type switch
+        {
+            "AdminDeposit" => "افزایش موجودی توسط فروشگاه",
+            "AdminWithdraw" => "کسر موجودی توسط فروشگاه",
+            "DirectRecharge" => "شارژ مستقیم",
+            "Cashback" => "بازگشت وجه (کش‌بک)",
+            "Purchase" => "انجام خرید",
+            _ => type ?? "نامشخص"
+        };
+    }
+    string ToPersianNumber(string input) => input.ToPersianNumber();
+}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>💰 کیف پول من</h2>
+        <div>
+            <a asp-controller="Wallet" asp-action="Recharge" class="btn btn-primary">💳 شارژ کیف پول</a>
+            <a href="@Url.Action("Index", "Profile")" class="btn btn-secondary ms-2">🔙 بازگشت به داشبورد کاربری</a>
+        </div>
+    </div>
+    <div class="card mb-3">
+        <div class="card-body">
+            <h4>اعتبار فعلی: @Model.Balance.ToString("N0").ToPersianNumber() تومان</h4>
+            <p class="text-muted">در خریدهای بعدی می‌توانید از این اعتبار استفاده کنید.</p>
+        </div>
+    </div>
+    <h4>تراکنش‌های اخیر</h4>
+    @if (transactions != null && transactions.Any())
+    {
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>تاریخ</th>
+                        <th>مبلغ (تومان)</th>
+                        <th>نوع</th>
+                        <th>توضیحات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var t in transactions)
+                    {
+                        var persianDate = new PersianDateTime(t.CreatedAt);
+                        var dateString = persianDate.ToString("yyyy/MM/dd");
+                        <tr>
+                            <td>@dateString.ToPersianNumber()</td>
+                            <td class="@(t.Amount >= 0 ? "text-success" : "text-danger")">
+                                @(t.Amount >= 0 ? "+" : "")@Math.Abs(t.Amount).ToString("N0").ToPersianNumber() تومان
+                            </td>
+                            <td>@GetPersianTransactionType(t.Type)</td>
+                            <td>@t.Description</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-info">هیچ تراکنشی یافت نشد.</div>
+    }
+</div>

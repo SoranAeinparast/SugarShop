@@ -1,0 +1,164 @@
+﻿@using SugarShop.Web.ViewModels
+@model CheckoutViewModel
+@{
+    ViewData["Title"] = "تسویه حساب";
+}
+
+@section Styles {
+    <link href="~/lib/persian-datepicker/css/persian-datepicker.css" rel="stylesheet" />
+}
+
+<div class="container mt-4">
+    <h2 class="mb-4">✅ تسویه حساب</h2>
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+    }
+    @if (TempData["InfoMessage"] != null)
+    {
+        <div class="alert alert-info">@TempData["InfoMessage"]</div>
+    }
+    <form asp-action="PlaceOrder" method="post" id="checkoutForm">
+        <div class="row">
+            <div class="col-md-7">
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">📍 اطلاعات ارسال</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (User.Identity.IsAuthenticated)
+                        {
+                            @if (Model.UserAddresses != null && Model.UserAddresses.Any())
+                            {
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">انتخاب آدرس</label>
+                                    @foreach (var addr in Model.UserAddresses)
+                                    {
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="radio" name="SelectedAddressId" value="@addr.Id" id="addr_@addr.Id" @(addr.IsDefault ? "checked" : "")>
+                                            <label class="form-check-label" for="addr_@addr.Id">
+                                                <strong>@addr.Title</strong><br />
+                                                <span>@addr.FullAddress</span><br />
+                                                <small>گیرنده: @addr.ReceiverName - تلفن: @addr.ReceiverPhone</small>
+                                            </label>
+                                        </div>
+                                    }
+                                </div>
+                                <hr />
+                            }
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="showNewAddressCheckbox">
+                                    <label class="form-check-label" for="showNewAddressCheckbox">
+                                        افزودن آدرس جدید
+                                    </label>
+                                </div>
+                            </div>
+                            <div id="newAddressSection" style="display:none;">
+                                <div class="alert alert-info">آدرس جدید را وارد کنید. پس از ثبت سفارش، این آدرس به لیست آدرس‌های شما اضافه خواهد شد.</div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">عنوان (خانه، محل کار)</label>
+                                            <input asp-for="NewAddressTitle" class="form-control" />
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">نام گیرنده</label>
+                                            <input asp-for="NewReceiverName" class="form-control" />
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">شماره تماس</label>
+                                            <input asp-for="NewReceiverPhone" class="form-control" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">آدرس کامل</label>
+                                            <textarea asp-for="NewFullAddress" class="form-control" rows="3"></textarea>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">کد پستی (اختیاری)</label>
+                                            <input asp-for="NewPostalCode" class="form-control" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-warning">
+                                برای ثبت سفارش لطفاً وارد حساب کاربری خود شوید.
+                            </div>
+                        }
+                        <hr />
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">تاریخ تحویل (اختیاری)</label>
+                                    <div class="input-group">
+                                        <persian-date asp-for="DeliveryDate"></persian-date>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">ساعت تحویل (اختیاری)</label>
+                                    <input asp-for="DeliveryTime" type="time" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">توضیحات (اختیاری)</label>
+                            <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-5">
+                <div class="card mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">💰 خلاصه سفارش</h5>
+                    </div>
+                    <div class="card-body">
+                        <p><strong>تعداد سفارشات:</strong> @ViewBag.CartItemsCount</p>
+                        @if (ViewBag.HasBoxes == true)
+                        {
+                            <div class="alert alert-warning">
+                                <strong>⚠️ قیمت پس از وزن کشی دقیق توسط فروشگاه، در اسرع وقت اعلام میگردد.</strong>
+                            </div>
+                        }
+                        else
+                        {
+                            <p><strong>جمع کل:</strong> @(ViewBag.CartTotal?.ToString("N0")) تومان</p>
+                        }
+                        @if (!string.IsNullOrEmpty(ViewBag.AppliedDiscountCode))
+                        {
+                            <p class="text-success">تخفیف کد @ViewBag.AppliedDiscountCode: -@(ViewBag.DiscountAmount?.ToString("N0")) تومان</p>
+                            <hr />
+                        }
+                        <hr />
+                        <div class="mb-3 form-check">
+                            <input asp-for="UseWallet" class="form-check-input" />
+                            <label class="form-check-label">استفاده از اعتبار کیف پول (موجودی: @ViewBag.WalletBalance.ToString("N0") تومان)</label>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100">✅ ثبت سفارش</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script src="~/lib/persian-date/persian-date.js"></script>
+    <script src="~/lib/persian-datepicker/js/persian-datepicker.js"></script>
+    <script>
+        document.getElementById('showNewAddressCheckbox')?.addEventListener('change', function() {
+            var newAddrDiv = document.getElementById('newAddressSection');
+            newAddrDiv.style.display = this.checked ? 'block' : 'none';
+            if (this.checked) {
+                document.querySelectorAll('input[name="SelectedAddressId"]').forEach(radio => radio.checked = false);
+            }
+        });
+    </script>
+}

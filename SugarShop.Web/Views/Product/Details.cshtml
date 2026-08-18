@@ -1,0 +1,103 @@
+﻿@model SugarShop.Domain.Entities.Product
+@{
+    ViewData["Title"] = Model.TitleFa;
+}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-6">
+            @if (!string.IsNullOrEmpty(Model.ImagePath))
+            {
+                <img src="@Model.ImagePath" class="img-fluid rounded shadow" alt="@Model.TitleFa" />
+            }
+            else
+            {
+                <div class="bg-light rounded d-flex align-items-center justify-content-center" style="height: 300px;">
+                    <span class="text-muted">🖼️ بدون تصویر</span>
+                </div>
+            }
+        </div>
+        <div class="col-md-6">
+            <h2>@Model.TitleFa</h2>
+            <div class="mb-3">
+                <span class="badge bg-secondary">@(Model.Category?.TitleFa ?? "بدون دسته")</span>
+            </div>
+            <hr />
+            <div class="mb-3">
+                <h4>💰 قیمت: @Model.Price.ToString("N0") تومان</h4>
+                <p><strong>وزن:</strong> @(Model.WeightGrams.HasValue ? $"{Model.WeightGrams.Value} گرم" : "-")</p>
+                <p><strong>موجودی:</strong>
+                    @if (Model.Inventory > 0)
+                    {
+                        <span class="badge bg-success">@Model.Inventory عدد</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-danger">ناموجود</span>
+                    }
+                </p>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(Model.ShortDescription))
+            {
+                <div class="alert alert-info">@Model.ShortDescription</div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.Description))
+            {
+                <div class="mt-3">
+                    <h5>توضیحات:</h5>
+                    <p>@Model.Description</p>
+                </div>
+            }
+            <div class="mt-4">
+                @if (Model.Inventory > 0 && Model.IsActive)
+                {
+                    @if (Model.Category != null && !Model.Category.RequiresBoxSelection)
+                    {
+                        <button class="btn btn-primary btn-lg add-to-cart-product" data-product-id="@Model.Id">
+                            🛒 افزودن به سبد خرید
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-success btn-lg add-to-box" data-sweet-id="@Model.Id">
+                            📦 افزودن به جعبه
+                        </button>
+                    }
+                }
+                else
+                {
+                    <button class="btn btn-secondary btn-lg" disabled>❌ ناموجود</button>
+                }
+                <a asp-action="Index" class="btn btn-outline-secondary btn-lg">↩️ بازگشت</a>
+            </div>
+        </div>
+    </div>
+</div>
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            $('.add-to-cart-product').click(function() {
+                var productId = $(this).data('product-id');
+                var $btn = $(this);
+                $btn.prop('disabled', true).text('در حال افزودن...');
+                const csrfToken = $('input[name="__RequestVerificationToken"]').val();
+                $.ajax({
+                    url: '/Cart/AddProductToCart',
+                    type: 'POST',
+                    headers: { 'RequestVerificationToken': csrfToken },
+                    data: { productId: productId, quantity: 1 }
+                })
+                    .done(function() {
+                        window.location.href = '/Cart';
+                    })
+                    .fail(function(xhr) {
+                        alert('خطا: ' + (xhr.responseText || 'افزودن به سبد خرید با مشکل مواجه شد.'));
+                        $btn.prop('disabled', false).text('🛒 افزودن به سبد خرید');
+                    });
+            });
+            $('.add-to-box').click(function() {
+                var sweetId = $(this).data('sweet-id');
+                window.location.href = '/Box/Status?returnToOrder=0&sweetId=' + sweetId;
+            });
+        });
+    </script>
+}

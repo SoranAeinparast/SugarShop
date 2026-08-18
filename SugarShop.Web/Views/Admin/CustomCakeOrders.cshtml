@@ -1,0 +1,84 @@
+﻿@using SugarShop.Domain.Entities.Sales
+@using MD.PersianDateTime
+@using SugarShop.Web.Extensions
+@model List<CustomCakeOrder>
+@{
+    ViewData["Title"] = "سفارشات کیک سفارشی";
+    Layout = "_AdminLayout";
+}
+<div class="card">
+    <div class="card-header">
+        <h4>🎂 سفارشات کیک سفارشی</h4>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>مشتری</th>
+                        <th>طعم</th>
+                        <th>تاریخ ثبت</th>
+                        <th>زمان تحویل دلخواه</th>
+                        <th>وضعیت</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var order in Model)
+                    {
+                        var createdPersian = new PersianDateTime(order.CreatedAt);
+                        <tr>
+                            <td>@order.Id</td>
+                            <td>@order.UserId</td>
+                            <td>@order.Flavor</td>
+                            <td>@createdPersian.ToString("yyyy/MM/dd HH:mm").ToPersianNumber()</td>
+                            <td>
+                                @if (order.DesiredDeliveryDateTime.HasValue)
+                                {
+                                    var deliveryPersian = new PersianDateTime(order.DesiredDeliveryDateTime.Value);
+                                    @deliveryPersian.ToString("yyyy/MM/dd HH:mm").ToPersianNumber()
+                                }
+                                else
+                                {
+                                    <span>-</span>
+                                }
+                             </td>
+                            <td>
+                                @if (order.Status == CustomCakeOrderStatus.Pending)
+                                {
+                                    <span class="badge bg-warning text-dark">در انتظار بررسی</span>
+                                }
+                                else if (order.Status == CustomCakeOrderStatus.Accepted)
+                                {
+                                    <span class="badge bg-success">تأیید شده</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">رد شده</span>
+                                }
+                             </td>
+                            <td>
+                                <div class="d-flex gap-2">
+                                    <a href="@Url.Action("CustomCakeOrderDetails", new { id = order.Id })" class="btn btn-sm btn-primary">🔍 جزئیات</a>
+                                    @if (order.Status == CustomCakeOrderStatus.Pending)
+                                    {
+                                        <a href="@Url.Action("EditCustomCakeOrder", new { id = order.Id })" class="btn btn-sm btn-warning">✏️ ویرایش</a>
+                                    }
+                                    @if (order.Status == CustomCakeOrderStatus.Pending)
+                                    {
+                                        <form asp-action="DeleteCustomCakeOrder" method="post" onsubmit="return confirm('آیا از حذف این سفارش اطمینان دارید؟');">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@order.Id" />
+                                            <button type="submit" class="btn btn-sm btn-danger">🗑️ حذف</button>
+                                        </form>
+                                    }
+                                </div>
+                             </td>
+                         </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

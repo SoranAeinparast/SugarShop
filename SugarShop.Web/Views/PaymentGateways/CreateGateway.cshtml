@@ -1,0 +1,64 @@
+﻿@using SugarShop.Domain.Entities.Sales
+@model PaymentGateway
+@{
+    ViewData["Title"] = "افزودن درگاه جدید";
+    Layout = "_AdminLayout";
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger">@TempData["Error"]</div>
+}
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success">@TempData["Success"]</div>
+}
+<div class="card">
+    <div class="card-header">
+        <h4>➕ افزودن درگاه جدید</h4>
+    </div>
+    <div class="card-body">
+        <form action="@Url.Action("CreateGateway", "PaymentGateways")" method="post" novalidate id="mainForm">
+            @Html.AntiForgeryToken()
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label asp-for="Name" class="form-label">نام درگاه (انگلیسی)</label>
+                        <input asp-for="Name" class="form-control" required />
+                        <span asp-validation-for="Name" class="text-danger"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="Title" class="form-label">عنوان فارسی</label>
+                        <input asp-for="Title" class="form-control" required />
+                        <span asp-validation-for="Title" class="text-danger"></span>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label asp-for="GatewayType" class="form-label">نوع درگاه (انگلیسی)</label>
+                        <input asp-for="GatewayType" class="form-control" required />
+                        <span asp-validation-for="GatewayType" class="text-danger"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="SortOrder" class="form-label">ترتیب</label>
+                        <input asp-for="SortOrder" type="number" class="form-control" />
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input asp-for="IsActive" class="form-check-input" />
+                        <label asp-for="IsActive" class="form-check-label">فعال</label>
+                    </div>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary" id="submitBtn">💾 ذخیره</button>
+            <a asp-action="Index" class="btn btn-secondary">🔙 بازگشت</a>
+        </form>
+        <div asp-validation-summary="All" class="alert alert-danger"></div>
+    </div>
+</div>
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.getElementById('mainForm').addEventListener('submit', function(e) {
+            console.log('Form submitted');
+        });
+    </script>
+}

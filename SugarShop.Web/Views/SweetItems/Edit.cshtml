@@ -1,0 +1,76 @@
+﻿@{
+    ViewData["Title"] = "ویرایش شیرینی";
+    Layout = "_AdminLayout";
+}
+@model SugarShop.Domain.Entities.SweetItem
+<div class="card">
+    <div class="card-header">
+        <h4>✏️ ویرایش شیرینی</h4>
+    </div>
+    <div class="card-body">
+        <form asp-action="Edit" method="post">
+            <input type="hidden" asp-for="Id" />
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">نام شیرینی</label>
+                        <input asp-for="TitleFa" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Slug (برای URL)</label>
+                        <input asp-for="Slug" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">دسته‌بندی</label>
+                        <select asp-for="CategoryId" class="form-select" required>
+                            <option value="">انتخاب کنید</option>
+                            @foreach (var cat in ViewBag.Categories)
+                            {
+                                <option value="@cat.Id" selected="@(Model.CategoryId == cat.Id)">@cat.TitleFa</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">وزن تقریبی هر عدد (گرم)</label>
+                        <input asp-for="ApproxWeightGrams" type="number" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">قیمت هر کیلوگرم (تومان)</label>
+                        <input asp-for="PricePerKg" type="number" class="form-control" required />
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">موجودی</label>
+                        <input asp-for="InventoryCount" type="number" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">ترتیب نمایش</label>
+                        <input asp-for="SortOrder" type="number" class="form-control" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">فعال</label>
+                        <select asp-for="IsActive" class="form-select">
+                            <option value="true" selected="@Model.IsActive">فعال</option>
+                            <option value="false" selected="@(!Model.IsActive)">غیرفعال</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">تصویر</label>
+                        <input type="hidden" name="ImagePath" id="ImagePath" value="@Model.ImagePath" />
+                        <img id="imagePreview" src="@Model.ImagePath" class="img-thumbnail mb-2" style="max-height:150px; @(string.IsNullOrEmpty(Model.ImagePath) ? "display:none;" : "")" />
+                        <button type="button" class="btn btn-outline-primary open-media-picker" data-target="#ImagePath" data-preview="#imagePreview"><i class="bi bi-image"></i> انتخاب از کتابخانه رسانه</button>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">توضیحات</label>
+                        <textarea asp-for="Description" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-3">
+                <button type="submit" class="btn btn-success">💾 ذخیره تغییرات</button>
+                <a href="@Url.Action("Index")" class="btn btn-secondary">↩️ انصراف</a>
+            </div>
+        </form>
+    </div>
+</div>

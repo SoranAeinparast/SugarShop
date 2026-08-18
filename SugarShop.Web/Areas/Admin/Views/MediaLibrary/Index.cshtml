@@ -1,0 +1,410 @@
+﻿@using SugarShop.Domain.Entities
+@model List<MediaAsset>
+
+@* ✅ اضافه کردن SweetAlert2 محلی *@
+<link rel="stylesheet" href="~/lib/sweetalert2/sweetalert2.min.css" />
+<script src="~/lib/sweetalert2/sweetalert2.min.js"></script>
+
+@{
+    ViewData["Title"] = "کتابخانه رسانه";
+    Layout = "_AdminLayout";
+
+    var search = ViewBag.Search as string ?? "";
+    var category = ViewBag.Category as string ?? "All";
+    var fileType = ViewBag.FileType as string ?? "All";
+    var totalItems = (int)ViewBag.TotalItems;
+    var currentPage = (int)ViewBag.CurrentPage;
+    var totalPages = (int)ViewBag.TotalPages;
+    var categories = ViewBag.Categories as string[] ?? new[] { "All", "General", "Products", "Banners", "Sliders", "AboutUs", "Blog", "Gallery" };
+    var fileTypes = ViewBag.FileTypes as string[] ?? new[] { "All", "Image", "Video", "Document", "Audio" };
+
+    // ✅ تابع محلی برای فرمت‌سازی حجم فایل (بسیار پایدارتر از @functions و بدون باگ)
+    string GetFormattedSize(long bytes)
+    {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return (bytes / 1024.0).ToString("0.0") + " KB";
+        if (bytes < 1024 * 1024 * 1024) return (bytes / (1024.0 * 1024)).ToString("0.0") + " MB";
+        return (bytes / (1024.0 * 1024 * 1024)).ToString("0.0") + " GB";
+    }
+}
+
+<style>
+    .media-toolbar { background: var(--panel-bg, #fff); padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .upload-zone { border: 2px dashed #d4a056; border-radius: 12px; padding: 30px; text-align: center; background: rgba(212, 160, 86, 0.05); transition: all 0.3s; cursor: pointer; }
+    .upload-zone:hover, .upload-zone.dragover { background: rgba(212, 160, 86, 0.12); border-color: #b8860b; }
+    .upload-zone i { font-size: 3rem; color: #d4a056; margin-bottom: 10px; }
+    .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+    .media-card { background: var(--card-bg, #fff); border: 1px solid var(--border, #e0e0e0); border-radius: 12px; overflow: hidden; transition: all 0.25s; position: relative; }
+    .media-card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+    .media-preview { height: 140px; background: #f5f5f5; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+    .media-preview img { width: 100%; height: 100%; object-fit: cover; }
+    .media-preview .file-icon { font-size: 3rem; color: #999; }
+    .media-type-badge { position: absolute; top: 8px; right: 8px; padding: 3px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; color: white; }
+    .badge-image { background: #22c55e; } .badge-video { background: #3b82f6; } .badge-document { background: #f59e0b; } .badge-audio { background: #a855f7; } .badge-general { background: #6b7280; }
+    .media-info { padding: 12px; }
+    .media-name { font-weight: 700; font-size: 0.9rem; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .media-meta { font-size: 0.75rem; color: #888; margin-bottom: 4px; }
+    .media-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .media-tag { background: #f0f0f0; color: #555; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; }
+    .media-actions { display: flex; gap: 6px; padding: 10px 12px; border-top: 1px solid #f0f0f0; }
+    .pagination { display: flex; justify-content: center; gap: 6px; margin-top: 30px; }
+    .pagination a, .pagination span { padding: 6px 12px; border: 1px solid #ddd; border-radius: 6px; text-decoration: none; color: #333; }
+    .pagination .active { background: #d4a056; color: white; border-color: #d4a056; }
+    .empty-state { text-align: center; padding: 60px 20px; color: #999; }
+    .empty-state i { font-size: 4rem; margin-bottom: 15px; }
+
+    /* ✅ اصلاح قطعی رنگ دکمه‌ها */
+    .media-actions .btn {
+        flex: 1; padding: 6px 4px !important; font-size: 0.75rem !important; border-radius: 6px !important;
+        font-weight: 600 !important; transition: all 0.2s ease; display: flex; align-items: center;
+        justify-content: center; gap: 4px; border-width: 1px !important; border-style: solid !important;
+        background-color: transparent !important;
+    }
+    .media-actions .btn-outline-primary { color: var(--info, #3b82f6) !important; border-color: var(--info, #3b82f6) !important; }
+    .media-actions .btn-outline-primary:hover { background-color: var(--info, #3b82f6) !important; color: #ffffff !important; }
+    .media-actions .btn-outline-warning { color: var(--warning, #f59e0b) !important; border-color: var(--warning, #f59e0b) !important; }
+    .media-actions .btn-outline-warning:hover { background-color: var(--warning, #f59e0b) !important; color: #ffffff !important; }
+    .media-actions .btn-outline-danger { color: var(--danger, #ef4444) !important; border-color: var(--danger, #ef4444) !important; }
+    .media-actions .btn-outline-danger:hover { background-color: var(--danger, #ef4444) !important; color: #ffffff !important; }
+</style>
+
+<!-- 🔍 بخش فیلتر و جستجو -->
+<div class="media-toolbar">
+    <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label">🔍 جستجو</label>
+            <input type="text" id="searchInput" class="form-control" placeholder="نام، تگ یا توضیحات..." value="@search" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">📁 دسته‌بندی</label>
+            <select id="categoryFilter" class="form-select">
+                @foreach (var cat in categories) { <option value="@cat" @(cat == category ? "selected" : "")>@(cat == "All" ? "همه دسته‌ها" : cat)</option> }
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">📄 نوع فایل</label>
+            <select id="typeFilter" class="form-select">
+                @foreach (var type in fileTypes) { <option value="@type" @(type == fileType ? "selected" : "")>@(type == "All" ? "همه انواع" : type)</option> }
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-primary w-100" onclick="applyFilters()">اعمال فیلتر</button>
+        </div>
+    </div>
+</div>
+
+<!-- 📤 بخش آپلود -->
+<div class="card mb-4">
+    <div class="card-header"><h5 class="mb-0"> آپلود فایل جدید</h5></div>
+    <div class="card-body">
+        <form id="uploadForm" enctype="multipart/form-data">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    @* ✅ فقط یک label با استایل مناسب *@
+                    <label for="fileInput" class="upload-zone d-block text-center p-4" style="cursor: pointer; border: 2px dashed #d4a056; border-radius: 12px; background: rgba(212, 160, 86, 0.05); transition: all 0.3s;">
+                        <i class="bi bi-cloud-arrow-up d-block" style="font-size: 3rem; color: #d4a056; margin-bottom: 10px;"></i>
+                        <h5 class="mb-2">فایل را اینجا بکشید یا کلیک کنید</h5>
+                        <p class="text-muted small mb-0">تصاویر (jpg, png, webp) تا 5MB | ویدئو (mp4) تا 100MB | اسناد (pdf) تا 10MB</p>
+                        <input type="file" id="fileInput" name="file" class="d-none" accept="image/*,video/*,.pdf,.doc,.docx" />
+                    </label>
+                    <div id="selectedFile" class="mt-3 text-center" style="display:none;">
+                        <span class="badge bg-success p-2"></span>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">دسته‌بندی</label>
+                        <select name="category" class="form-select">
+                            @foreach (var cat in categories.Where(c => c != "All")) { <option value="@cat">@cat</option> }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">برچسب‌ها (با کاما جدا کنید)</label>
+                        <input type="text" name="tags" class="form-control" placeholder="مثال: بنر, اصلی, تخفیف" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">متن جایگزین (Alt)</label>
+                        <input type="text" name="altText" class="form-control" placeholder="توضیح کوتاه برای SEO" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">توضیحات</label>
+                        <textarea name="description" class="form-control" rows="2"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100" id="uploadBtn"><i class="bi bi-upload"></i> آپلود فایل</button>
+                </div>
+            </div>
+        </form>
+        <div id="uploadResult" class="mt-3"></div>
+    </div>
+</div>
+<!-- 🖼️ گرید فایل‌ها --> 
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">📂 فایل‌های موجود (@totalItems مورد)</h5>
+    </div>
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="media-grid">
+                @foreach (var item in Model)
+                {
+                    var badgeClass = item.FileType switch { "Image" => "badge-image", "Video" => "badge-video", "Document" => "badge-document", "Audio" => "badge-audio", _ => "badge-general" };
+                    var icon = item.FileType switch { "Image" => "bi-image", "Video" => "bi-film", "Document" => "bi-file-earmark-text", "Audio" => "bi-music-note-beamed", _ => "bi-file-earmark" };
+                    var tags = string.IsNullOrWhiteSpace(item.Tags) ? new List<string>() : item.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries).Take(3).ToList();
+
+                    <div class="media-card">
+                        <div class="media-preview">
+                            <span class="media-type-badge @badgeClass">@item.FileType</span>
+                            @if (item.FileType == "Image") { <img src="@item.FilePath" alt="@item.AltText" loading="lazy" /> }
+                            else { <i class="bi @icon file-icon"></i> }
+                        </div>
+                        <div class="media-info">
+                            <div class="media-name" title="@item.OriginalName">@item.OriginalName</div>
+                            @* ✅ فراخوانی تابع محلی بدون هیچ خطای کامپایلری *@
+                            <div class="media-meta">📁 @item.Category | 📏 @GetFormattedSize(item.FileSize)</div>
+                            <div class="media-meta">📅 @item.CreatedAt.ToString("yyyy/MM/dd")</div>
+                            @if (tags.Any()) {
+                                <div class="media-tags">
+                                    @foreach (var tag in tags) { <span class="media-tag">@tag.Trim()</span> }
+                                </div>
+                            }
+                        </div>
+                        <div class="media-actions">
+                            <button class="btn btn-sm btn-outline-primary" onclick="copyUrl('@item.FilePath', @item.Id)" title="کپی مسیر"><i class="bi bi-link-45deg"></i> کپی</button>
+                            <button class="btn btn-sm btn-outline-warning" onclick="showEditModal(@item.Id, '@item.Category', '@item.Tags', '@item.AltText', '@item.Description')" title="ویرایش"><i class="bi bi-pencil"></i> ویرایش</button>
+                            
+                            @* ✅ فرم حذف با مسیردهی صریح *@
+                            <form method="post" action="@Url.Action("Delete", "MediaLibrary", new { area = "Admin", id = item.Id })" class="delete-form" style="flex:1;" onsubmit="return confirmDelete(event, this);">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-sm btn-outline-danger w-100" title="حذف"><i class="bi bi-trash"></i> حذف</button>
+                            </form>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @* صفحه‌بندی *@
+            @if (totalPages > 1)
+            {
+                <div class="pagination">
+                    @if (currentPage > 1) { <a href="?page=@(currentPage - 1)&search=@search&category=@category&fileType=@fileType">قبلی</a> }
+                    @for (int i = 1; i <= totalPages; i++)
+                    {
+                        if (i == currentPage) { <span class="active">@i</span> }
+                        else if (i <= 3 || i >= totalPages - 2 || Math.Abs(i - currentPage) <= 1) { <a href="?page=@i&search=@search&category=@category&fileType=@fileType">@i</a> }
+                        else if (i == 4 || i == totalPages - 3) { <span>...</span> }
+                    }
+                    @if (currentPage < totalPages) { <a href="?page=@(currentPage + 1)&search=@search&category=@category&fileType=@fileType">بعدی</a> }
+                </div>
+            }
+        }
+        else
+        {
+            <div class="empty-state">
+                <i class="bi bi-folder2-open"></i>
+                <h5>هیچ فایلی یافت نشد</h5>
+                <p>اولین فایل خود را آپلود کنید یا فیلترها را تغییر دهید.</p>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- ✏️ مودال ویرایش -->
+<!-- ============================================================ -->
+<!-- ✏️ مودال ویرایش -->
+<!-- ============================================================ -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            @* ✅ استفاده از action صریح و توکن ضد جعل *@
+            <form id="editForm" method="post" action="@Url.Action("Edit", "MediaLibrary", new { area = "Admin" })">
+                
+                @* ✅ این خط حیاتی است و باعث رفع خطای 400 می‌شود *@
+                @Html.AntiForgeryToken()
+                
+                <div class="modal-header">
+                    <h5 class="modal-title">✏️ ویرایش اطلاعات فایل</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="id" id="editId" />
+                    <div class="mb-3">
+                        <label class="form-label">دسته‌بندی</label>
+                        <select name="category" id="editCategory" class="form-select">
+                            @foreach (var cat in (ViewBag.Categories as string[]).Where(c => c != "All"))
+                            {
+                                <option value="@cat">@cat</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">برچسب‌ها</label>
+                        <input type="text" name="tags" id="editTags" class="form-control" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">متن جایگزین (Alt)</label>
+                        <input type="text" name="altText" id="editAltText" class="form-control" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">توضیحات</label>
+                        <textarea name="description" id="editDescription" class="form-control" rows="3"></textarea>
+                    </div
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">انصراف</button>
+                    <button type="submit" class="btn btn-success">ذخیره تغییرات</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    // ============================================================
+    // 🗑️ تاییدیه حذف با SweetAlert2
+    // ============================================================
+    function confirmDelete(event, form) {
+        event.preventDefault();
+        Swal.fire({
+            title: 'آیا اطمینان دارید؟',
+            text: "این فایل به طور کامل از سرور حذف خواهد شد!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'بله، حذف شود',
+            cancelButtonText: 'انصراف',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.fire({ title: 'در حال حذف...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+                form.submit();
+            }
+        });
+        return false;
+    }
+
+    // ============================================================
+    // 📤 آپلود AJAX
+    // ============================================================
+    document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const btn = document.getElementById('uploadBtn');
+        const formData = new FormData(this);
+        const fileInput = document.getElementById('fileInput');
+
+        if (!fileInput.files.length) {
+            Swal.fire({ icon: 'warning', title: 'هشدار', text: 'لطفاً ابتدا یک فایل را انتخاب کنید.', confirmButtonText: 'باشه' });
+            return;
+        }
+
+        Swal.fire({ title: 'در حال آپلود...', text: 'لطفاً صبر کنید', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+
+        try {
+            const response = await fetch('@Url.Action("Upload", "MediaLibrary", new { area = "Admin" })', { method: 'POST', body: formData });
+            const result = await response.json();
+
+            if (result.success) {
+                Swal.fire({ icon: 'success', title: 'موفقیت‌آمیز', text: result.message, timer: 2000, showConfirmButton: false }).then(() => { location.reload(); });
+            } else {
+                Swal.fire({ icon: 'error', title: 'خطا در آپلود', text: result.message, confirmButtonText: 'باشه' });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'خطای ارتباطی', text: 'خطا در ارتباط با سرور.', confirmButtonText: 'باشه' });
+        }
+    });
+
+    // ============================================================
+    // 🔗 کپی مسیر
+    // ============================================================
+    async function copyUrl(path, id) {
+        try {
+            await fetch(`@Url.Action("GetAssetUrl", "MediaLibrary", new { area = "Admin" })?id=${id}`);
+            await navigator.clipboard.writeText(path);
+            Swal.fire({ icon: 'success', title: 'کپی شد!', text: `مسیر فایل کپی شد:\n${path}`, confirmButtonText: 'باشه' });
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'خطا', text: 'خطا در کپی مسیر.', confirmButtonText: 'باشه' });
+        }
+    }
+
+    // ============================================================
+    // ✏️ نمایش مودال ویرایش
+    // ============================================================
+    function showEditModal(id, category, tags, altText, description) {
+        document.getElementById('editId').value = id;
+        document.getElementById('editCategory').value = category;
+        document.getElementById('editTags').value = tags;
+        document.getElementById('editAltText').value = altText;
+        document.getElementById('editDescription').value = description;
+        new bootstrap.Modal(document.getElementById('editModal')).show();
+    }
+
+    // ============================================================
+    // 🔍 اعمال فیلترها
+    // ============================================================
+    function applyFilters() {
+        const search = document.getElementById('searchInput').value;
+        const category = document.getElementById('categoryFilter').value;
+        const fileType = document.getElementById('typeFilter').value;
+        window.location.href = `?search=${encodeURIComponent(search)}&category=${encodeURIComponent(category)}&fileType=${encodeURIComponent(fileType)}`;
+    }
+    document.getElementById('searchInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') applyFilters(); });
+
+        // ============================================================
+        // 🖱️ Drag & Drop با label
+        // ============================================================
+        const dropZone = document.querySelector('label[for="fileInput"]');
+        const fileInput = document.getElementById('fileInput');
+        const selectedFile = document.getElementById('selectedFile');
+
+        // Drag events روی label
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#b8860b';
+            dropZone.style.background = 'rgba(212, 160, 86, 0.15)';
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.style.borderColor = '#d4a056';
+            dropZone.style.background = 'rgba(212, 160, 86, 0.05)';
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#d4a056';
+            dropZone.style.background = 'rgba(212, 160, 86, 0.05)';
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                showSelectedFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        // Change event روی fileInput
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length) {
+                showSelectedFile(fileInput.files[0]);
+            }
+        });
+
+        function showSelectedFile(file) {
+            selectedFile.style.display = 'block';
+            const sizeKB = (file.size / 1024).toFixed(1);
+            selectedFile.querySelector('.badge').textContent = `📎 ${file.name} (${sizeKB} KB)`;
+        }
+        </script>
+
+@* نمایش پیام‌های TempData با SweetAlert2 *@
+@if (TempData["Success"] != null)
+{
+    <script>
+        Swal.fire({ icon: 'success', title: 'موفقیت‌آمیز', text: '@Html.Raw(TempData["Success"])', timer: 3000, showConfirmButton: false });
+    </script>
+}
+@if (TempData["Error"] != null)
+{
+    <script>
+        Swal.fire({ icon: 'error', title: 'خطا', text: '@Html.Raw(TempData["Error"])', confirmButtonText: 'باشه' });
+    </script>
+}
+}

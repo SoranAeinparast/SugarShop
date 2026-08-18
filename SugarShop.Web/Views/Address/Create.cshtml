@@ -1,0 +1,79 @@
+﻿@model SugarShop.Domain.Entities.Sales.Address
+@{
+    ViewData["Title"] = "افزودن آدرس جدید";
+    var returnUrl = ViewBag.ReturnUrl as string;
+}
+<div class="container mt-4 mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0 fw-bold">➕ افزودن آدرس جدید</h2>
+        @if (!string.IsNullOrEmpty(returnUrl))
+        {
+            <a href="@returnUrl" class="btn btn-outline-secondary">🔙 بازگشت</a>
+        }
+        else
+        {
+            <a asp-action="Index" class="btn btn-outline-secondary">🔙 بازگشت به لیست آدرس‌ها</a>
+        }
+    </div>
+    <div class="bg-white rounded-4 shadow-sm p-4 p-md-5">
+        <form asp-action="Create" method="post">
+            @if (!string.IsNullOrEmpty(returnUrl))
+            {
+                <input type="hidden" name="returnUrl" value="@returnUrl" />
+            }
+            
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">عنوان <span class="text-danger">*</span> <small class="text-muted fw-normal">(مثال: خانه، محل کار)</small></label>
+                        <input asp-for="Title" class="form-control form-control-lg" required placeholder="مثال: منزل" />
+                        <span asp-validation-for="Title" class="text-danger small"></span>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">نام گیرنده <span class="text-danger">*</span></label>
+                        <input asp-for="ReceiverName" class="form-control form-control-lg" required placeholder="نام و نام خانوادگی گیرنده" />
+                        <span asp-validation-for="ReceiverName" class="text-danger small"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold"> شماره تماس گیرنده سفارش <span class="text-danger">*</span></label>
+                        <input asp-for="ReceiverPhone" class="form-control form-control-lg" required placeholder="مثال: 09123456789" dir="ltr" style="text-align: right;" />
+                        <span asp-validation-for="ReceiverPhone" class="text-danger small"></span>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">آدرس کامل <span class="text-danger">*</span></label>
+                        <textarea asp-for="FullAddress" class="form-control form-control-lg" rows="4" required placeholder="استان، شهر، خیابان، کوچه، پلاک، واحد"></textarea>
+                        <span asp-validation-for="FullAddress" class="text-danger small"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">کد پستی <small class="text-muted fw-normal">(اختیاری)</small></label>
+                        <input asp-for="PostalCode" class="form-control form-control-lg" placeholder="مثال: 1234567890" dir="ltr" style="text-align: right;" />
+                        <span asp-validation-for="PostalCode" class="text-danger small"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex gap-2 mt-4 pt-4 border-top">
+                <button type="submit" class="btn btn-success btn-lg px-5">
+                    <i class="bi bi-check-circle-fill me-2"></i>ذخیره آدرس
+                </button>
+                
+                @if (!string.IsNullOrEmpty(returnUrl))
+                {
+                    <a href="@returnUrl" class="btn btn-outline-secondary btn-lg px-4">انصراف</a>
+                }
+                else
+                {
+                    <a asp-action="Index" class="btn btn-outline-secondary btn-lg px-4">انصراف</a>
+                }
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+}

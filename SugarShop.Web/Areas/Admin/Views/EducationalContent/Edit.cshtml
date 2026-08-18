@@ -1,0 +1,48 @@
+﻿@model SugarShop.Domain.Entities.EducationalContent
+@{
+    ViewData["Title"] = "ویرایش محتوای آموزشی";
+    Layout = "_AdminLayout";
+}
+<div class="card">
+    <div class="card-header">
+        <h4>✏️ ویرایش محتوا</h4>
+    </div>
+    <div class="card-body">
+        <form asp-action="Edit" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="Id" />
+            <div class="mb-3">
+                <label class="form-label">عنوان</label>
+                <input asp-for="Title" class="form-control" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">محتوا (HTML)</label>
+                <textarea asp-for="BodyHtml" class="form-control" rows="15"></textarea>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">تصویر شاخص (URL)</label>
+                <input asp-for="FeaturedImageUrl" class="form-control" />
+                @if (!string.IsNullOrEmpty(Model.FeaturedImageUrl))
+                {
+                    <div class="mt-2">
+                        <img src="@Model.FeaturedImageUrl" style="max-height: 200px; max-width: 100%;" />
+                    </div>
+                }
+            </div>
+            <div class="mb-3">
+                <label class="form-label">دسته‌بندی</label>
+                <input asp-for="Category" class="form-control" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">برچسب‌ها</label>
+                <input asp-for="Tags" class="form-control" />
+            </div>
+            <div class="mb-3 form-check">
+                <input asp-for="IsPublished" class="form-check-input" />
+                <label class="form-check-label">منتشر شده</label>
+            </div>
+            <button type="submit" class="btn btn-success">💾 ذخیره</button>
+            <a href="/Admin/EducationalContent" class="btn btn-secondary">بازگشت</a>
+        </form>
+    </div>
+</div>

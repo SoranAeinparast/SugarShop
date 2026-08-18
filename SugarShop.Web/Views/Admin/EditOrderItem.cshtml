@@ -1,0 +1,35 @@
+﻿@using SugarShop.Domain.Entities
+@{
+    ViewData["Title"] = "ویرایش شیرینی سفارش";
+    var sweetItems = ViewBag.SweetItems as List<SweetItem>;
+    var itemId = ViewBag.ItemId;
+    var orderId = ViewBag.OrderId;
+}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header bg-warning">
+            <h4>🍪 انتخاب شیرینی جدید</h4>
+        </div>
+        <div class="card-body">
+            <form asp-action="EditOrderItem" method="post">
+                <input type="hidden" name="itemId" value="@itemId" />
+                <div class="mb-3">
+                    <label class="form-label">شیرینی مورد نظر را انتخاب کنید:</label>
+                    <select name="newSweetItemId" class="form-select" required>
+                        <option value="">-- انتخاب کنید --</option>
+                        @foreach (var sweet in sweetItems)
+                        {
+                            <option value="@sweet.Id">
+                                @sweet.TitleFa (وزن: ~@sweet.ApproxWeightGrams گرم - قیمت: @sweet.PricePerKg.ToString("N0") تومان/کیلو)
+                            </option>
+                        }
+                    </select>
+                </div>
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-primary">✅ تأیید و ذخیره</button>
+                    <a asp-action="OrderDetails" asp-route-id="@orderId" class="btn btn-secondary">❌ انصراف</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,68 @@
+﻿@using MD.PersianDateTime
+@using SugarShop.Web.Extensions
+@model List<SugarShop.Domain.Entities.EducationalContent>
+@{
+    ViewData["Title"] = "آموزش‌های شیرینی‌پزی";
+}
+<div class="container mt-4">
+    <div class="text-center mb-5">
+        <h1 class="display-4 fw-bold">🍰 آموزش‌های شیرینی‌پزی</h1>
+        <p class="text-muted">آموزش‌های حرفه‌ای و کاربردی برای شیرینی‌پزی خانگی</p>
+    </div>
+    <div class="row g-4">
+        @foreach (var item in Model)
+        {
+            <div class="col-md-4 col-lg-3">
+                <div class="card h-100 shadow-sm hover-shadow transition-all">
+                    @if (!string.IsNullOrEmpty(item.FeaturedImageUrl) && !item.FeaturedImageUrl.Contains("placeholder"))
+                    {
+                        <img src="@item.FeaturedImageUrl" class="card-img-top" alt="@item.Title" style="height: 200px; object-fit: cover;">
+                    }
+                    else
+                    {
+                        <div class="card-img-top d-flex align-items-center justify-content-center" style="height: 200px; background: linear-gradient(135deg, #f5e6d3, #d4a056);">
+                            <i class="bi bi-cupcake" style="font-size: 4rem; color: #fff; opacity: 0.8;"></i>
+                        </div>
+                    }
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title fw-bold">@item.Title</h5>
+                        <p class="card-text text-muted small">
+                            @{
+                                var plainText = item.BodyHtml.StripHtml();
+                                var preview = plainText.TruncateText(100);
+                            }
+                            @preview
+                        </p>
+                        <div class="mt-auto">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="badge bg-warning text-dark">@(item.Category ?? "آموزش")</span>
+                                @{
+                                    string dateString = "-";
+                                    if (item.PublishedAt.HasValue)
+                                    {
+                                        var persianDate = new PersianDateTime(item.PublishedAt.Value);
+                                        dateString = persianDate.ToString("yyyy/MM/dd").ToPersianNumber();
+                                    }
+                                }
+                                <small class="text-muted">@dateString</small>
+                            </div>
+                            <a href="/Educational/Details/@item.Id" class="btn btn-primary w-100 mt-2 rounded-pill">
+                                مشاهده کامل
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+<style>
+    .hover-shadow:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15) !important;
+        transition: all 0.3s ease;
+    }
+    .transition-all {
+        transition: all 0.3s ease;
+    }
+</style>

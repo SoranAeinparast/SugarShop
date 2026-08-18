@@ -1,0 +1,51 @@
+﻿@using SugarShop.Domain.Entities
+@model Ticket
+@{
+    ViewData["Title"] = "جزئیات پیام";
+    Layout = "_AdminLayout";
+}
+<div class="card">
+    <div class="card-header d-flex justify-content-between">
+        <h4>🎫 پیام: @Model.Subject</h4>
+        <a href="@Url.Action("Index")" class="btn btn-secondary">بازگشت</a>
+    </div>
+    <div class="card-body">
+        <p><strong>کاربر:</strong> @ViewBag.UserName</p>
+        <p><strong>تاریخ ایجاد:</strong> @Model.CreatedAt.ToString("yyyy/MM/dd HH:mm")</p>
+        <p><strong>وضعیت:</strong>
+            @if (Model.Status == TicketStatus.Open) { <span class="badge bg-danger">باز</span> }
+            else if (Model.Status == TicketStatus.Answered) { <span class="badge bg-success">پاسخ داده شده</span> }
+            else if (Model.Status == TicketStatus.Closed) { <span class="badge bg-secondary">بسته</span> }
+        </p>
+        <hr />
+        <div class="mb-3">
+            <strong>پیام کاربر:</strong>
+            <div class="border p-3 bg-light">@Model.Message</div>
+        </div>
+        @if (!string.IsNullOrEmpty(Model.AdminResponse))
+        {
+            <div class="mb-3">
+                <strong>پاسخ ادمین:</strong>
+                <div class="border p-3 bg-success text-white">@Model.AdminResponse</div>
+            </div>
+        }
+        <form asp-action="Reply" method="post">
+            <input type="hidden" name="id" value="@Model.Id" />
+            <div class="mb-3">
+                <label class="form-label">پاسخ ادمین</label>
+                <textarea name="adminResponse" class="form-control" rows="4" required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">ارسال پاسخ</button>
+        </form>
+        <form asp-action="ChangeStatus" method="post" class="mt-3">
+            <input type="hidden" name="id" value="@Model.Id" />
+            <select name="status" class="form-select w-25 d-inline">
+                <option value="1" selected="@(Model.Status == TicketStatus.Open)">باز</option>
+                <option value="2" selected="@(Model.Status == TicketStatus.InProgress)">در حال بررسی</option>
+                <option value="3" selected="@(Model.Status == TicketStatus.Answered)">پاسخ داده شده</option>
+                <option value="4" selected="@(Model.Status == TicketStatus.Closed)">بسته</option>
+            </select>
+            <button type="submit" class="btn btn-warning">تغییر وضعیت</button>
+        </form>
+    </div>
+</div>

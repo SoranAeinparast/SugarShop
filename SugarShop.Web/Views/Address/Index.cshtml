@@ -1,0 +1,68 @@
+﻿@using SugarShop.Domain.Entities.Sales
+@using SugarShop.Web.Extensions
+@model List<Address>
+@{
+    ViewData["Title"] = "مدیریت آدرس‌ها";
+}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>📍 آدرس‌های من</h2>
+        <div>
+            <a asp-action="Create" class="btn btn-primary">➕ افزودن آدرس جدید</a>
+            <a asp-controller="Profile" asp-action="Index" class="btn btn-secondary ms-2">↩️ بازگشت به داشبورد</a>
+        </div>
+    </div>
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">@TempData["Success"]</div>
+    }
+    @if (!Model.Any())
+    {
+        <div class="alert alert-info">هیچ آدرسی ثبت نشده است. اولین آدرس خود را اضافه کنید.</div>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var address in Model)
+            {
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100 @(address.IsDefault ? "border-primary" : "")">
+                        <div class="card-header @(address.IsDefault ? "bg-primary text-white" : "bg-light")">
+                            <div class="d-flex justify-content-between">
+                                <strong>@address.Title</strong>
+                                @if (address.IsDefault)
+                                {
+                                    <span class="badge bg-success">پیش‌فرض</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>گیرنده:</strong> @address.ReceiverName</p>
+                            <p><strong>تلفن:</strong> @address.ReceiverPhone.ToPersianNumber()</p>
+                            <p><strong>آدرس:</strong> @address.FullAddress</p>
+                            <p><strong>کد پستی:</strong> @address.PostalCode.ToPersianNumber()</p>
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <div class="d-flex justify-content-between flex-wrap gap-2">
+                                <div>
+                                    <a asp-action="Edit" asp-route-id="@address.Id" class="btn btn-sm btn-warning">✏️ ویرایش</a>
+                                    <form asp-action="Delete" method="post" class="d-inline" onsubmit="return confirm('آیا از حذف این آدرس اطمینان دارید؟');">
+                                        <input type="hidden" name="id" value="@address.Id" />
+                                        <button type="submit" class="btn btn-sm btn-danger">🗑️ حذف</button>
+                                    </form>
+                                </div>
+                                @if (!address.IsDefault)
+                                {
+                                    <form asp-action="SetDefault" method="post">
+                                        <input type="hidden" name="id" value="@address.Id" />
+                                        <button type="submit" class="btn btn-sm btn-outline-primary">⭐ تنظیم به عنوان پیش‌فرض</button>
+                                    </form>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>

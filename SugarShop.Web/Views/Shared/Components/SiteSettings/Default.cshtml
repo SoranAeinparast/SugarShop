@@ -1,0 +1,13 @@
+﻿@model SugarShop.Domain.Entities.SiteSetting
+@if (!string.IsNullOrEmpty(Model?.SiteTitle))
+{
+    ViewData["Title"] = Model.SiteTitle;
+}
+@if (!string.IsNullOrEmpty(Model?.SiteDescription))
+{
+    ViewData["Description"] = Model.SiteDescription;
+}
+@if (!string.IsNullOrEmpty(Model?.FaviconPath))
+{
+    <link rel="icon" type="image/x-icon" href="@Model.FaviconPath">
+}

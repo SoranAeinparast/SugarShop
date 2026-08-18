@@ -1,0 +1,308 @@
+﻿@using SugarShop.Domain.Entities
+@model SugarShop.Domain.Entities.AboutUsSetting
+@using System.Text.Json
+
+@{
+    ViewData["Title"] = Model.HeroTitle ?? "درباره ما";
+    var values = new List<(string Icon, string Title, string Desc)>();
+    
+    try 
+    {
+        if (!string.IsNullOrEmpty(Model.ValuesJson)) 
+        {
+            using var doc = JsonDocument.Parse(Model.ValuesJson);
+            var root = doc.RootElement;
+            
+            if (root.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in root.EnumerateArray())
+                {
+                    var icon = item.TryGetProperty("Icon", out var iconProp) ? iconProp.GetString() ?? "bi-star" : "bi-star";
+                    var title = item.TryGetProperty("Title", out var titleProp) ? titleProp.GetString() ?? "عنوان" : "عنوان";
+                    var desc = item.TryGetProperty("Desc", out var descProp) ? descProp.GetString() ?? "توضیحات" : "توضیحات";
+                    
+                    values.Add((icon, title, desc));
+                }
+            }
+        }
+    } 
+    catch (Exception ex)
+    {
+        System.Diagnostics.Debug.WriteLine($"خطا در پارس JSON: {ex.Message}");
+    }
+}
+
+<style>
+
+    .hero-fullwidth {
+        width: 100vw;
+        margin-left: calc(-50vw + 50%);
+        margin-right: calc(-50vw + 50%);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .hero-section {
+        background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), 
+                    url('@(string.IsNullOrEmpty(Model.HeroImagePath) ? "/images/default-about.jpg" : Model.HeroImagePath)');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        color: white;
+        padding: 120px 0;
+        text-align: center;
+        position: relative;
+    }
+
+    .hero-section::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 80px;
+        background: linear-gradient(to top, rgba(0,0,0,0.3), transparent);
+    }
+    .story-section {
+        padding: 80px 0;
+        background: #f8f9fa;
+    }
+
+    .story-card {
+        background: white;
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        display: flex;
+        flex-direction: row;
+        min-height: 500px;
+    }
+
+    .story-image-col {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+        min-height: 400px;
+    }
+
+    .story-image-col img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        position: absolute;
+        top: 0;
+        left: 0;
+        transition: transform 0.5s ease;
+    }
+
+    .story-card:hover .story-image-col img {
+        transform: scale(1.05);
+    }
+
+    .story-content-col {
+        flex: 1;
+        padding: 50px 40px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .story-label {
+        display: inline-block;
+        color: #d4a056;
+        font-weight: 700;
+        font-size: 0.9rem;
+        letter-spacing: 2px;
+        margin-bottom: 15px;
+        text-transform: uppercase;
+    }
+
+    .story-title {
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: #2c3e50;
+        margin-bottom: 25px;
+        line-height: 1.3;
+    }
+
+    .story-text {
+        color: #555;
+        font-size: 1.05rem;
+        line-height: 1.9;
+        text-align: justify;
+    }
+
+    .story-text p {
+        margin-bottom: 1rem;
+    }
+    .video-section {
+        padding: 80px 0;
+        background: white;
+    }
+
+    .video-wrapper {
+        max-width: 900px;
+        margin: 0 auto;
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    }
+    .values-section {
+        padding: 80px 0;
+        background: #f8f9fa;
+    }
+
+    .value-card {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        border: none;
+        border-radius: 16px;
+        background: #fff;
+        height: 100%;
+    }
+    .value-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 15px 30px rgba(0,0,0,0.1) !important;
+    }
+    .value-icon {
+        width: 70px;
+        height: 70px;
+        background: linear-gradient(135deg, #d4a056, #b8860b);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+        margin: 0 auto 15px;
+    }
+
+    .section-title {
+        text-align: center;
+        margin-bottom: 50px;
+    }
+    .section-title h6 {
+        color: #d4a056;
+        font-weight: 700;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 10px;
+    }
+    .section-title h2 {
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: #2c3e50;
+    }
+    .fade-in-up {
+        opacity: 0;
+        transform: translateY(30px);
+        animation: fadeInUp 0.8s ease-out forwards;
+    }
+    .delay-1 { animation-delay: 0.2s; }
+    .delay-2 { animation-delay: 0.4s; }
+    .delay-3 { animation-delay: 0.6s; }
+
+    @@keyframes fadeInUp {
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    @@media (max-width: 992px) {
+        .story-card {
+            flex-direction: column;
+        }
+        .story-image-col {
+            min-height: 300px;
+        }
+        .story-content-col {
+            padding: 30px 25px;
+        }
+        .story-title {
+            font-size: 1.8rem;
+        }
+    }
+</style>
+<div class="hero-fullwidth">
+    <section class="hero-section">
+        <div class="container">
+            <h1 class="display-4 fw-bold mb-3 fade-in-up">@Model.HeroTitle</h1>
+            <p class="lead fade-in-up delay-1" style="max-width: 700px; margin: 0 auto;">@Model.HeroDescription</p>
+        </div>
+    </section>
+</div>
+<section class="story-section">
+    <div class="container">
+        <div class="story-card fade-in-up">
+            <div class="story-image-col">
+                @if (!string.IsNullOrEmpty(Model.StoryImagePath)) {
+                    <img src="@Model.StoryImagePath" alt="داستان ما" />
+                } else {
+                    <div class="d-flex align-items-center justify-content-center h-100 bg-light">
+                        <i class="bi bi-image text-muted" style="font-size: 4rem;"></i>
+                    </div>
+                }
+            </div>
+            <div class="story-content-col">
+                <span class="story-label">داستان ما</span>
+                <h2 class="story-title">@Model.StoryTitle</h2>
+                <div class="story-text">
+                    @Html.Raw(Model.StoryContent)
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+@if (!string.IsNullOrEmpty(Model.VideoPath)) {
+    <section class="video-section">
+        <div class="container">
+            <div class="section-title fade-in-up">
+                <h6>ویدئوی معرفی</h6>
+                <h2>@Model.VideoTitle</h2>
+            </div>
+            <div class="video-wrapper fade-in-up delay-1">
+                <div class="ratio ratio-16x9">
+                    <video src="@Model.VideoPath" controls></video>
+                </div>
+            </div>
+        </div>
+    </section>
+}
+@if (values.Any()) {
+    <section class="values-section">
+        <div class="container">
+            <div class="section-title fade-in-up">
+                <h6>چرا ما؟</h6>
+                <h2>ارزش‌های بنیادین ما</h2>
+            </div>
+            <div class="row g-4">
+                @foreach (var val in values) {
+                    <div class="col-md-4 fade-in-up delay-1">
+                        <div class="card value-card p-4 text-center shadow-sm">
+                            <div class="value-icon">
+                                <i class="bi @val.Icon"></i>
+                            </div>
+                            <h5 class="fw-bold mb-3">@val.Title</h5>
+                            <p class="text-muted mb-0">@val.Desc</p>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+}
+
+@section Scripts {
+    <script>
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.animationPlayState = 'running';
+                }
+            });
+        });
+        document.querySelectorAll('.fade-in-up').forEach((el) => {
+            el.style.animationPlayState = 'paused';
+            observer.observe(el);
+        });
+    </script>
+}

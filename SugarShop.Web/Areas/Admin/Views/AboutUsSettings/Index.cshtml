@@ -1,0 +1,172 @@
+﻿@model SugarShop.Web.Areas.Admin.ViewModels.AboutUsViewModel
+@{
+    ViewData["Title"] = "تنظیمات صفحه درباره ما";
+    Layout = "_AdminLayout";
+}
+
+<div class="card shadow-sm">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">⚙️ مدیریت محتوای صفحه "درباره ما"</h5>
+    </div>
+    <div class="card-body">
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show">
+                @TempData["Success"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show">
+                @TempData["Error"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        @* ✅ توجه: asp-action="Index" باعث می‌شود درخواست POST به همان آدرس صحیح ارسال شود *@
+        <form asp-area="Admin" asp-controller="AboutUsSettings" asp-action="Index" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="Id" value="@Model.Id" />
+
+            @* ============================================================
+               ۱. بخش بالایی (هیرو)
+               ============================================================ *@
+            <h6 class="text-primary border-bottom pb-2 mb-3">۱. بخش بالایی (هیرو)</h6>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">عنوان اصلی</label>
+                    <input type="text" name="HeroTitle" class="form-control" value="@Model.HeroTitle" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">توضیحات کوتاه</label>
+                    <input type="text" name="HeroDescription" class="form-control" value="@Model.HeroDescription" />
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label">تصویر پس‌زمینه هیرو</label>
+
+                @if (!string.IsNullOrEmpty(Model.HeroImagePath))
+                {
+                    <img id="previewHero" src="@Model.HeroImagePath" class="img-thumbnail mb-2 d-block" style="max-height: 150px;" />
+                }
+                else
+                {
+                    <img id="previewHero" src="" class="img-thumbnail mb-2 d-block" style="max-height: 150px; display: none;" />
+                }
+
+                <div class="input-group">
+                    <input type="text" name="HeroImagePath" class="form-control" readonly
+                           placeholder="مسیر فایل انتخاب‌شده..."
+                           id="heroImagePathInput"
+                           value="@Model.HeroImagePath" />
+
+                    <button type="button" class="btn btn-outline-primary open-media-picker"
+                            data-target="#heroImagePathInput"
+                            data-preview="previewHero">
+                        <i class="bi bi-image"></i> انتخاب از کتابخانه
+                    </button>
+                </div>
+                <small class="text-muted">برای آپلود فایل جدید، روی دکمه کلیک کرده و از داخل مودال گزینه "آپلود فایل جدید" را بزنید.</small>
+            </div>
+
+            @* ============================================================
+               ۲. بخش داستان ما
+               ============================================================ *@
+            <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">۲. بخش داستان ما</h6>
+            <div class="mb-3">
+                <label class="form-label">عنوان بخش</label>
+                <input type="text" name="StoryTitle" class="form-control" value="@Model.StoryTitle" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">تصویر کنار متن</label>
+
+                @if (!string.IsNullOrEmpty(Model.StoryImagePath))
+                {
+                    <img id="previewStory" src="@Model.StoryImagePath" class="img-thumbnail mb-2 d-block" style="max-height: 150px;" />
+                }
+                else
+                {
+                    <img id="previewStory" src="" class="img-thumbnail mb-2 d-block" style="max-height: 150px; display: none;" />
+                }
+
+                <div class="input-group">
+                    <input type="text" name="StoryImagePath" class="form-control" readonly
+                           placeholder="مسیر فایل انتخاب‌شده..."
+                           id="storyImagePathInput"
+                           value="@Model.StoryImagePath" />
+
+                    <button type="button" class="btn btn-outline-primary open-media-picker"
+                            data-target="#storyImagePathInput"
+                            data-preview="previewStory">
+                        <i class="bi bi-image"></i> انتخاب از کتابخانه
+                    </button>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label">متن داستان</label>
+                <textarea name="StoryContent" class="form-control" rows="5">@Model.StoryContent</textarea>
+            </div>
+
+            @* ============================================================
+               ۳. بخش ویدئو معرفی
+               ============================================================ *@
+            <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">۳. بخش ویدئو معرفی</h6>
+            <div class="mb-3">
+                <label class="form-label">عنوان ویدئو</label>
+                <input type="text" name="VideoTitle" class="form-control" value="@Model.VideoTitle" />
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label">فایل ویدئو (mp4)</label>
+
+                @if (!string.IsNullOrEmpty(Model.VideoPath))
+                {
+                    <video id="previewVideo" src="@Model.VideoPath" class="img-thumbnail mb-2 d-block" style="max-height: 150px;" controls></video>
+                }
+                else
+                {
+                    <video id="previewVideo" src="" class="img-thumbnail mb-2 d-block" style="max-height: 150px; display: none;" controls></video>
+                }
+
+                <div class="input-group">
+                    <input type="text" name="VideoPath" class="form-control" readonly
+                           placeholder="مسیر فایل انتخاب‌شده..."
+                           id="videoPathInput"
+                           value="@Model.VideoPath" />
+
+                    <button type="button" class="btn btn-outline-primary open-media-picker"
+                            data-target="#videoPathInput"
+                            data-preview="previewVideo">
+                        <i class="bi bi-film"></i> انتخاب از کتابخانه
+                    </button>
+                </div>
+            </div>
+
+            @* ============================================================
+               ۴. ارزش‌های بنیادین (JSON)
+               ============================================================ *@
+            <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">۴. ارزش‌های بنیادین (JSON)</h6>
+            <div class="mb-4">
+                <label class="form-label">آرایه JSON ارزش‌ها</label>
+                <textarea name="ValuesJson" class="form-control font-monospace" rows="6" dir="ltr">@Model.ValuesJson</textarea>
+                <small class="text-muted">
+                    فرمت نمونه:
+                    <code>[{"Icon":"bi-heart", "Title":"عشق", "Desc":"توضیح"}]</code>
+                </small>
+            </div>
+
+            @* ============================================================
+               دکمه ذخیره
+               ============================================================ *@
+            <div class="text-end mt-4 pt-3 border-top">
+                <button type="submit" class="btn btn-success px-4">
+                    💾 ذخیره تمام تغییرات
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

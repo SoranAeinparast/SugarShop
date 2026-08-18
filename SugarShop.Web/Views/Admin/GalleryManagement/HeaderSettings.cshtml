@@ -1,0 +1,318 @@
+﻿@model SugarShop.Domain.Entities.GalleryHeaderSetting
+@{
+    ViewData["Title"] = "تنظیمات هدر گالری";
+}
+
+<style>
+    .header-preview {
+        width: 100%;
+        height: 200px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        text-align: center;
+        padding: 20px;
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    .header-preview-bg {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-size: cover;
+        background-position: center;
+        z-index: 0;
+    }
+    .header-preview-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.3);
+        z-index: 1;
+    }
+    .header-preview-content {
+        position: relative;
+        z-index: 2;
+    }
+    .header-preview h2 {
+        margin: 0 0 10px 0;
+        font-size: 2rem;
+        font-weight: 800;
+    }
+    .header-preview p {
+        margin: 0;
+        font-size: 1.1rem;
+        opacity: 0.9;
+    }
+    .color-input-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .color-input-wrapper input[type="color"] {
+        width: 50px;
+        height: 40px;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+    .bg-image-preview {
+        max-height: 150px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+    }
+</style>
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>🎨 تنظیمات هدر صفحه گالری</h2>
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-right"></i> بازگشت به مدیریت گالری
+        </a>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            @TempData["Success"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show">
+            @TempData["Error"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <div class="row">
+        <!-- پیش‌نمایش زنده -->
+        <div class="col-md-5">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">👁️ پیش‌نمایش زنده</h5>
+                </div>
+                <div class="card-body">
+                    <div id="headerPreview" class="header-preview" 
+                         style="background: @Model.BackgroundColor; color: @Model.TextColor;">
+                        @if (!string.IsNullOrEmpty(Model.BackgroundImagePath))
+                        {
+                            <div id="previewBgLayer" class="header-preview-bg" style="background-image: url('@Model.BackgroundImagePath');"></div>
+                            <div class="header-preview-overlay"></div>
+                        }
+                        else
+                        {
+                            <div id="previewBgLayer" class="header-preview-bg"></div>
+                        }
+                        <div class="header-preview-content">
+                            <h2 id="previewTitle">@Model.Title</h2>
+                            <p id="previewSubtitle">@Model.Subtitle</p>
+                        </div>
+                    </div>
+                    <small class="text-muted">
+                        💡 تغییرات به‌صورت زنده در پیش‌نمایش اعمال می‌شوند
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <!-- فرم تنظیمات -->
+        <div class="col-md-7">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">⚙️ تنظیمات</h5>
+                </div>
+                <div class="card-body">
+                    <form asp-action="HeaderSettings" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="Id" value="@Model.Id" />
+                        
+                        <!-- ✅ فقط یک input برای BackgroundImagePath (بدون hidden تکراری) -->
+                        <input type="hidden" name="BackgroundImagePath" id="bgImagePathHidden" value="@Model.BackgroundImagePath" />
+
+                        <!-- وضعیت نمایش -->
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <input asp-for="IsEnabled" class="form-check-input" type="checkbox" id="isEnabled" />
+                                <label class="form-check-label fw-bold" for="isEnabled">
+                                    نمایش هدر در صفحه گالری
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- عنوان -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">عنوان اصلی</label>
+                            <input asp-for="Title" class="form-control" id="titleInput" 
+                                   placeholder="مثال: گالری تصاویر و ویدئوها" />
+                        </div>
+
+                        <!-- زیرعنوان -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">زیرعنوان (توضیحات)</label>
+                            <input asp-for="Subtitle" class="form-control" id="subtitleInput" 
+                                   placeholder="مثال: نمونه‌ای از آثار هنری ما" />
+                        </div>
+
+                        <!-- رنگ پس‌زمینه -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">رنگ/گرادیان پس‌زمینه</label>
+                            <input asp-for="BackgroundColor" class="form-control font-monospace" 
+                                   id="bgColorInput" dir="ltr"
+                                   placeholder="linear-gradient(135deg, #667eea 0%, #764ba2 100%)" />
+                            <small class="text-muted">
+                                می‌توانید از گرادیان CSS یا رنگ ساده استفاده کنید. 
+                                مثال: <code>#ff6b6b</code> یا <code>linear-gradient(...)</code>
+                            </small>
+                        </div>
+
+                        <!-- رنگ متن -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">رنگ متن</label>
+                            <div class="color-input-wrapper">
+                                <input type="color" id="textColorPicker" value="@Model.TextColor" />
+                                <input asp-for="TextColor" class="form-control" id="textColorInput" 
+                                       dir="ltr" style="max-width: 200px;" />
+                            </div>
+                        </div>
+
+                        <!-- ارتفاع -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">ارتفاع هدر (پیکسل)</label>
+                            <input asp-for="Height" type="number" class="form-control" 
+                                   id="heightInput" min="100" max="600" />
+                        </div>
+
+                        <!-- تصویر پس‌زمینه -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">تصویر پس‌زمینه (اختیاری)</label>
+                            
+                            @if (!string.IsNullOrEmpty(Model.BackgroundImagePath))
+                            {
+                                <img id="bgImagePreview" src="@Model.BackgroundImagePath" 
+                                     class="bg-image-preview d-block" />
+                            }
+                            else
+                            {
+                                <img id="bgImagePreview" src="" class="bg-image-preview d-block" style="display: none;" />
+                            }
+
+                            <div class="input-group">
+                                <input type="text" id="bgImagePathDisplay" class="form-control" readonly 
+                                       placeholder="مسیر تصویر..." 
+                                       value="@Model.BackgroundImagePath" />
+                                <button type="button" class="btn btn-outline-primary open-media-picker" 
+                                        data-target="#bgImagePathHidden" 
+                                        data-preview="#bgImagePreview">
+                                    <i class="bi bi-image"></i> انتخاب از کتابخانه
+                                </button>
+                            </div>
+                            <small class="text-muted">
+                                اگر تصویر انتخاب شود، روی رنگ پس‌زمینه قرار می‌گیرد
+                            </small>
+                        </div>
+
+                        <!-- دکمه ذخیره -->
+                        <div class="text-end pt-3 border-top">
+                            <button type="submit" class="btn btn-success btn-lg px-5">
+                                <i class="bi bi-check-circle"></i> ذخیره تنظیمات
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    // پیش‌نمایش زنده
+    const titleInput = document.getElementById('titleInput');
+    const subtitleInput = document.getElementById('subtitleInput');
+    const bgColorInput = document.getElementById('bgColorInput');
+    const textColorInput = document.getElementById('textColorInput');
+    const textColorPicker = document.getElementById('textColorPicker');
+    const heightInput = document.getElementById('heightInput');
+    const preview = document.getElementById('headerPreview');
+    const previewTitle = document.getElementById('previewTitle');
+    const previewSubtitle = document.getElementById('previewSubtitle');
+    const previewBgLayer = document.getElementById('previewBgLayer');
+    const bgImagePathHidden = document.getElementById('bgImagePathHidden');
+    const bgImagePathDisplay = document.getElementById('bgImagePathDisplay');
+    const bgImagePreview = document.getElementById('bgImagePreview');
+
+    // به‌روزرسانی عنوان
+    titleInput.addEventListener('input', function() {
+        previewTitle.textContent = this.value || 'عنوان نمونه';
+    });
+
+    // به‌روزرسانی زیرعنوان
+    subtitleInput.addEventListener('input', function() {
+        previewSubtitle.textContent = this.value || 'زیرعنوان نمونه';
+    });
+
+    // به‌روزرسانی رنگ پس‌زمینه
+    bgColorInput.addEventListener('input', function() {
+        preview.style.background = this.value;
+    });
+
+    // به‌روزرسانی رنگ متن (هم input و هم color picker)
+    textColorInput.addEventListener('input', function() {
+        preview.style.color = this.value;
+        textColorPicker.value = this.value;
+    });
+    textColorPicker.addEventListener('input', function() {
+        preview.style.color = this.value;
+        textColorInput.value = this.value;
+    });
+
+    // به‌روزرسانی ارتفاع
+    heightInput.addEventListener('input', function() {
+        preview.style.height = this.value + 'px';
+    });
+
+    // ✅ نظارت بر تغییرات input hidden (وقتی Media Picker مقدار را تغییر می‌دهد)
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'value') {
+                updateBgImagePreview();
+            }
+        });
+    });
+    observer.observe(bgImagePathHidden, { attributes: true });
+
+    // همچنین با interval چک می‌کنیم (برای اطمینان)
+    setInterval(function() {
+        const currentPath = bgImagePathHidden.value;
+        if (bgImagePathDisplay.value !== currentPath) {
+            bgImagePathDisplay.value = currentPath;
+            updateBgImagePreview();
+        }
+    }, 500);
+
+    function updateBgImagePreview() {
+        const path = bgImagePathHidden.value;
+        if (path) {
+            // به‌روزرسانی پیش‌نمایش تصویر کوچک
+            bgImagePreview.src = path;
+            bgImagePreview.style.display = 'block';
+            
+            // به‌روزرسانی لایه پس‌زمینه در پیش‌نمایش هدر
+            previewBgLayer.style.backgroundImage = `url('${path}')`;
+        } else {
+            bgImagePreview.style.display = 'none';
+            previewBgLayer.style.backgroundImage = 'none';
+        }
+    }
+</script>
+}

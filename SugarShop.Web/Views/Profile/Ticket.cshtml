@@ -1,0 +1,24 @@
+﻿@{
+    ViewData["Title"] = "ارسال پیام";
+}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>📧 ارسال پیام پشتیبانی</h2>
+        <a href="@Url.Action("MyTickets", "Profile")" class="btn btn-secondary mb-3">🔙 بازگشت به پیام های من</a>    </div>
+    <div class="card mb-3">
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">@TempData["Success"]</div>
+    }
+    <form method="post">
+        <div class="mb-3">
+            <label class="form-label">موضوع</label>
+            <input type="text" name="subject" class="form-control" required />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">پیام</label>
+            <textarea name="message" rows="5" class="form-control" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">ارسال پیام</button>
+    </form>
+</div>
