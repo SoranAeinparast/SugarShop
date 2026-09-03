@@ -64,9 +64,10 @@ namespace SugarShop.Web.Controllers
             bool isOwner = await _userManager.IsInRoleAsync(user, "Owner");
             bool isAdmin = await _userManager.IsInRoleAsync(user, "Admin");
             bool isOrderManager = await _userManager.IsInRoleAsync(user, "OrderManager");
+            bool isChef = await _userManager.IsInRoleAsync(user, "Chef");
 
-            // ✅ اصلاح حیاتی: اگر کاربر Owner باشد، حتی اگر تیک "مرا به خاطر بسپار" زده باشد، کوکی ذخیره نشود
-            bool isPersistent = model.RememberMe && !isAdmin && !isOrderManager && !isOwner;
+            // ✅ اصلاح حیاتی: اگر کاربر کارمند (Owner/Admin/OrderManager/Chef) باشد، حتی اگر تیک "مرا به خاطر بسپار" زده باشد، کوکی ذخیره نشود
+            bool isPersistent = model.RememberMe && !isAdmin && !isOrderManager && !isOwner && !isChef;
 
             var result = await _signInManager.PasswordSignInAsync(user, model.Password, isPersistent, lockoutOnFailure: true);
 
@@ -75,6 +76,11 @@ namespace SugarShop.Web.Controllers
                 if (isAdmin || isOrderManager || isOwner)
                 {
                     return Json(new { success = true, redirectUrl = Url.Action("Index", "Admin") });
+                }
+                if (isChef)
+                {
+                    // سرآشپز مستقیم به داشبورد مخصوص خود هدایت می‌شود
+                    return Json(new { success = true, redirectUrl = Url.Action("Index", "Chef") });
                 }
                 return Json(new { success = true, redirectUrl = model.ReturnUrl ?? Url.Action("Index", "Home") });
             }

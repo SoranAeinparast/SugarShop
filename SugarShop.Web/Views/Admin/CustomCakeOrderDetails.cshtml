@@ -23,14 +23,7 @@
                     var deliveryStr = deliveryDate.ToString("yyyy/MM/dd HH:mm");
                     <p><strong>تاریخ تحویل دلخواه:</strong> @deliveryStr.ToPersianNumber()</p>
                 }
-                <p><strong>وضعیت فعلی:</strong>
-                    @if (Model.Status == CustomCakeOrderStatus.Pending)
-                    { <span class="badge bg-warning text-dark">در انتظار بررسی</span> }
-                    else if (Model.Status == CustomCakeOrderStatus.Accepted)
-                    { <span class="badge bg-success">تأیید شده</span> }
-                    else
-                    { <span class="badge bg-danger">رد شده</span> }
-                </p>
+                <p><strong>وضعیت فعلی:</strong> <partial name="_CakeStatusBadge" model="Model.Status" /></p>
             </div>
             <div class="col-md-6">
                 @if (!string.IsNullOrEmpty(Model.SampleImagePath))
@@ -75,9 +68,12 @@
                 <div class="col-md-4">
                     <label>وضعیت</label>
                     <select name="status" class="form-select">
-                        <option value="Pending" selected="@(Model.Status == CustomCakeOrderStatus.Pending)">در انتظار بررسی</option>
-                        <option value="Accepted" selected="@(Model.Status == CustomCakeOrderStatus.Accepted)">تأیید شده</option>
-                        <option value="Rejected" selected="@(Model.Status == CustomCakeOrderStatus.Rejected)">رد شده</option>
+                        <option value="Pending" selected="@(Model.Status == CustomCakeOrderStatus.Pending)">⏳ در انتظار بررسی</option>
+                        <option value="Accepted" selected="@(Model.Status == CustomCakeOrderStatus.Accepted)">✅ تأیید شده</option>
+                        <option value="InProduction" selected="@(Model.Status == CustomCakeOrderStatus.InProduction)">👨‍🍳 در حال پخت</option>
+                        <option value="Ready" selected="@(Model.Status == CustomCakeOrderStatus.Ready)">🎂 آماده تحویل</option>
+                        <option value="Completed" selected="@(Model.Status == CustomCakeOrderStatus.Completed)">📦 تحویل شده</option>
+                        <option value="Rejected" selected="@(Model.Status == CustomCakeOrderStatus.Rejected)">❌ رد شده</option>
                     </select>
                 </div>
                 <div class="col-md-4">

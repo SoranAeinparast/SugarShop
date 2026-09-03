@@ -118,7 +118,8 @@ builder.Services.ConfigureApplicationCookie(options =>
     {
         var isStaff = context.Principal?.IsInRole("Admin") == true ||
                       context.Principal?.IsInRole("OrderManager") == true ||
-                      context.Principal?.IsInRole("Owner") == true;
+                      context.Principal?.IsInRole("Owner") == true ||
+                      context.Principal?.IsInRole("Chef") == true;
         if (isStaff)
         {
             context.Properties.IsPersistent = false;
@@ -255,7 +256,7 @@ app.Run();
 
 static async Task SeedRolesAndUsersAsync(RoleManager<IdentityRole> roleManager, UserManager<ApplicationUser> userManager, IConfiguration configuration, ILogger logger)
 {
-    string[] roles = { "Admin", "OrderManager", "User", "Owner" };
+    string[] roles = { "Admin", "OrderManager", "User", "Owner", "Chef" };
     foreach (var role in roles)
     {
         if (!await roleManager.RoleExistsAsync(role))
@@ -295,6 +296,7 @@ static async Task SeedRolesAndUsersAsync(RoleManager<IdentityRole> roleManager, 
     await TryCreateUserAsync("SoransoftOWNER", "owner@soransoftpro.ir", "مالک سیستم", "Owner", new[] { "Owner", "Admin" });
     await TryCreateUserAsync("admin", "admin@sugarshop.com", "مدیر سیستم", "Admin", new[] { "Admin" });
     await TryCreateUserAsync("manager", "manager@sugarshop.com", "مدیر سفارشات", "Manager", new[] { "OrderManager" });
+    await TryCreateUserAsync("chef", "chef@sugarshop.com", "سرآشپز", "Chef", new[] { "Chef" });
 }
 
 static async Task SeedPaymentGatewaysAsync(SugarShopSalesDbContext salesDb, IConfiguration configuration, ILogger logger)

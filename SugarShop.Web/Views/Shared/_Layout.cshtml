@@ -10,7 +10,8 @@
     var user = await UserManager.GetUserAsync(User);
     var isAdmin = user != null && await UserManager.IsInRoleAsync(user, "Admin");
     var isOrderManager = user != null && await UserManager.IsInRoleAsync(user, "OrderManager");
-    var isNormalUser = user != null && !isAdmin && !isOrderManager;
+    var isChef = user != null && await UserManager.IsInRoleAsync(user, "Chef");
+    var isNormalUser = user != null && !isAdmin && !isOrderManager && !isChef;
     var siteSettings = await DbContext.SiteSettings.FirstOrDefaultAsync();
     if (siteSettings != null)
     {
@@ -587,6 +588,15 @@
                                        @(currentUser?.FullName ?? currentUser?.UserName ?? "کاربر")
                 
                                     </a>
+                                    @if (isChef)
+                                    {
+                                        <a asp-controller="Chef" asp-action="Index"
+                                           class="d-block text-center text-decoration-none small fw-bold mt-1"
+                                           style="font-size: 0.78rem; color: #d97706; border: 1px solid #d97706; border-radius: 1rem; padding: 1px 10px;"
+                                           title="ورود به داشبورد سرآشپز">
+                                           🧑‍🍳 پنل سرآشپز
+                                        </a>
+                                    }
                                     <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
                                         @Html.AntiForgeryToken()
                                         <button type="submit" class="logout-btn">🚪 خروج</button>

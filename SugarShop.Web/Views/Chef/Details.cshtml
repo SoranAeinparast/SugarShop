@@ -1,0 +1,387 @@
+@using SugarShop.Domain.Entities.Sales
+@using SugarShop.Domain.Entities
+@using MD.PersianDateTime
+@using SugarShop.Web.Extensions
+@model CustomCakeOrder
+@{
+    ViewData["Title"] = $"سفارش کیک #{Model.Id}";
+    Layout = "_ChefLayout";
+    var customer = ViewBag.Customer as ApplicationUser;
+    var createdPersian = new PersianDateTime(Model.CreatedAt);
+    string CustomerName() => customer?.FullName ?? customer?.UserName ?? customer?.PhoneNumber ?? "—";
+    var steps = new (CustomCakeOrderStatus Status, string Icon, string Label)[]
+    {
+        (CustomCakeOrderStatus.Pending, "⏳", "در انتظار بررسی"),
+        (CustomCakeOrderStatus.Accepted, "✅", "تأیید شده"),
+        (CustomCakeOrderStatus.InProduction, "👨‍🍳", "در حال پخت"),
+        (CustomCakeOrderStatus.Ready, "🎂", "آماده تحویل"),
+        (CustomCakeOrderStatus.Completed, "📦", "تحویل شده")
+    };
+    var currentIndex = Array.FindIndex(steps, s => s.Status == Model.Status);
+}
+<style>
+    .chef-detail-card {
+        border: none;
+        border-radius: 1rem;
+        box-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.06);
+    }
+    .info-label {
+        font-weight: 600;
+        color: #6b7280;
+        display: inline-block;
+        width: 130px;
+    }
+    .info-value {
+        font-weight: 500;
+        color: #1f2937;
+    }
+    .img-thumb {
+        max-height: 220px;
+        object-fit: contain;
+        border-radius: 0.75rem;
+        background: #f8f9fa;
+        padding: 0.4rem;
+        width: 100%;
+    }
+    /* ═══ استپر گردش کار ═══ */
+    .wf-step {
+        flex: 1;
+        text-align: center;
+        position: relative;
+    }
+    .wf-step::before {
+        content: '';
+        position: absolute;
+        top: 22px;
+        right: -50%;
+        width: 100%;
+        height: 3px;
+        background: #e5e7eb;
+        z-index: 0;
+    }
+    .wf-step:first-child::before {
+        display: none;
+    }
+    .wf-step .wf-dot {
+        width: 44px;
+        height: 44px;
+        margin: 0 auto 6px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.15rem;
+        background: #e5e7eb;
+        border: 3px solid #d1d5db;
+        position: relative;
+        z-index: 1;
+    }
+    .wf-step.done .wf-dot {
+        background: #198754;
+        border-color: #198754;
+        color: #fff;
+    }
+    .wf-step.done::before {
+        background: #198754;
+    }
+    .wf-step.current .wf-dot {
+        background: #d97706;
+        border-color: #d97706;
+        color: #fff;
+        box-shadow: 0 0 0 5px rgba(217, 119, 6, 0.2);
+    }
+    .wf-step.current::before {
+        background: #198754;
+    }
+    .wf-step .wf-label {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #6b7280;
+    }
+    .wf-step.current .wf-label {
+        color: #b45309;
+    }
+    .wf-step.done .wf-label {
+        color: #198754;
+    }
+    @@media (max-width: 576px) {
+        .wf-label {
+            display: none;
+        }
+        .wf-step::before {
+            top: 20px;
+        }
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h3 class="mb-0">🎂 جزئیات سفارش کیک #@Model.Id.ToPersianNumber()</h3>
+    <div>
+        <a asp-action="WorkOrder" asp-route-id="@Model.Id" class="btn btn-dark" target="_blank">🖨️ چاپ دستور کار پخت</a>
+        <a asp-action="Index" class="btn btn-outline-secondary">🔙 بازگشت به داشبورد</a>
+    </div>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show">@TempData["Success"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show">@TempData["Error"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+}
+
+@* ═══════════ استپر گردش کار ═══════════ *@
+<div class="card chef-detail-card mb-4">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <h5 class="mb-0">📋 گردش کار پخت</h5>
+            <div>
+                <partial name="_CakeStatusBadge" model="Model.Status" />
+                @if (Model.IsPaid)
+                {
+                    <span class="badge bg-success ms-1">✅ پرداخت شده</span>
+                }
+                else
+                {
+                    <span class="badge bg-secondary ms-1">پرداخت نشده</span>
+                }
+            </div>
+        </div>
+        <div class="d-flex wf-stepper pt-2">
+            @for (int i = 0; i < steps.Length; i++)
+            {
+                var step = steps[i];
+                var stateCls = i < currentIndex ? "done" : (i == currentIndex ? "current" : "");
+                <div class="wf-step @stateCls">
+                    <div class="wf-dot">@step.Icon</div>
+                    <div class="wf-label">@step.Label</div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        @* ═══════════ مشخصات کیک ═══════════ *@
+        <div class="card chef-detail-card mb-4">
+            <div class="card-header bg-dark text-white rounded-top-4">
+                <h5 class="mb-0">🧁 مشخصات کیک سفارشی</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="info-label">طعم کیک:</div>
+                        <div class="info-value">@(Model.Flavor ?? "-")</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="info-label">شکل کیک:</div>
+                        <div class="info-value">@(Model.Shape ?? "-")</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="info-label">وزن تقریبی:</div>
+                        <div class="info-value">@(Model.WeightGrams?.ToString().ToPersianNumber() ?? "-") گرم</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="info-label">تعداد نفرات:</div>
+                        <div class="info-value">@(Model.Servings?.ToString().ToPersianNumber() ?? "-") نفر</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="info-label">نوع مراسم:</div>
+                        <div class="info-value">@(Model.Occasion ?? "-")</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="info-label">تاریخ ثبت:</div>
+                        <div class="info-value">@createdPersian.ToString("yyyy/MM/dd HH:mm").ToPersianNumber()</div>
+                    </div>
+                    @if (Model.DesiredDeliveryDateTime.HasValue)
+                    {
+                        var deliveryPersian = new PersianDateTime(Model.DesiredDeliveryDateTime.Value);
+                        <div class="col-12">
+                            <div class="info-label">تحویل دلخواه:</div>
+                            <div class="info-value">@deliveryPersian.ToString("yyyy/MM/dd HH:mm").ToPersianNumber()</div>
+                        </div>
+                    }
+                    <div class="col-12">
+                        <div class="info-label">مواد به کار رفته:</div>
+                        <div class="info-value">@(Model.Ingredients ?? "-")</div>
+                    </div>
+                    <div class="col-12">
+                        <div class="info-label">توضیحات ویژه:</div>
+                        <div class="info-value p-3 bg-light rounded-3 mt-1">@(Model.SpecialRequests ?? "—")</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* ═══════════ یادداشت‌ها ═══════════ *@
+        <div class="card chef-detail-card mb-4">
+            <div class="card-header bg-light rounded-top-4">
+                <h5 class="mb-0">💬 یادداشت سرآشپز / فروشگاه</h5>
+            </div>
+            <div class="card-body">
+                @if (string.IsNullOrWhiteSpace(Model.AdminNotes))
+                {
+                    <p class="text-muted mb-0">یادداشتی ثبت نشده است.</p>
+                }
+                else
+                {
+                    <div class="p-3 bg-warning bg-opacity-10 rounded-3 border-start border-warning border-4">@Model.AdminNotes</div>
+                }
+                @if (Model.FinalPrice.HasValue)
+                {
+                    <div class="mt-3">
+                        <span class="info-label">قیمت نهایی:</span>
+                        <span class="fw-bold text-success fs-5">@Model.FinalPrice.Value.ToString("N0").ToPersianNumber() تومان</span>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @* ═══════════ اقدامات گردش کار ═══════════ *@
+        @if (Model.Status == CustomCakeOrderStatus.Pending)
+        {
+            <div class="card chef-detail-card mb-4 border-warning">
+                <div class="card-header bg-warning text-dark rounded-top-4">
+                    <h5 class="mb-0">✅ بررسی و تأیید سفارش</h5>
+                </div>
+                <div class="card-body">
+                    <form asp-action="Approve" method="post" class="row g-3">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">قیمت پیشنهادی (تومان)</label>
+                            <input type="number" name="finalPrice" class="form-control" step="1000" min="0" placeholder="مثلاً 1500000" />
+                            <div class="form-text">پس از تأیید، مشتری می‌تواند پرداخت کند.</div>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label fw-semibold">یادداشت تأیید (نمایش به مشتری)</label>
+                            <textarea name="chefNotes" class="form-control" rows="2" placeholder="مثلاً: طبق توضیحات شما آماده پخت است…"></textarea>
+                        </div>
+                        <div class="col-12 d-flex gap-2">
+                            <button type="submit" class="btn btn-success px-4">✅ تأیید و ورود به دستور کار پخت</button>
+                        </div>
+                    </form>
+                    <hr />
+                    <form asp-action="Reject" method="post" class="row g-3" onsubmit="return confirm('آیا از رد این سفارش اطمینان دارید؟');">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <div class="col-12">
+                            <label class="form-label fw-semibold text-danger">دلیل رد (نمایش به مشتری)</label>
+                            <textarea name="reason" class="form-control" rows="2" placeholder="مثلاً: امکان ساخت این طرح در حال حاضر وجود ندارد…"></textarea>
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-outline-danger">❌ رد سفارش</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        }
+        else if (Model.Status == CustomCakeOrderStatus.Accepted)
+        {
+            <div class="card chef-detail-card mb-4 border-info">
+                <div class="card-header bg-info text-dark rounded-top-4">
+                    <h5 class="mb-0">👨‍🍳 مرحله بعد: شروع پخت</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">سفارش تأیید شده است. پس از آماده‌سازی مواد اولیه، پخت را آغاز کنید.</p>
+                    <form asp-action="StartProduction" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <button type="submit" class="btn btn-info px-4">🔥 شروع پخت</button>
+                    </form>
+                </div>
+            </div>
+        }
+        else if (Model.Status == CustomCakeOrderStatus.InProduction)
+        {
+            <div class="card chef-detail-card mb-4 border-success">
+                <div class="card-header bg-success text-white rounded-top-4">
+                    <h5 class="mb-0">🎂 مرحله بعد: آماده تحویل</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">کیک در حال پخت است. پس از اتمام تزئین، وضعیت را به «آماده تحویل» تغییر دهید.</p>
+                    <form asp-action="MarkReady" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <button type="submit" class="btn btn-success px-4">🎂 کیک آماده تحویل است</button>
+                    </form>
+                </div>
+            </div>
+        }
+        else if (Model.Status == CustomCakeOrderStatus.Ready)
+        {
+            <div class="card chef-detail-card mb-4 border-secondary">
+                <div class="card-header bg-secondary text-white rounded-top-4">
+                    <h5 class="mb-0">📦 مرحله بعد: تحویل نهایی</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">کیک آماده تحویل به مشتری است.</p>
+                    <form asp-action="Complete" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <button type="submit" class="btn btn-secondary px-4">📦 ثبت تحویل نهایی</button>
+                    </form>
+                </div>
+            </div>
+        }
+        else if (Model.Status == CustomCakeOrderStatus.Completed)
+        {
+            <div class="alert alert-success">
+                🎉 این سفارش با موفقیت تحویل شده است. گردش کار به پایان رسیده است.
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-danger">
+                ❌ این سفارش رد شده است. @(string.IsNullOrWhiteSpace(Model.AdminNotes) ? "" : $"دلیل: {Model.AdminNotes}")
+            </div>
+        }
+    </div>
+
+    <div class="col-lg-4">
+        @* ═══════════ مشتری ═══════════ *@
+        <div class="card chef-detail-card mb-4">
+            <div class="card-header bg-light rounded-top-4">
+                <h5 class="mb-0">👤 اطلاعات مشتری</h5>
+            </div>
+            <div class="card-body">
+                <div class="info-label">نام:</div>
+                <div class="info-value mb-2">@CustomerName()</div>
+                <div class="info-label">تلفن:</div>
+                <div class="info-value mb-2">@(customer?.PhoneNumber?.ToPersianNumber() ?? "—")</div>
+                <div class="info-label">ایمیل:</div>
+                <div class="info-value mb-2">@(customer?.Email ?? "—")</div>
+                <div class="info-label">شناسه کاربر:</div>
+                <div class="info-value small text-muted">@Model.UserId</div>
+            </div>
+        </div>
+
+        @* ═══════════ تصاویر ═══════════ *@
+        @if (!string.IsNullOrEmpty(Model.SampleImagePath) || !string.IsNullOrEmpty(Model.PrintImagePath))
+        {
+            <div class="card chef-detail-card mb-4">
+                <div class="card-header bg-light rounded-top-4">
+                    <h5 class="mb-0">📸 تصاویر سفارش</h5>
+                </div>
+                <div class="card-body">
+                    @if (!string.IsNullOrEmpty(Model.SampleImagePath))
+                    {
+                        <label class="form-label fw-semibold">تصویر نمونه کیک</label>
+                        <a href="@Model.SampleImagePath" target="_blank">
+                            <img src="@Model.SampleImagePath" class="img-thumb border mb-3" alt="نمونه کیک" />
+                        </a>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.PrintImagePath))
+                    {
+                        <label class="form-label fw-semibold">تصویر برای چاپ روی کیک</label>
+                        <a href="@Model.PrintImagePath" target="_blank">
+                            <img src="@Model.PrintImagePath" class="img-thumb border" alt="تصویر چاپ" />
+                        </a>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>

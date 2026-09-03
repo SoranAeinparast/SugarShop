@@ -1,0 +1,221 @@
+@using SugarShop.Domain.Entities.Sales
+@using MD.PersianDateTime
+@using SugarShop.Web.Extensions
+@using SugarShop.Domain.Entities
+@model List<CustomCakeOrder>
+@{
+    ViewData["Title"] = "مدیریت کیک‌های سفارشی";
+    Layout = "_ChefLayout";
+    var selected = (CustomCakeOrderStatus?)ViewBag.SelectedStatus;
+    var users = (Dictionary<string, ApplicationUser>)ViewBag.Users;
+    string CustomerName(string id)
+    {
+        if (users != null && users.TryGetValue(id, out var u))
+            return u.FullName ?? u.UserName ?? u.PhoneNumber ?? id;
+        return id;
+    }
+}
+<div class="chef-hero p-4 mb-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h1 class="display-5 mb-1">🧑‍🍳 کارگاه کیک‌های سفارشی</h1>
+        <p class="mb-0 opacity-75">درخواست‌های مشتریان را بررسی کنید، دستور پخت را چاپ کنید و گردش کار پخت را تا تحویل نهایی هدایت کنید.</p>
+    </div>
+    <div class="text-start">
+        <div class="fs-3 fw-bold">@Model.Count.ToPersianNumber()</div>
+        <div class="opacity-75 small">سفارش در این نما</div>
+    </div>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show">@TempData["Success"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show">@TempData["Error"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+}
+
+@* ═══════════ کارت‌های آمار ═══════════ *@
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-4 col-xl-2">
+        <a asp-action="Index" asp-route-status="Pending" class="text-decoration-none">
+            <div class="card stat-card bg-warning bg-opacity-10 border-warning">
+                <div class="card-body text-center py-3">
+                    <div class="stat-icon">⏳</div>
+                    <div class="stat-value text-warning">@((int)ViewBag.CountPending).ToPersianNumber()</div>
+                    <div class="stat-label">در انتظار بررسی</div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <a asp-action="Index" asp-route-status="Accepted" class="text-decoration-none">
+            <div class="card stat-card bg-primary bg-opacity-10 border-primary">
+                <div class="card-body text-center py-3">
+                    <div class="stat-icon">✅</div>
+                    <div class="stat-value text-primary">@((int)ViewBag.CountAccepted).ToPersianNumber()</div>
+                    <div class="stat-label">تأیید شده</div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <a asp-action="Index" asp-route-status="InProduction" class="text-decoration-none">
+            <div class="card stat-card bg-info bg-opacity-10 border-info">
+                <div class="card-body text-center py-3">
+                    <div class="stat-icon">👨‍🍳</div>
+                    <div class="stat-value text-info">@((int)ViewBag.CountInProduction).ToPersianNumber()</div>
+                    <div class="stat-label">در حال پخت</div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <a asp-action="Index" asp-route-status="Ready" class="text-decoration-none">
+            <div class="card stat-card bg-success bg-opacity-10 border-success">
+                <div class="card-body text-center py-3">
+                    <div class="stat-icon">🎂</div>
+                    <div class="stat-value text-success">@((int)ViewBag.CountReady).ToPersianNumber()</div>
+                    <div class="stat-label">آماده تحویل</div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <a asp-action="Index" asp-route-status="Completed" class="text-decoration-none">
+            <div class="card stat-card bg-secondary bg-opacity-10 border-secondary">
+                <div class="card-body text-center py-3">
+                    <div class="stat-icon">📦</div>
+                    <div class="stat-value text-secondary">@((int)ViewBag.CountCompleted).ToPersianNumber()</div>
+                    <div class="stat-label">تحویل شده</div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <a asp-action="Index" asp-route-status="Rejected" class="text-decoration-none">
+            <div class="card stat-card bg-danger bg-opacity-10 border-danger">
+                <div class="card-body text-center py-3">
+                    <div class="stat-icon">❌</div>
+                    <div class="stat-value text-danger">@((int)ViewBag.CountRejected).ToPersianNumber()</div>
+                    <div class="stat-label">رد شده</div>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+
+@* ═══════════ فیلتر وضعیت ═══════════ *@
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <ul class="nav nav-pills flex-wrap gap-2">
+            <li class="nav-item">
+                <a asp-action="Index" class="nav-link @(selected == null ? "active bg-dark text-white" : "text-dark border")">همه سفارش‌ها</a>
+            </li>
+            <li class="nav-item">
+                <a asp-action="Index" asp-route-status="Pending" class="nav-link @(selected == CustomCakeOrderStatus.Pending ? "active bg-warning text-dark" : "text-dark border")">⏳ در انتظار بررسی</a>
+            </li>
+            <li class="nav-item">
+                <a asp-action="Index" asp-route-status="Accepted" class="nav-link @(selected == CustomCakeOrderStatus.Accepted ? "active bg-primary text-white" : "text-dark border")">✅ تأیید شده</a>
+            </li>
+            <li class="nav-item">
+                <a asp-action="Index" asp-route-status="InProduction" class="nav-link @(selected == CustomCakeOrderStatus.InProduction ? "active bg-info text-dark" : "text-dark border")">👨‍🍳 در حال پخت</a>
+            </li>
+            <li class="nav-item">
+                <a asp-action="Index" asp-route-status="Ready" class="nav-link @(selected == CustomCakeOrderStatus.Ready ? "active bg-success text-white" : "text-dark border")">🎂 آماده تحویل</a>
+            </li>
+            <li class="nav-item">
+                <a asp-action="Index" asp-route-status="Completed" class="nav-link @(selected == CustomCakeOrderStatus.Completed ? "active bg-secondary text-white" : "text-dark border")">📦 تحویل شده</a>
+            </li>
+            <li class="nav-item">
+                <a asp-action="Index" asp-route-status="Rejected" class="nav-link @(selected == CustomCakeOrderStatus.Rejected ? "active bg-danger text-white" : "text-dark border")">❌ رد شده</a>
+            </li>
+        </ul>
+    </div>
+</div>
+
+@* ═══════════ جدول سفارش‌ها ═══════════ *@
+<div class="card">
+    <div class="card-header bg-dark text-white">
+        <h4 class="mb-0">🎂 فهرست سفارش‌های کیک سفارشی</h4>
+    </div>
+    <div class="card-body p-0">
+        @if (!Model.Any())
+        {
+            <div class="text-center text-muted py-5">
+                <div class="fs-1 mb-2">🧁</div>
+                <p class="mb-0">در این وضعیت سفارشی وجود ندارد.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover chef-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>مشتری</th>
+                            <th>طعم / شکل</th>
+                            <th>تاریخ ثبت</th>
+                            <th>تحویل دلخواه</th>
+                            <th>قیمت / پرداخت</th>
+                            <th>وضعیت</th>
+                            <th>عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var order in Model)
+                        {
+                            var createdPersian = new PersianDateTime(order.CreatedAt);
+                            <tr>
+                                <td class="fw-bold">@order.Id.ToPersianNumber()</td>
+                                <td>
+                                    <div class="fw-semibold">@CustomerName(order.UserId)</div>
+                                    <small class="text-muted">@order.UserId</small>
+                                </td>
+                                <td>
+                                    <div>@(order.Flavor ?? "-")</div>
+                                    <small class="text-muted">@(order.Shape ?? "-")</small>
+                                </td>
+                                <td>@createdPersian.ToString("yyyy/MM/dd HH:mm").ToPersianNumber()</td>
+                                <td>
+                                    @if (order.DesiredDeliveryDateTime.HasValue)
+                                    {
+                                        var deliveryPersian = new PersianDateTime(order.DesiredDeliveryDateTime.Value);
+                                        @deliveryPersian.ToString("yyyy/MM/dd HH:mm").ToPersianNumber()
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (order.FinalPrice.HasValue)
+                                    {
+                                        <span class="fw-semibold">@order.FinalPrice.Value.ToString("N0").ToPersianNumber() تومان</span>
+                                        <br />
+                                        <span class="badge @(order.IsPaid ? "bg-success" : "bg-secondary")">@(order.IsPaid ? "پرداخت شده" : "پرداخت نشده")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td><partial name="_CakeStatusBadge" model="order.Status" /></td>
+                                <td>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        <a asp-action="Details" asp-route-id="@order.Id" class="btn btn-sm btn-primary">🔍 جزئیات</a>
+                                        @if (order.Status != CustomCakeOrderStatus.Rejected && order.Status != CustomCakeOrderStatus.Completed)
+                                        {
+                                            <a asp-action="WorkOrder" asp-route-id="@order.Id" class="btn btn-sm btn-outline-dark">🖨️ دستور پخت</a>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>

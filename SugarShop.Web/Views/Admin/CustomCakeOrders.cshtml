@@ -45,18 +45,7 @@
                                 }
                              </td>
                             <td>
-                                @if (order.Status == CustomCakeOrderStatus.Pending)
-                                {
-                                    <span class="badge bg-warning text-dark">در انتظار بررسی</span>
-                                }
-                                else if (order.Status == CustomCakeOrderStatus.Accepted)
-                                {
-                                    <span class="badge bg-success">تأیید شده</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-danger">رد شده</span>
-                                }
+                                <partial name="_CakeStatusBadge" model="order.Status" />
                              </td>
                             <td>
                                 <div class="d-flex gap-2">

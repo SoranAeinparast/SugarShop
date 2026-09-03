@@ -45,24 +45,13 @@
                             <td>@order.Flavor</td>
                             <td>
                                 @(order.FinalPrice?.ToString("N0").ToPersianNumber() ?? "-") تومان
-                                @if (order.Status == CustomCakeOrderStatus.Accepted && order.IsPaid)
+                                @if (order.IsPaid)
                                 {
                                     <span class="badge bg-success ms-2">پرداخت شده</span>
                                 }
                              </td>
                             <td>
-                                @if (order.Status == CustomCakeOrderStatus.Pending)
-                                {
-                                    <span class="badge bg-warning text-dark">در انتظار بررسی</span>
-                                }
-                                else if (order.Status == CustomCakeOrderStatus.Accepted)
-                                {
-                                    <span class="badge bg-success">تأیید شده</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-danger">رد شده</span>
-                                }
+                                <partial name="_CakeStatusBadge" model="order.Status" />
                              </td>
                             <td>
                                 <div class="d-flex justify-content-center gap-2">

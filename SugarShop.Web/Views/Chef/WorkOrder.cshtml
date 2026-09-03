@@ -1,0 +1,267 @@
+@using SugarShop.Domain.Entities.Sales
+@using SugarShop.Domain.Entities
+@using SugarShop.Infrastructure.Persistence.Sales
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using MD.PersianDateTime
+@using SugarShop.Web.Extensions
+@model CustomCakeOrder
+@inject SugarShopSalesDbContext SalesDb
+@inject UserManager<ApplicationUser> UserManager
+@{
+    ViewData["Title"] = $"دستور کار پخت #{Model.Id}";
+    Layout = "_ChefLayout";
+
+    var seller = await SalesDb.SiteSettings.FirstOrDefaultAsync();
+    var sellerName = !string.IsNullOrWhiteSpace(seller?.SiteTitle) ? seller!.SiteTitle! : "شیرینی سرا";
+    var sellerPhone = seller?.Phone ?? "";
+    var sellerAddress = seller?.Address ?? "";
+
+    var customer = Model.UserId != null ? await UserManager.FindByIdAsync(Model.UserId) : null;
+    var customerName = !string.IsNullOrWhiteSpace(customer?.FullName) ? customer!.FullName
+        : (!string.IsNullOrWhiteSpace(customer?.UserName) ? customer!.UserName : "-");
+    var customerPhone = !string.IsNullOrWhiteSpace(customer?.PhoneNumber) ? customer!.PhoneNumber : "-";
+
+    var createdStr = new PersianDateTime(Model.CreatedAt).ToString("yyyy/MM/dd HH:mm").ToPersianNumber();
+    var printDateStr = new PersianDateTime(DateTime.Now).ToString("yyyy/MM/dd").ToPersianNumber();
+    var weightStr = Model.WeightGrams.HasValue ? (Model.WeightGrams.Value / 1000m).ToString("0.###").ToPersianNumber() + " کیلوگرم" : "-";
+    var servingsStr = Model.Servings?.ToString().ToPersianNumber() ?? "-";
+}
+@functions {
+    bool HasImage(string? path) => !string.IsNullOrWhiteSpace(path);
+}
+<style>
+    .wo-doc {
+        font-family: Vazirmatn, Tahoma, sans-serif;
+        color: #000;
+        background: #fff;
+        border: 2px solid #000;
+        padding: 14px 18px;
+        direction: rtl;
+        text-align: right;
+        font-size: 13px;
+    }
+    .wo-title {
+        font-size: 24px;
+        font-weight: bold;
+        letter-spacing: 1px;
+    }
+    .wo-sub {
+        font-size: 12px;
+        color: #444;
+    }
+    .wo-box {
+        border: 1px solid #000;
+    }
+    .wo-box-head {
+        background: #e8e8e8;
+        font-weight: bold;
+        padding: 4px 8px;
+        border-bottom: 1px solid #000;
+        font-size: 13px;
+    }
+    .wo-box-body {
+        padding: 6px 8px;
+        line-height: 2;
+    }
+    .wo-label {
+        font-weight: bold;
+    }
+    table.wo-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    table.wo-table th, table.wo-table td {
+        border: 1px solid #000;
+        padding: 5px 8px;
+    }
+    table.wo-table th {
+        background: #e8e8e8;
+    }
+    .wo-check li {
+        list-style: none;
+        line-height: 2.1;
+    }
+    .wo-check li::before {
+        content: '☐';
+        margin-left: 6px;
+        font-size: 15px;
+    }
+    .wo-sign {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 8px;
+    }
+    .wo-sign div {
+        flex: 1;
+        text-align: center;
+    }
+    .wo-sign .line {
+        border-bottom: 1px dashed #000;
+        height: 34px;
+        margin-bottom: 2px;
+    }
+    .wo-img {
+        max-height: 150px;
+        max-width: 100%;
+        object-fit: contain;
+        border: 1px solid #999;
+        padding: 3px;
+        background: #fafafa;
+    }
+    @@media print {
+        body {
+            background: #fff !important;
+        }
+        .admin-sidebar, .admin-header, .no-print, .sidebar-overlay {
+            display: none !important;
+        }
+        .admin-main {
+            margin-right: 0 !important;
+            padding: 0 !important;
+        }
+        .admin-content {
+            padding: 0 !important;
+        }
+        .wo-doc {
+            border: 2px solid #000 !important;
+            box-shadow: none !important;
+        }
+    }
+</style>
+
+<div class="mb-3 no-print">
+    <button onclick="window.print()" class="btn btn-dark btn-lg">🖨️ چاپ دستور کار پخت</button>
+    <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary btn-lg">🔙 بازگشت</a>
+</div>
+
+<div class="wo-doc">
+    @* ═══════════ سربرگ ═══════════ *@
+    <div style="display: flex; justify-content: space-between; align-items: center; border: 1px solid #000; padding: 6px 10px; margin-bottom: 10px;">
+        <div style="font-size: 12px; line-height: 1.9;">
+            <div><strong>شماره دستور کار:</strong> @Model.Id.ToPersianNumber()</div>
+            <div><strong>تاریخ صدور:</strong> @printDateStr</div>
+            <div><strong>تاریخ ثبت سفارش:</strong> @createdStr</div>
+        </div>
+        <div style="text-align: center; flex: 1;">
+            <div class="wo-title">🧁 دستور کار پخت کیک سفارشی</div>
+            <div class="wo-sub"><strong>@sellerName</strong>@(string.IsNullOrEmpty(sellerPhone) ? "" : $" | تلفن: {sellerPhone.ToPersianNumber()}")</div>
+        </div>
+    </div>
+
+    @* ═══════════ مشتری ═══════════ *@
+    <div class="wo-box" style="margin-bottom: 8px;">
+        <div class="wo-box-head">👤 اطلاعات مشتری</div>
+        <div class="wo-box-body">
+            <span class="wo-label">مشتری:</span> @customerName
+            &nbsp;&nbsp;|&nbsp;&nbsp;<span class="wo-label">تلفن:</span> @customerPhone.ToPersianNumber()
+            @if (!string.IsNullOrWhiteSpace(customer?.Email))
+            {
+                @:&nbsp;&nbsp;|&nbsp;&nbsp;<span class="wo-label">ایمیل:</span> @customer.Email
+            }
+            @if (Model.DesiredDeliveryDateTime.HasValue)
+            {
+                var deliveryPersian = new PersianDateTime(Model.DesiredDeliveryDateTime.Value).ToString("yyyy/MM/dd HH:mm").ToPersianNumber();
+                <div style="margin-top: 3px;"><span class="wo-label">تاریخ و ساعت تحویل دلخواه مشتری:</span> @deliveryPersian</div>
+            }
+        </div>
+    </div>
+
+    @* ═══════════ مشخصات فنی کیک ═══════════ *@
+    <table class="wo-table" style="margin-bottom: 8px;">
+        <thead>
+            <tr>
+                <th>طعم کیک</th>
+                <th>شکل کیک</th>
+                <th>وزن</th>
+                <th>تعداد نفرات</th>
+                <th>نوع مراسم</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr style="text-align: center;">
+                <td>@(Model.Flavor ?? "-")</td>
+                <td>@(Model.Shape ?? "-")</td>
+                <td>@weightStr</td>
+                <td>@servingsStr نفر</td>
+                <td>@(Model.Occasion ?? "-")</td>
+            </tr>
+        </tbody>
+    </table>
+
+    @* ═══════════ مواد و توضیحات ═══════════ *@
+    <div class="wo-box" style="margin-bottom: 8px;">
+        <div class="wo-box-head">🥚 مواد اولیه و ترکیبات</div>
+        <div class="wo-box-body">
+            @(string.IsNullOrWhiteSpace(Model.Ingredients) ? "مطابق دستور استاندارد کارگاه" : Model.Ingredients)
+        </div>
+    </div>
+    <div class="wo-box" style="margin-bottom: 8px;">
+        <div class="wo-box-head">📝 توضیحات و خواسته‌های ویژه مشتری</div>
+        <div class="wo-box-body">
+            @(string.IsNullOrWhiteSpace(Model.SpecialRequests) ? "—" : Model.SpecialRequests)
+        </div>
+    </div>
+
+    @* ═══════════ تصاویر ═══════════ *@
+    @if (HasImage(Model.SampleImagePath) || HasImage(Model.PrintImagePath))
+    {
+        <div class="wo-box" style="margin-bottom: 8px;">
+            <div class="wo-box-head">📸 تصاویر مرجع</div>
+            <div class="wo-box-body" style="display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap;">
+                @if (HasImage(Model.SampleImagePath))
+                {
+                    <div style="text-align: center;">
+                        <div class="wo-label" style="font-size: 12px; margin-bottom: 3px;">تصویر نمونه کیک</div>
+                        <img src="@Model.SampleImagePath" class="wo-img" alt="نمونه" />
+                    </div>
+                }
+                @if (HasImage(Model.PrintImagePath))
+                {
+                    <div style="text-align: center;">
+                        <div class="wo-label" style="font-size: 12px; margin-bottom: 3px;">تصویر چاپ روی کیک</div>
+                        <img src="@Model.PrintImagePath" class="wo-img" alt="تصویر چاپ" />
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    @* ═══════════ چک‌لیست پخت ═══════════ *@
+    <div class="wo-box" style="margin-bottom: 8px;">
+        <div class="wo-box-head">✅ چک‌لیست مراحل پخت و تزئین</div>
+        <ul class="wo-check mb-0" style="padding-right: 8px; margin: 4px 0;">
+            <li>آماده‌سازی و وزن‌کشی مواد اولیه طبق ترکیبات فوق</li>
+            <li>پخت لایه‌های کیک (قالب‌ها و دمای فر طبق استاندارد)</li>
+            <li>خنک‌سازی کامل لایه‌ها پیش از برش</li>
+            <li>برش و لایه‌گذاری با خامه/فیلینگ انتخابی</li>
+            <li>رنگ‌آمیزی و پوشش نهایی طبق تصویر نمونه</li>
+            <li>درج تصویر چاپی روی کیک (در صورت وجود)</li>
+            <li>تزئین نهایی و کنترل کیفیت ظاهری</li>
+            <li>بسته‌بندی و آماده‌سازی برای تحویل</li>
+        </ul>
+    </div>
+
+    @* ═══════════ یادداشت و امضا ═══════════ *@
+    <div class="wo-box" style="margin-bottom: 8px;">
+        <div class="wo-box-head">📋 یادداشت سرآشپز</div>
+        <div class="wo-box-body">
+            @(string.IsNullOrWhiteSpace(Model.AdminNotes) ? "—" : Model.AdminNotes)
+        </div>
+    </div>
+
+    <div class="wo-sign">
+        <div>
+            <div class="line"></div>
+            <div class="wo-sub">پخت توسط (امضا و تاریخ)</div>
+        </div>
+        <div>
+            <div class="line"></div>
+            <div class="wo-sub">تزئین توسط (امضا و تاریخ)</div>
+        </div>
+        <div>
+            <div class="line"></div>
+            <div class="wo-sub">کنترل کیفیت / تحویل</div>
+        </div>
+    </div>
+</div>

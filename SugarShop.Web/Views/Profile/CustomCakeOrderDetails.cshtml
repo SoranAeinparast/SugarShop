@@ -6,10 +6,6 @@
     ViewData["Title"] = $"جزئیات سفارش کیک #{Model.Id}";
     var createdDate = new PersianDateTime(Model.CreatedAt);
     var createdStr = createdDate.ToString("yyyy/MM/dd HH:mm");
-    var statusClass = Model.Status == CustomCakeOrderStatus.Pending ? "bg-warning text-dark" :
-                      (Model.Status == CustomCakeOrderStatus.Accepted ? "bg-success" : "bg-danger");
-    var statusText = Model.Status == CustomCakeOrderStatus.Pending ? "⏳ در انتظار بررسی" :
-                     (Model.Status == CustomCakeOrderStatus.Accepted ? "✅ تأیید شده" : "❌ رد شده");
 }
 <style>
     .order-detail-card {
@@ -83,7 +79,7 @@
                 <div class="card-body p-4">
                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-2 border-bottom">
                         <div>
-                            <span class="badge-status @statusClass">@statusText</span>
+                            <partial name="_CakeStatusBadge" model="Model.Status" />
                         </div>
                         <div class="text-muted small">📅 ثبت: @createdStr.ToPersianNumber()</div>
                     </div>

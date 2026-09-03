@@ -1,0 +1,35 @@
+@using SugarShop.Domain.Entities.Sales
+@using SugarShop.Web.Extensions
+@model CustomCakeOrderStatus
+@{
+    string cls;
+    string txt;
+    switch (Model)
+    {
+        case CustomCakeOrderStatus.Pending:
+            cls = "bg-warning text-dark";
+            txt = "⏳ در انتظار بررسی";
+            break;
+        case CustomCakeOrderStatus.Accepted:
+            cls = "bg-primary";
+            txt = "✅ تأیید شده";
+            break;
+        case CustomCakeOrderStatus.InProduction:
+            cls = "bg-info text-dark";
+            txt = "👨‍🍳 در حال پخت";
+            break;
+        case CustomCakeOrderStatus.Ready:
+            cls = "bg-success";
+            txt = "🎂 آماده تحویل";
+            break;
+        case CustomCakeOrderStatus.Completed:
+            cls = "bg-secondary";
+            txt = "📦 تحویل شده";
+            break;
+        default:
+            cls = "bg-danger";
+            txt = "❌ رد شده";
+            break;
+    }
+}
+<span class="badge @cls">@txt</span>

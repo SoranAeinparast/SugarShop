@@ -6,7 +6,10 @@ namespace SugarShop.Domain.Entities.Sales
     {
         Pending,
         Accepted,
-        Rejected
+        Rejected,
+        InProduction,
+        Ready,
+        Completed
     }
 
     public class CustomCakeOrder

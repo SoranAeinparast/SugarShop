@@ -528,6 +528,14 @@ namespace SugarShop.Web.Controllers
                 .FirstOrDefaultAsync(o => o.Id == id && o.UserId == userId);
             if (cakeOrder == null || cakeOrder.Status != CustomCakeOrderStatus.Accepted || cakeOrder.IsPaid)
                 return BadRequest();
+
+            // اگر هنوز قیمت نهایی توسط فروشگاه ثبت نشده باشد، اجازه پرداخت وجود ندارد
+            if (!cakeOrder.FinalPrice.HasValue)
+            {
+                TempData["Error"] = "قیمت نهایی این سفارش هنوز توسط فروشگاه اعلام نشده است. لطفاً بعداً مراجعه کنید.";
+                return RedirectToAction("CustomCakeOrderDetails", new { id });
+            }
+
             var tempOrder = new Order
             {
                 OrderCode = "CAKE-" + Guid.NewGuid().ToString().Substring(0, 8).ToUpper(),

@@ -1,0 +1,156 @@
+﻿@using Microsoft.AspNetCore.Identity
+@using SugarShop.Domain.Entities
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - داشبورد سرآشپز</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.rtl.min.css" />
+    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+    <style>
+        html, body {
+            background-color: #f8f9fa !important;
+            color: #212529 !important;
+        }
+        /* ═══ هویت بصری سرآشپز: سرمه‌ای + طلایی ═══ */
+        .admin-sidebar {
+            background: linear-gradient(180deg, #1f2a37 0%, #111827 100%);
+        }
+        .sidebar-header {
+            background: linear-gradient(135deg, #b45309, #d97706);
+            color: #fff;
+        }
+        .sidebar-header h3 {
+            font-size: 1.1rem;
+            margin: 0;
+        }
+        .sidebar-header small {
+            color: #fde68a;
+        }
+        .sidebar-nav .nav-divider {
+            color: #d97706;
+            font-weight: 700;
+        }
+        .sidebar-nav li > a {
+            color: #e5e7eb;
+        }
+        .sidebar-nav li.active > a,
+        .sidebar-nav li > a:hover {
+            background-color: rgba(217, 119, 6, 0.22) !important;
+            color: #fbbf24 !important;
+            border-right: 4px solid #d97706;
+        }
+        .sidebar-nav li.active > a span {
+            color: #fbbf24 !important;
+        }
+        .chef-hero {
+            background: linear-gradient(135deg, #1f2a37 0%, #374151 60%, #b45309 130%);
+            color: #fff;
+            border-radius: 1rem;
+        }
+        .chef-hero .display-5 {
+            font-weight: 700;
+        }
+        .stat-card {
+            border: none;
+            border-radius: 0.9rem;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            overflow: hidden;
+        }
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 0.6rem 1.4rem rgba(0, 0, 0, 0.12);
+        }
+        .stat-card .stat-icon {
+            font-size: 1.9rem;
+        }
+        .stat-card .stat-value {
+            font-size: 1.7rem;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+        .stat-card .stat-label {
+            color: #6b7280;
+            font-size: 0.85rem;
+        }
+        .chef-table thead {
+            background: #1f2a37;
+            color: #fff;
+        }
+        .chef-table tbody tr {
+            transition: background 0.15s ease;
+        }
+        .chef-table tbody tr:hover {
+            background: #fef3c7;
+        }
+    </style>
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+<body>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    @{
+        var user = await UserManager.GetUserAsync(User);
+    }
+    <div class="admin-wrapper">
+        <aside class="admin-sidebar" id="adminSidebar">
+            <div class="sidebar-header">
+                <h3>🧑‍🍳 داشبورد سرآشپز</h3>
+                <small>کارگاه شیرینی‌پزی</small>
+            </div>
+            <nav class="sidebar-nav">
+                <ul>
+                    <li class="nav-divider">کیک‌های سفارشی</li>
+                    <li class="active"><a asp-controller="Chef" asp-action="Index">🎂 <span>مدیریت کیک‌های سفارشی</span></a></li>
+                </ul>
+            </nav>
+        </aside>
+        <main class="admin-main">
+            <header class="admin-header">
+                <button class="sidebar-toggle" id="sidebarToggle">☰</button>
+                <div class="header-title">@ViewData["Title"]</div>
+                <div class="header-user">
+                    <span>@User.Identity?.Name</span>
+                    <form asp-area="" asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-sm btn-outline-danger ms-2">خروج</button>
+                    </form>
+                </div>
+            </header>
+            <div class="admin-content">
+                @RenderBody()
+            </div>
+        </main>
+    </div>
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('#sidebarToggle').click(function() {
+                if (window.innerWidth <= 992) {
+                    $('#adminSidebar').toggleClass('show');
+                    $('#sidebarOverlay').toggleClass('show');
+                    $('body').toggleClass('sidebar-open');
+                } else {
+                    $('#adminSidebar').toggleClass('collapsed');
+                }
+            });
+            $('#sidebarOverlay').click(function() {
+                $('#adminSidebar').removeClass('show');
+                $(this).removeClass('show');
+                $('body').removeClass('sidebar-open');
+            });
+            $(window).on('resize', function() {
+                if (window.innerWidth > 992) {
+                    $('#adminSidebar').removeClass('show');
+                    $('#sidebarOverlay').removeClass('show');
+                    $('body').removeClass('sidebar-open');
+                }
+            });
+        });
+    </script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
