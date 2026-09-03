@@ -9,7 +9,7 @@
             <h4 class="mb-0">🎂 سفارش کیک سفارشی</h4>
         </div>
         <div class="card-body p-4">
-            <form asp-action="Create" method="post" id="orderForm">
+            <form asp-action="Create" method="post" enctype="multipart/form-data" id="orderForm">
                 @Html.AntiForgeryToken()
                 <div asp-validation-summary="All" class="alert alert-danger"></div>
                 <div class="row g-3">
@@ -58,18 +58,16 @@
                         <label class="form-label">توضیحات اضافی</label>
                         <textarea asp-for="SpecialRequests" class="form-control" rows="3" placeholder="هر نکته دیگری که باید بدانیم..."></textarea>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label">تصویر نمونه کیک (اختیاری)</label>
-                        <input type="hidden" name="SampleImagePath" id="SampleImagePath" value="" />
-                        <img id="sampleImagePreview" src="" class="img-thumbnail mb-1" style="max-height:120px; display:none;" />
-                        <button type="button" class="btn btn-sm btn-outline-primary open-media-picker" data-target="#SampleImagePath" data-preview="#sampleImagePreview"><i class="bi bi-image"></i> انتخاب از کتابخانه</button>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">تصویر برای چاپ روی کیک (اختیاری)</label>
-                        <input type="hidden" name="PrintImagePath" id="PrintImagePath" value="" />
-                        <img id="printImagePreview" src="" class="img-thumbnail mb-1" style="max-height:120px; display:none;" />
-                        <button type="button" class="btn btn-sm btn-outline-primary open-media-picker" data-target="#PrintImagePath" data-preview="#printImagePreview"><i class="bi bi-image"></i> انتخاب از کتابخانه</button>
-                    </div>
+                        <div class="col-md-6">
+                            <label class="form-label">تصویر نمونه کیک (اختیاری)</label>
+                            <input type="file" id="sampleImageInput" name="sampleImage" class="form-control" accept="image/*" />
+                            <img id="sampleImagePreview" src="" class="img-fluid mt-2 rounded" style="max-height: 150px; display: none;" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">تصویر برای چاپ روی کیک (اختیاری)</label>
+                            <input type="file" id="printImageInput" name="printImage" class="form-control" accept="image/*" />
+                            <img id="printImagePreview" src="" class="img-fluid mt-2 rounded" style="max-height: 150px; display: none;" />
+                        </div>
                 </div>
                 <div class="mt-4 d-flex justify-content-between">
                     <button type="submit" class="btn btn-success px-4 rounded-pill">✅ ثبت سفارش</button>
@@ -80,38 +78,63 @@
     </div>
 </div>
 @section Scripts {
-    <partial name="_ValidationScriptsPartial" />
-    <script>
-        $(function() {
-            $('#deliveryDatePersian').persianDatepicker({
-                format: 'YYYY/MM/DD',
-                autoClose: true,
-                observer: true,
-                onSelect: function() {
-                    $('#deliveryDatePersianHidden').val($('#deliveryDatePersian').val());
-                }
-            });
-        });
-        $('#orderForm').on('submit', function(e) {
-            e.preventDefault();
-            var formData = new FormData(this);
-            $.ajax({
-                url: $(this).attr('action'),
-                type: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-                success: function(response) {
-                    if (response.includes('orderSuccessModal')) {
-                        $('body').append(response);
-                    } else {
-                        $('#orderForm').html(response);
+<partial name="_ValidationScriptsPartial" />
+<script>
+$(function() {
+    $('#deliveryDatePersian').persianDatepicker({
+        format: 'YYYY/MM/DD',
+        autoClose: true,
+        observer: true,
+        onSelect: function() {
+            $('#deliveryDatePersianHidden').val($('#deliveryDatePersian').val());
+        }
+    });
+
+    // ✅ اسکریپت پیش‌نمایش تصاویر
+    function setupImagePreview(inputId, previewId) {
+        const input = document.getElementById(inputId);
+        const preview = document.getElementById(previewId);
+        if (input && preview) {
+            input.addEventListener('change', function() {
+                const file = this.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        preview.src = e.target.result;
+                        preview.style.display = 'block';
                     }
-                },
-                error: function(xhr) {
-                    alert('خطایی رخ داد. لطفاً دوباره تلاش کنید.');
+                    reader.readAsDataURL(file);
+                } else {
+                    preview.style.display = 'none';
                 }
             });
-        });
-    </script>
+        }
+    }
+    setupImagePreview('sampleImageInput', 'sampleImagePreview');
+    setupImagePreview('printImageInput', 'printImagePreview');
+});
+
+$('#orderForm').on('submit', function(e) {
+    e.preventDefault();
+    var formData = new FormData(this);
+    $.ajax({
+        url: $(this).attr('action'),
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(response) {
+            if (response.includes('orderSuccessModal')) {
+                $('body').append(response);
+                $('#orderSuccessModal').modal('show');
+            } else {
+                $('#orderForm').html(response);
+            }
+        },
+        error: function(xhr) {
+            alert('خطایی رخ داد. لطفاً دوباره تلاش کنید.');
+        }
+    });
+});
+</script>
 }

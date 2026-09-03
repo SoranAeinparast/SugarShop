@@ -23,31 +23,33 @@
                     var deliveryStr = deliveryDate.ToString("yyyy/MM/dd HH:mm");
                     <p><strong>تاریخ تحویل دلخواه:</strong> @deliveryStr.ToPersianNumber()</p>
                 }
-                <p><strong>وضعیت فعلی:</strong> 
+                <p><strong>وضعیت فعلی:</strong>
                     @if (Model.Status == CustomCakeOrderStatus.Pending)
-                    {
-                        <span class="badge bg-warning text-dark">در انتظار بررسی</span>
-                    }
+                    { <span class="badge bg-warning text-dark">در انتظار بررسی</span> }
                     else if (Model.Status == CustomCakeOrderStatus.Accepted)
-                    {
-                        <span class="badge bg-success">تأیید شده</span>
-                    }
+                    { <span class="badge bg-success">تأیید شده</span> }
                     else
-                    {
-                        <span class="badge bg-danger">رد شده</span>
-                    }
+                    { <span class="badge bg-danger">رد شده</span> }
                 </p>
             </div>
             <div class="col-md-6">
                 @if (!string.IsNullOrEmpty(Model.SampleImagePath))
                 {
                     <p><strong>تصویر نمونه:</strong></p>
-                    <img src="@Model.SampleImagePath" class="img-fluid rounded-3" style="max-height: 150px; object-fit: contain;" />
+                    <a href="@Model.SampleImagePath" target="_blank">
+                        <img src="@Model.SampleImagePath" class="img-fluid rounded-3 border" style="max-height: 150px; object-fit: contain;" />
+                    </a>
                 }
                 @if (!string.IsNullOrEmpty(Model.PrintImagePath))
                 {
-                    <p><strong>تصویر برای چاپ:</strong></p>
-                    <img src="@Model.PrintImagePath" class="img-fluid rounded-3" style="max-height: 150px; object-fit: contain;" />
+                    <p class="mt-3"><strong>تصویر برای چاپ:</strong></p>
+                    <a href="@Model.PrintImagePath" target="_blank">
+                        <img src="@Model.PrintImagePath" class="img-fluid rounded-3 border" style="max-height: 150px; object-fit: contain;" />
+                    </a>
+                }
+                @if (string.IsNullOrEmpty(Model.SampleImagePath) && string.IsNullOrEmpty(Model.PrintImagePath))
+                {
+                    <p class="text-muted">تصویری توسط مشتری آپلود نشده است.</p>
                 }
             </div>
         </div>
