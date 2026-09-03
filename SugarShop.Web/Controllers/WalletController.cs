@@ -20,7 +20,7 @@ namespace SugarShop.Web.Controllers
             _context = context;
             _userManager = userManager;
         }
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Owner")]
         public async Task<IActionResult> Index(string searchTerm)
         {
             var usersQuery = _userManager.Users.AsQueryable();
@@ -48,7 +48,7 @@ namespace SugarShop.Web.Controllers
             return View(model);
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Owner")]
         public async Task<IActionResult> Details(string userId)
         {
             if (string.IsNullOrEmpty(userId))
@@ -76,7 +76,7 @@ namespace SugarShop.Web.Controllers
             return View(wallet);
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Owner")]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AdjustBalance(string userId, decimal amount, string description)
@@ -116,14 +116,14 @@ namespace SugarShop.Web.Controllers
             return RedirectToAction("Details", new { userId });
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Owner")]
         public async Task<IActionResult> Settings()
         {
             var settings = await GetWalletSettings();
             return View(settings);
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Owner")]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Settings(WalletSettings model)

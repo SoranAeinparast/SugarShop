@@ -57,21 +57,25 @@ namespace SugarShop.Web.Controllers
 
             var user = await _userManager.FindByNameAsync(model.Username);
             if (user == null) user = await _userManager.FindByEmailAsync(model.Username);
+
             if (user == null)
                 return Json(new { success = false, type = "error", message = "نام کاربری یا رمز عبور اشتباه است." });
 
-            var result = await _signInManager.PasswordSignInAsync(user, model.Password, model.RememberMe, lockoutOnFailure: true);
+            bool isOwner = await _userManager.IsInRoleAsync(user, "Owner");
+            bool isAdmin = await _userManager.IsInRoleAsync(user, "Admin");
+            bool isOrderManager = await _userManager.IsInRoleAsync(user, "OrderManager");
+
+            // ✅ اصلاح حیاتی: اگر کاربر Owner باشد، حتی اگر تیک "مرا به خاطر بسپار" زده باشد، کوکی ذخیره نشود
+            bool isPersistent = model.RememberMe && !isAdmin && !isOrderManager && !isOwner;
+
+            var result = await _signInManager.PasswordSignInAsync(user, model.Password, isPersistent, lockoutOnFailure: true);
 
             if (result.Succeeded)
             {
-                bool isOwner = await _userManager.IsInRoleAsync(user, "Owner");
-                bool isAdmin = await _userManager.IsInRoleAsync(user, "Admin");
-                bool isOrderManager = await _userManager.IsInRoleAsync(user, "OrderManager");
                 if (isAdmin || isOrderManager || isOwner)
                 {
                     return Json(new { success = true, redirectUrl = Url.Action("Index", "Admin") });
                 }
-
                 return Json(new { success = true, redirectUrl = model.ReturnUrl ?? Url.Action("Index", "Home") });
             }
 
