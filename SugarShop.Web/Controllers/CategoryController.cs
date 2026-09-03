@@ -32,9 +32,11 @@ namespace SugarShop.Web.Controllers
 
             if (category == null) return NotFound();
 
-            // ✅ خواندن تنظیمات هدر مخصوص این دسته‌بندی از دیتابیس Sales
             var headerSettings = await _salesDb.CategoryHeaderSettings
-                .FirstOrDefaultAsync(s => s.CategoryId == category.Id);
+                .Where(s => s.CategoryId == category.Id)
+                .OrderByDescending(s => s.UpdatedAt)
+                .ThenByDescending(s => s.Id)
+                .FirstOrDefaultAsync();
 
             // ✅ ارسال به ویو از طریق ViewBag
             ViewBag.HeaderSettings = headerSettings;

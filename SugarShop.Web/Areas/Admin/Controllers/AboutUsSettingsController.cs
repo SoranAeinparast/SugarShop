@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -7,7 +6,6 @@ using SugarShop.Domain.Entities;
 using SugarShop.Infrastructure.Persistence.Sales;
 using SugarShop.Web.Areas.Admin.ViewModels;
 using System;
-using System.IO;
 using System.Threading.Tasks;
 
 namespace SugarShop.Web.Areas.Admin.Controllers
@@ -34,7 +32,6 @@ namespace SugarShop.Web.Areas.Admin.Controllers
         public async Task<IActionResult> Index()
         {
             var settings = await _context.AboutUsSettings.FirstOrDefaultAsync();
-
             var vm = new AboutUsViewModel
             {
                 Id = settings?.Id ?? 0,
@@ -48,7 +45,6 @@ namespace SugarShop.Web.Areas.Admin.Controllers
                 StoryImagePath = settings?.StoryImagePath,
                 VideoPath = settings?.VideoPath
             };
-
             return View(vm);
         }
 
@@ -57,24 +53,11 @@ namespace SugarShop.Web.Areas.Admin.Controllers
         // ============================================================
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Save()
+        public async Task<IActionResult> Index(AboutUsViewModel model)
         {
             try
             {
                 _logger.LogInformation("=== شروع ذخیره‌سازی تنظیمات درباره ما ===");
-
-                // خواندن مسیرهای متنی (انتخاب‌شده از مودال Media Picker)
-                var heroImagePath = Request.Form["HeroImagePath"].ToString();
-                var storyImagePath = Request.Form["StoryImagePath"].ToString();
-                var videoPath = Request.Form["VideoPath"].ToString();
-
-                // خواندن فیلدهای متنی دیگر
-                var heroTitle = Request.Form["HeroTitle"].ToString();
-                var heroDescription = Request.Form["HeroDescription"].ToString();
-                var storyTitle = Request.Form["StoryTitle"].ToString();
-                var storyContent = Request.Form["StoryContent"].ToString();
-                var videoTitle = Request.Form["VideoTitle"].ToString();
-                var valuesJson = Request.Form["ValuesJson"].ToString();
 
                 var settings = await _context.AboutUsSettings.FirstOrDefaultAsync();
                 bool isNew = (settings == null);
@@ -85,32 +68,34 @@ namespace SugarShop.Web.Areas.Admin.Controllers
                     _context.AboutUsSettings.Add(settings);
                 }
 
-                // مسیرهای تصاویر و ویدئو (انتخاب‌شده از Media Picker)
-                if (!string.IsNullOrWhiteSpace(heroImagePath))
-                    settings.HeroImagePath = heroImagePath;
+                // ✅ نگاشت مستقیم و ایمن از ViewModel به Entity (بدون نیاز به Request.Form)
+                settings.HeroTitle = model.HeroTitle;
+                settings.HeroDescription = model.HeroDescription;
+                settings.StoryTitle = model.StoryTitle;
+                settings.StoryContent = model.StoryContent;
+                settings.VideoTitle = model.VideoTitle;
+                settings.ValuesJson = string.IsNullOrEmpty(model.ValuesJson) ? "[]" : model.ValuesJson;
 
-                if (!string.IsNullOrWhiteSpace(storyImagePath))
-                    settings.StoryImagePath = storyImagePath;
+                // مسیرهای تصاویر و ویدئو (اگر خالی نباشند به‌روز می‌شوند)
+                if (!string.IsNullOrWhiteSpace(model.HeroImagePath))
+                    settings.HeroImagePath = model.HeroImagePath;
 
-                if (!string.IsNullOrWhiteSpace(videoPath))
-                    settings.VideoPath = videoPath;
+                if (!string.IsNullOrWhiteSpace(model.StoryImagePath))
+                    settings.StoryImagePath = model.StoryImagePath;
 
-                // به‌روزرسانی فیلدهای متنی
-                settings.HeroTitle = heroTitle;
-                settings.HeroDescription = heroDescription;
-                settings.StoryTitle = storyTitle;
-                settings.StoryContent = storyContent;
-                settings.VideoTitle = videoTitle;
-                settings.ValuesJson = string.IsNullOrEmpty(valuesJson) ? "[]" : valuesJson;
+                if (!string.IsNullOrWhiteSpace(model.VideoPath))
+                    settings.VideoPath = model.VideoPath;
+
                 settings.UpdatedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
+
                 TempData["Success"] = "✅ تنظیمات با موفقیت ذخیره شد.";
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "❌ خطا در ذخیره‌سازی");
-                TempData["Error"] = $"❌ خطا: {ex.Message}";
+                _logger.LogError(ex, "❌ خطا در ذخیره‌سازی تنظیمات درباره ما");
+                TempData["Error"] = $"❌ خطا در ذخیره‌سازی: {ex.Message}";
             }
 
             return RedirectToAction(nameof(Index));

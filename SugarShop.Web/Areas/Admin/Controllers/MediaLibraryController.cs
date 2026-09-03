@@ -225,35 +225,57 @@ namespace SugarShop.Web.Areas.Admin.Controllers
         // 📂 دریافت فایل‌ها برای مودال انتخاب‌گر (سبک و سریع)
         // ============================================================
         [HttpGet("PickerData")]
-        public async Task<IActionResult> PickerData(string? search, string? type)
+        public async Task<IActionResult> PickerData(string? search, string? fileType, string? type, int page = 1, int pageSize = 24)
         {
+            if (page < 1) page = 1;
+            if (pageSize < 1 || pageSize > 48) pageSize = 24;
+
             var query = _context.MediaAssets.AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(search))
             {
                 var s = search.ToLower();
-                query = query.Where(m => m.OriginalName.ToLower().Contains(s) || m.Tags.ToLower().Contains(s));
+                query = query.Where(m =>
+                    m.OriginalName.ToLower().Contains(s) ||
+                    (m.Tags != null && m.Tags.ToLower().Contains(s)) ||
+                    (m.Description != null && m.Description.ToLower().Contains(s)) ||
+                    (m.AltText != null && m.AltText.ToLower().Contains(s)));
             }
 
-            if (!string.IsNullOrWhiteSpace(type) && type != "All")
+            var typeFilter = !string.IsNullOrWhiteSpace(fileType) ? fileType : type;
+            if (!string.IsNullOrWhiteSpace(typeFilter) && typeFilter != "All")
             {
-                query = query.Where(m => m.FileType == type);
+                var normalized = typeFilter.Equals("image", StringComparison.OrdinalIgnoreCase) ? "Image"
+                    : typeFilter.Equals("video", StringComparison.OrdinalIgnoreCase) ? "Video"
+                    : typeFilter.Equals("document", StringComparison.OrdinalIgnoreCase) ? "Document"
+                    : typeFilter.Equals("audio", StringComparison.OrdinalIgnoreCase) ? "Audio"
+                    : typeFilter;
+                query = query.Where(m => m.FileType == normalized);
             }
 
-            var assets = await query
+            var totalItems = await query.CountAsync();
+            var totalPages = Math.Max(1, (int)Math.Ceiling(totalItems / (double)pageSize));
+            if (page > totalPages) page = totalPages;
+
+            var items = await query
                 .OrderByDescending(m => m.CreatedAt)
-                .Take(50) // فقط ۵۰ فایل آخر برای سرعت بالا در مودال
-                .Select(m => new
-                {
-                    m.Id,
-                    m.OriginalName,
-                    m.FilePath,
-                    m.FileType,
-                    Thumbnail = m.FileType == "Image" ? m.FilePath : "/images/default-file.png" // می‌توانید بعداً تامنیل واقعی اضافه کنید
-                })
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
 
-            return Json(assets);
+            var assets = items.Select(m => new
+            {
+                id = m.Id,
+                fileName = m.OriginalName,
+                originalName = m.OriginalName,
+                fileUrl = m.FilePath,
+                filePath = m.FilePath,
+                thumbnailUrl = m.FileType == "Image" ? (string.IsNullOrWhiteSpace(m.ThumbnailPath) ? m.FilePath : m.ThumbnailPath) : m.FilePath,
+                fileType = (m.FileType ?? "General").ToLowerInvariant(),
+                altText = m.AltText
+            });
+
+            return Json(new { assets, currentPage = page, totalPages, totalItems });
         }
     }
 

@@ -20,9 +20,9 @@
                 <button class="nav-link" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic" type="button" role="tab">⚙️ تنظیمات پایه</button>
             </li>
         </ul>
-
+        
         <div class="tab-content">
-            <!-- تب تنظیمات ظاهری (بدون تغییر در ماهیت) -->
+            <!-- تب تنظیمات ظاهری -->
             <div class="tab-pane fade show active" id="appearance" role="tabpanel">
                 <div class="row">
                     <div class="col-md-6">
@@ -93,8 +93,8 @@
                     </div>
                 </div>
             </div>
-
-            <!-- ✅ تب جدید: تنظیمات پایه (منتقل شده از SiteSettings) -->
+            
+            <!-- ✅ تب کامل تنظیمات پایه -->
             <div class="tab-pane fade" id="basic" role="tabpanel">
                 <div class="row">
                     <div class="col-md-6">
@@ -105,6 +105,22 @@
                         <div class="mb-3">
                             <label class="form-label">توضیحات متای سایت (برای سئو)</label>
                             <textarea id="SiteDescriptionInput" class="form-control" rows="3">@ViewBag.SiteDescription</textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">تلفن</label>
+                            <input type="text" id="PhoneInput" class="form-control" value="@ViewBag.Phone" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">ایمیل</label>
+                            <input type="email" id="EmailInput" class="form-control" value="@ViewBag.Email" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">آدرس</label>
+                            <textarea id="AddressInput" class="form-control" rows="3">@ViewBag.Address</textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">ساعات کاری</label>
+                            <input type="text" id="WorkingHoursInput" class="form-control" value="@ViewBag.WorkingHours" placeholder="مثال: شنبه تا پنجشنبه ۹ تا ۱" />
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -120,102 +136,149 @@
                             <img id="faviconPreview" src="@ViewBag.FaviconPath" class="img-thumbnail mb-1" style="max-width:64px; @(string.IsNullOrEmpty(ViewBag.FaviconPath) ? "display:none;" : "")" />
                             <button type="button" class="btn btn-sm btn-outline-primary open-media-picker" data-target="#FaviconPath" data-preview="#faviconPreview"><i class="bi bi-image"></i> انتخاب از کتابخانه</button>
                         </div>
+                        <hr />
+                        <h6>شبکه‌های اجتماعی</h6>
+                        <div class="mb-3">
+                            <label class="form-label">اینستاگرام</label>
+                            <input type="url" id="InstagramUrlInput" class="form-control" value="@ViewBag.InstagramUrl" placeholder="https://instagram.com/..." />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">تلگرام</label>
+                            <input type="url" id="TelegramUrlInput" class="form-control" value="@ViewBag.TelegramUrl" placeholder="https://t.me/..." />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">واتساپ</label>
+                            <input type="url" id="WhatsAppUrlInput" class="form-control" value="@ViewBag.WhatsAppUrl" placeholder="https://wa.me/..." />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">بله</label>
+                            <input type="url" id="BaleUrlInput" class="form-control" value="@ViewBag.BaleUrl" placeholder="https://bale.ai/..." />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">روبیکا</label>
+                            <input type="url" id="RubikaUrlInput" class="form-control" value="@ViewBag.RubikaUrl" placeholder="https://rubika.ir/..." />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">ایتا</label>
+                            <input type="url" id="EitaaUrlInput" class="form-control" value="@ViewBag.EitaaUrl" placeholder="https://eitaa.com/..." />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">سروش</label>
+                            <input type="url" id="SoroushUrlInput" class="form-control" value="@ViewBag.SoroushUrl" placeholder="https://sapp.ir/..." />
+                        </div>
+                        <hr />
+                        <div class="mb-3">
+                            <label class="form-label">گواهینامه‌ها (JSON)</label>
+                            <textarea id="CertificationsJsonInput" class="form-control" rows="4" dir="ltr">@ViewBag.CertificationsJson</textarea>
+                            <small class="text-muted">فرمت: [{"Title":"نماد اعتماد","ImagePath":"/images/eNamad.png","Link":"https://..."}]</small>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-
+        
         <button id="saveBtn" class="btn btn-success mt-4">💾 ذخیره تمام تنظیمات</button>
     </div>
 </div>
 
 @section Scripts {
 <script>
-    const headerRange = document.getElementById('HeaderTransparency');
-    const footerRange = document.getElementById('FooterTransparency');
-    const headerSpan = document.getElementById('headerTransparencyValue');
-    const footerSpan = document.getElementById('footerTransparencyValue');
+const headerRange = document.getElementById('HeaderTransparency');
+const footerRange = document.getElementById('FooterTransparency');
+const headerSpan = document.getElementById('headerTransparencyValue');
+const footerSpan = document.getElementById('footerTransparencyValue');
+if (headerRange) headerRange.addEventListener('input', () => headerSpan.innerText = headerRange.value);
+if (footerRange) footerRange.addEventListener('input', () => footerSpan.innerText = footerRange.value);
 
-    if (headerRange) headerRange.addEventListener('input', () => headerSpan.innerText = headerRange.value);
-    if (footerRange) footerRange.addEventListener('input', () => footerSpan.innerText = footerRange.value);
+const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ||
+    document.querySelector('[name="__RequestVerificationToken"]')?.value;
 
-    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ||
-                  document.querySelector('[name="__RequestVerificationToken"]')?.value;
-
-    document.getElementById('saveBtn').addEventListener('click', async function() {
-        const btn = this;
-        const originalText = btn.innerHTML;
-        btn.innerHTML = '⏳ در حال ذخیره...';
-        btn.disabled = true;
-
-        // ✅ استفاده از FormData برای پشتیبانی همزمان از فیلدهای متنی و آپلود فایل
-        const formData = new FormData();
+document.getElementById('saveBtn').addEventListener('click', async function() {
+    const btn = this;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '⏳ در حال ذخیره...';
+    btn.disabled = true;
+    
+    const formData = new FormData();
+    
+    // تنظیمات ظاهری
+    formData.append('PrimaryColor', document.getElementById('PrimaryColor').value);
+    formData.append('SecondaryColor', document.getElementById('SecondaryColor').value);
+    formData.append('HeaderBgColor', document.getElementById('HeaderBgColor').value);
+    formData.append('HeaderTextColor', document.getElementById('HeaderTextColor').value);
+    formData.append('FooterBgColor', document.getElementById('FooterBgColor').value);
+    formData.append('FooterTextColor', document.getElementById('FooterTextColor').value);
+    formData.append('BodyBgColor', document.getElementById('BodyBgColor').value);
+    formData.append('BodyTextColor', document.getElementById('BodyTextColor').value);
+    formData.append('HeaderTransparency', parseInt(headerRange?.value || 100));
+    formData.append('FooterTransparency', parseInt(footerRange?.value || 100));
+    formData.append('HeaderType', parseInt(document.getElementById('HeaderType').value));
+    formData.append('FooterType', parseInt(document.getElementById('FooterType').value));
+    formData.append('BodyDotPatternEnabled', document.getElementById('BodyDotPatternEnabled').checked);
+    
+    // ✅ تنظیمات پایه کامل
+    formData.append('SiteTitle', document.getElementById('SiteTitleInput').value);
+    formData.append('SiteDescription', document.getElementById('SiteDescriptionInput').value);
+    formData.append('Phone', document.getElementById('PhoneInput').value);
+    formData.append('Email', document.getElementById('EmailInput').value);
+    formData.append('Address', document.getElementById('AddressInput').value);
+    formData.append('WorkingHours', document.getElementById('WorkingHoursInput').value);
+    
+    const logoPath = document.getElementById('LogoPath');
+    if (logoPath && logoPath.value) formData.append('LogoPath', logoPath.value);
+    
+    const faviconPath = document.getElementById('FaviconPath');
+    if (faviconPath && faviconPath.value) formData.append('FaviconPath', faviconPath.value);
+    
+    // شبکه‌های اجتماعی
+    formData.append('InstagramUrl', document.getElementById('InstagramUrlInput').value);
+    formData.append('TelegramUrl', document.getElementById('TelegramUrlInput').value);
+    formData.append('WhatsAppUrl', document.getElementById('WhatsAppUrlInput').value);
+    formData.append('BaleUrl', document.getElementById('BaleUrlInput').value);
+    formData.append('RubikaUrl', document.getElementById('RubikaUrlInput').value);
+    formData.append('EitaaUrl', document.getElementById('EitaaUrlInput').value);
+    formData.append('SoroushUrl', document.getElementById('SoroushUrlInput').value);
+    
+    // گواهینامه‌ها
+    formData.append('CertificationsJson', document.getElementById('CertificationsJsonInput').value);
+    
+    try {
+        const response = await fetch('/Admin/Theme/SaveJson', {
+            method: 'POST',
+            headers: {
+                'RequestVerificationToken': token
+            },
+            body: formData
+        });
         
-        // اضافه کردن تنظیمات ظاهری
-        formData.append('PrimaryColor', document.getElementById('PrimaryColor').value);
-        formData.append('SecondaryColor', document.getElementById('SecondaryColor').value);
-        formData.append('HeaderBgColor', document.getElementById('HeaderBgColor').value);
-        formData.append('HeaderTextColor', document.getElementById('HeaderTextColor').value);
-        formData.append('FooterBgColor', document.getElementById('FooterBgColor').value);
-        formData.append('FooterTextColor', document.getElementById('FooterTextColor').value);
-        formData.append('BodyBgColor', document.getElementById('BodyBgColor').value);
-        formData.append('BodyTextColor', document.getElementById('BodyTextColor').value);
-        formData.append('HeaderTransparency', parseInt(headerRange?.value || 100));
-        formData.append('FooterTransparency', parseInt(footerRange?.value || 100));
-        formData.append('HeaderType', parseInt(document.getElementById('HeaderType').value));
-        formData.append('FooterType', parseInt(document.getElementById('FooterType').value));
-        formData.append('BodyDotPatternEnabled', document.getElementById('BodyDotPatternEnabled').checked);
-
-        // ✅ اضافه کردن تنظیمات پایه
-        formData.append('SiteTitle', document.getElementById('SiteTitleInput').value);
-        formData.append('SiteDescription', document.getElementById('SiteDescriptionInput').value);
-        
-        // ✅ اضافه کردن مسیر لوگو و فاوآیکون از کتابخانه رسانه
-        const logoPath = document.getElementById('LogoPath');
-        if (logoPath && logoPath.value) formData.append('LogoPath', logoPath.value);
-        
-        const faviconPath = document.getElementById('FaviconPath');
-        if (faviconPath && faviconPath.value) formData.append('FaviconPath', faviconPath.value);
-
-        try {
-            const response = await fetch('/Admin/Theme/SaveJson', {
-                method: 'POST',
-                headers: {
-                    'RequestVerificationToken': token
-                    // ⚠️ نکته حیاتی: وقتی از FormData استفاده می‌کنید، نباید 'Content-Type': 'application/json' را ست کنید.
-                    // مرورگر به صورت خودکار Content-Type را به multipart/form-data با boundary صحیح تنظیم می‌کند.
-                },
-                body: formData
-            });
-
-            let result;
-            const contentType = response.headers.get("content-type");
-            if (contentType && contentType.indexOf("application/json") !== -1) {
-                result = await response.json();
-            } else {
-                result = { success: response.ok, message: await response.text() };
-            }
-
-            const msgDiv = document.getElementById('message');
-            msgDiv.style.display = 'block';
-            if (result.success) {
-                msgDiv.className = 'alert alert-success';
-                msgDiv.innerText = result.message || 'تنظیمات با موفقیت ذخیره شد.';
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                msgDiv.className = 'alert alert-danger';
-                msgDiv.innerText = result.message || 'خطا در ذخیره تنظیمات.';
-            }
-        } catch (err) {
-            console.error(err);
-            const msgDiv = document.getElementById('message');
-            msgDiv.style.display = 'block';
-            msgDiv.className = 'alert alert-danger';
-            msgDiv.innerText = 'خطا در ارتباط با سرور';
-        } finally {
-            btn.innerHTML = originalText;
-            btn.disabled = false;
+        let result;
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+            result = await response.json();
+        } else {
+            result = { success: response.ok, message: await response.text() };
         }
-    });
+        
+        const msgDiv = document.getElementById('message');
+        msgDiv.style.display = 'block';
+        if (result.success) {
+            msgDiv.className = 'alert alert-success';
+            msgDiv.innerText = result.message || 'تنظیمات با موفقیت ذخیره شد.';
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            msgDiv.className = 'alert alert-danger';
+            msgDiv.innerText = result.message || 'خطا در ذخیره تنظیمات.';
+        }
+    } catch (err) {
+        console.error(err);
+        const msgDiv = document.getElementById('message');
+        msgDiv.style.display = 'block';
+        msgDiv.className = 'alert alert-danger';
+        msgDiv.innerText = 'خطا در ارتباط با سرور';
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+});
 </script>
 }

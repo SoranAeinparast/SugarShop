@@ -2,12 +2,10 @@
 @{
     ViewData["Title"] = "تنظیمات هدر دسته‌بندی محصولات";
     Layout = "_AdminLayout";
-    
     var allCategories = ViewBag.AllCategories as List<SugarShop.Domain.Entities.Category> ?? new List<SugarShop.Domain.Entities.Category>();
     int selectedCategoryId = ViewBag.SelectedCategoryId ?? 0;
     var currentCategory = allCategories.FirstOrDefault(c => c.Id == selectedCategoryId);
 }
-
 <style>
     .header-preview { width: 100%; min-height: 200px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; padding: 20px; margin-bottom: 20px; position: relative; overflow: hidden; border: 1px solid #eee; }
     .header-preview h2 { margin: 0 0 10px 0; font-size: 2rem; font-weight: 800; }
@@ -16,22 +14,13 @@
     .color-input-wrapper input[type="color"] { width: 50px; height: 40px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer; }
     .bg-image-preview { max-height: 150px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #ddd; }
 </style>
-
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>🎨 تنظیمات هدر دسته‌بندی محصولات</h2>
     </div>
+    @if (TempData["Success"] != null) { <div class="alert alert-success alert-dismissible fade show">@TempData["Success"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div> }
+    @if (TempData["Error"] != null) { <div class="alert alert-danger alert-dismissible fade show">@TempData["Error"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div> }
 
-    @if (TempData["Success"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show">@TempData["Success"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-    }
-    @if (TempData["Error"] != null)
-    {
-        <div class="alert alert-danger alert-dismissible fade show">@TempData["Error"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-    }
-
-    @* ✅ ComboBox انتخاب دسته‌بندی *@
     <div class="card mb-4">
         <div class="card-header bg-primary text-white"><h5 class="mb-0">📋 انتخاب دسته‌بندی</h5></div>
         <div class="card-body">
@@ -39,10 +28,7 @@
                 <div class="col-md-9">
                     <label class="form-label fw-bold">دسته‌بندی مورد نظر:</label>
                     <select name="categoryId" class="form-select form-select-lg" onchange="this.form.submit()">
-                        @foreach (var cat in allCategories)
-                        {
-                            <option value="@cat.Id" @(selectedCategoryId == cat.Id ? "selected" : "")>@cat.TitleFa (@cat.Slug)</option>
-                        }
+                        @foreach (var cat in allCategories) { <option value="@cat.Id" @(selectedCategoryId == cat.Id ? "selected" : "")>@cat.TitleFa (@cat.Slug)</option> }
                     </select>
                 </div>
                 <div class="col-md-3">
@@ -52,33 +38,28 @@
         </div>
     </div>
 
-    @if (currentCategory != null)
-    {
+    @if (currentCategory != null) {
         <div class="alert alert-info mb-4"><strong>در حال ویرایش هدر برای:</strong> @currentCategory.TitleFa</div>
-
         <div class="row">
             <div class="col-md-5">
                 <div class="card shadow-sm">
                     <div class="card-header bg-primary text-white"><h5 class="mb-0">👁️ پیش‌نمایش</h5></div>
                     <div class="card-body">
-                        <div id="headerPreview" class="header-preview" style="background: @Model.BackgroundColor; color: @Model.TextColor; min-height: @(Model.Height)px;">
+                        <div id="headerPreview" class="header-preview" style="background: @(Model.UseBackgroundImage && !string.IsNullOrEmpty(Model.BackgroundImagePath) ? $"url('{Model.BackgroundImagePath}') center/cover" : Model.BackgroundColor); color: @Model.TextColor; min-height: @(Model.Height)px;">
                             <h2 id="previewTitle">@(Model.DefaultTitle ?? currentCategory.TitleFa)</h2>
                             <p id="previewSubtitle">@(currentCategory.RequiresBoxSelection ? Model.BoxSelectionSubtitle : Model.DefaultSubtitle)</p>
                         </div>
                     </div>
                 </div>
             </div>
-
             <div class="col-md-7">
                 <div class="card shadow-sm">
                     <div class="card-header bg-success text-white"><h5 class="mb-0">⚙️ تنظیمات</h5></div>
                     <div class="card-body">
                         <form asp-action="Index" method="post">
                             @Html.AntiForgeryToken()
-                            
-                            @* ✅ فیلدهای مخفی حیاتی *@
-                            <input type="hidden" name="CategoryId" value="@selectedCategoryId" />
-                            <input type="hidden" name="BackgroundImagePath" id="bgImagePathHidden" value="@Model.BackgroundImagePath" />
+                            <input type="hidden" asp-for="CategoryId" />
+                            <input type="hidden" asp-for="BackgroundImagePath" id="bgImagePathHidden" />
 
                             <div class="mb-3">
                                 <div class="form-check form-switch">
@@ -86,22 +67,18 @@
                                     <label class="form-check-label fw-bold">نمایش هدر</label>
                                 </div>
                             </div>
-
                             <div class="mb-3">
                                 <label class="form-label fw-bold">عنوان سفارشی (اختیاری)</label>
                                 <input asp-for="DefaultTitle" class="form-control" id="titleInput" placeholder="خالی = استفاده از عنوان دسته‌بندی" />
                             </div>
-
                             <div class="mb-3">
                                 <label class="form-label fw-bold">زیرعنوان (محصولات عادی)</label>
                                 <input asp-for="DefaultSubtitle" class="form-control" id="subtitleInput" />
                             </div>
-
                             <div class="mb-3">
                                 <label class="form-label fw-bold">زیرعنوان (دسته‌بندی‌های جعبه‌ای)</label>
                                 <input asp-for="BoxSelectionSubtitle" class="form-control" />
                             </div>
-
                             <div class="mb-3">
                                 <label class="form-label fw-bold">رنگ پس‌زمینه</label>
                                 <div class="color-input-wrapper">
@@ -109,7 +86,6 @@
                                     <input asp-for="BackgroundColor" class="form-control" id="bgColorInput" dir="ltr" style="max-width: 200px;" />
                                 </div>
                             </div>
-
                             <div class="mb-3">
                                 <label class="form-label fw-bold">رنگ متن</label>
                                 <div class="color-input-wrapper">
@@ -117,37 +93,30 @@
                                     <input asp-for="TextColor" class="form-control" id="textColorInput" dir="ltr" style="max-width: 200px;" />
                                 </div>
                             </div>
-
                             <div class="mb-3">
                                 <label class="form-label fw-bold">ارتفاع (پیکسل)</label>
                                 <input asp-for="Height" type="number" class="form-control" id="heightInput" min="100" max="600" />
                             </div>
-
                             <div class="mb-3">
                                 <div class="form-check form-switch">
                                     <input asp-for="UseBackgroundImage" class="form-check-input" type="checkbox" id="useBgImage" />
                                     <label class="form-check-label fw-bold">استفاده از تصویر پس‌زمینه</label>
                                 </div>
                             </div>
-
                             <div class="mb-4">
                                 <label class="form-label fw-bold">تصویر پس‌زمینه</label>
-                                @if (!string.IsNullOrEmpty(Model.BackgroundImagePath))
-                                {
-                                    <img id="bgImagePreview" src="@Model.BackgroundImagePath" class="bg-image-preview d-block" />
-                                }
-                                else
-                                {
-                                    <img id="bgImagePreview" src="" class="bg-image-preview d-block" style="display: none;" />
-                                }
+                                @if (!string.IsNullOrEmpty(Model.BackgroundImagePath)) { <img id="bgImagePreview" src="@Model.BackgroundImagePath" class="bg-image-preview d-block" /> }
+                                else { <img id="bgImagePreview" src="" class="bg-image-preview d-block" style="display: none;" /> }
                                 <div class="input-group">
                                     <input type="text" id="bgImagePathDisplay" class="form-control" readonly placeholder="مسیر تصویر..." value="@Model.BackgroundImagePath" />
-                                    <button type="button" class="btn btn-outline-primary open-media-picker" data-target="#bgImagePathHidden" data-preview="#bgImagePreview">
+                                    <button type="button" class="btn btn-outline-primary open-media-picker" 
+                                            data-target="#bgImagePathHidden" 
+                                            data-preview="#bgImagePreview" 
+                                            data-display="#bgImagePathDisplay">
                                         <i class="bi bi-image"></i> انتخاب از کتابخانه
                                     </button>
                                 </div>
                             </div>
-
                             <button type="submit" class="btn btn-success btn-lg w-100"><i class="bi bi-check-circle"></i> ذخیره تنظیمات</button>
                         </form>
                     </div>
@@ -176,7 +145,6 @@
 
     if (titleInput) titleInput.addEventListener('input', function() { previewTitle.textContent = this.value || '@(currentCategory?.TitleFa ?? "عنوان")'; });
     if (subtitleInput) subtitleInput.addEventListener('input', function() { previewSubtitle.textContent = this.value || 'زیرعنوان'; });
-    
     if (bgColorInput && bgColorPicker) {
         bgColorInput.addEventListener('input', function() { if (!useBgImage.checked) preview.style.background = this.value; bgColorPicker.value = this.value; });
         bgColorPicker.addEventListener('input', function() { bgColorInput.value = this.value; if (!useBgImage.checked) preview.style.background = this.value; });
@@ -186,7 +154,6 @@
         textColorPicker.addEventListener('input', function() { textColorInput.value = this.value; preview.style.color = this.value; });
     }
     if (heightInput) heightInput.addEventListener('input', function() { preview.style.minHeight = this.value + 'px'; });
-    
     if (useBgImage) {
         useBgImage.addEventListener('change', function() {
             if (this.checked && bgImagePathHidden && bgImagePathHidden.value) {
@@ -196,21 +163,5 @@
             }
         });
     }
-
-    setInterval(function() {
-        if (bgImagePathHidden && bgImagePathDisplay) {
-            const currentPath = bgImagePathHidden.value;
-            if (bgImagePathDisplay.value !== currentPath) {
-                bgImagePathDisplay.value = currentPath;
-                if (currentPath) {
-                    if(bgImagePreview) { bgImagePreview.src = currentPath; bgImagePreview.style.display = 'block'; }
-                    if (useBgImage && useBgImage.checked) preview.style.background = `url('${currentPath}') center/cover`;
-                } else {
-                    if(bgImagePreview) bgImagePreview.style.display = 'none';
-                    if (!useBgImage.checked) preview.style.background = bgColorInput.value;
-                }
-            }
-        }
-    }, 500);
 </script>
 }

@@ -3,14 +3,56 @@
     Layout = "_AdminLayout";
 }
 @model List<SugarShop.Domain.Entities.SweetItem>
-<div class="card">
+
+@{
+    int totalPages   = ViewBag.TotalPages   is int tp ? tp : 1;
+    int currentPage  = ViewBag.CurrentPage  is int cp ? cp : 1;
+    int totalCount   = ViewBag.TotalCount   is int tc ? tc : 0;
+    string search    = ViewBag.Search as string ?? "";
+    int? categoryId  = ViewBag.CategoryId is int ci ? (int?)ci : null;
+    var categories   = ViewBag.Categories as IEnumerable<dynamic>;
+}
+
+<div class="card shadow-sm">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h4>🍪 لیست شیرینی‌ها</h4>
+        <h4 class="mb-0">🍪 لیست شیرینی‌ها
+            <small class="text-muted ms-2">(@totalCount مورد)</small>
+        </h4>
         <a href="@Url.Action("Create")" class="btn btn-primary">➕ افزودن جدید</a>
     </div>
+
     <div class="card-body">
+
+        @* 🔎 فرم جستجو و فیلتر دسته *@
+        <form method="get" class="row g-2 mb-3">
+            <div class="col-md-5">
+                <input type="text" name="search" value="@search"
+                       class="form-control" placeholder="🔍 جستجو بر اساس نام..." />
+            </div>
+            <div class="col-md-4">
+                <select name="categoryId" class="form-select">
+                    <option value="">-- همه دسته‌ها --</option>
+                    @if (categories != null)
+                    {
+                        foreach (var c in categories)
+                        {
+                            int cId = (int)c.Id;
+                            string cTitle = (string)c.TitleFa;
+                            bool selected = categoryId.HasValue && categoryId.Value == cId;
+                            <option value="@cId" selected="@(selected ? "selected" : null)">@cTitle</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-success flex-fill">🔎 اعمال فیلتر</button>
+                <a href="@Url.Action("Index")" class="btn btn-outline-secondary" title="پاک‌سازی">✖️</a>
+            </div>
+        </form>
+
+        @* 📊 جدول شیرینی‌ها *@
         <div class="table-responsive">
-            <table class="table table-striped table-bordered table-hover">
+            <table class="table table-striped table-bordered table-hover align-middle">
                 <thead class="table-dark">
                     <tr>
                         <th>تصویر</th>
@@ -19,55 +61,109 @@
                         <th>وزن تقریبی</th>
                         <th>قیمت کیلویی</th>
                         <th>موجودی</th>
-                        <th>فعال</th>
+                        <th>وضعیت</th>
                         <th>عملیات</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var item in Model)
+                    @if (Model != null && Model.Any())
+                    {
+                        foreach (var item in Model)
+                        {
+                            <tr>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(item.ImagePath))
+                                    {
+                                        <img src="@item.ImagePath" width="50" height="50"
+                                             style="object-fit:cover;border-radius:8px;" loading="lazy" />
+                                    }
+                                    else
+                                    {
+                                        <span style="font-size:1.5rem;">🍪</span>
+                                    }
+                                </td>
+                                <td>@item.TitleFa</td>
+                                <td>@(item.Category?.TitleFa ?? "-")</td>
+                                <td>@item.ApproxWeightGrams گرم</td>
+                                <td>@item.PricePerKg.ToString("N0") تومان</td>
+                                <td>@item.InventoryCount</td>
+                                <td>
+                                    @if (item.IsActive)
+                                    {
+                                        <span class="badge bg-success">فعال</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">غیرفعال</span>
+                                    }
+                                </td>
+                                <td>
+                                    <a href="@Url.Action("Edit", new { id = item.Id })"
+                                       class="btn btn-sm btn-warning">✏️ ویرایش</a>
+                                    <form asp-action="Delete" method="post" style="display:inline-block;"
+                                          onsubmit="return confirm('حذف شود؟')">
+                                        <input type="hidden" name="id" value="@item.Id" />
+                                        <button type="submit" class="btn btn-sm btn-danger">🗑️ حذف</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
                     {
                         <tr>
-                            <td class="align-middle">
-                                @if (!string.IsNullOrEmpty(item.ImagePath))
-                                {
-                                    <img src="@item.ImagePath" width="50" height="50" style="object-fit: cover; border-radius: 8px;" loading="lazy" />
-                                }
-                                else
-                                {
-                                    <span style="font-size: 1.5rem;">🍪</span>
-                                }
-                            </td>
-                            <td class="align-middle">@item.TitleFa</td>
-                            <td class="align-middle">@(item.Category?.TitleFa ?? "-")</td>
-                            <td class="align-middle">@item.ApproxWeightGrams گرم</td>
-                            <td class="align-middle">@item.PricePerKg.ToString("N0") تومان</td>
-                            <td class="align-middle">@item.InventoryCount</td>
-                            <td class="align-middle">
-                                @if (item.IsActive)
-                                {
-                                    <span class="badge bg-success">فعال</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-danger">غیرفعال</span>
-                                }
-                            </td>
-                            <td class="align-middle">
-                                <a href="@Url.Action("Edit", new { id = item.Id })" class="btn btn-sm btn-warning">✏️ ویرایش</a>
-                                <form asp-action="Delete" method="post" style="display:inline-block;" onsubmit="return confirm('حذف شود؟')">
-                                    <input type="hidden" name="id" value="@item.Id" />
-                                    <button type="submit" class="btn btn-sm btn-danger">🗑️ حذف</button>
-                                </form>
+                            <td colspan="8" class="text-center text-muted py-4">
+                                🫤 هیچ شیرینی‌ای با این فیلترها یافت نشد.
                             </td>
                         </tr>
                     }
                 </tbody>
             </table>
-            </table>
-                @if (ViewBag.TotalPages > 1)
-                {
-                    <nav><ul class="pagination">...</ul></nav>
-                }
         </div>
+
+        @* 📄 صفحه‌بندی کامل *@
+        @if (totalPages > 1)
+        {
+            <nav aria-label="صفحه‌بندی">
+                <ul class="pagination justify-content-center mb-0">
+
+                    @* لینک قبلی *@
+                    @{
+                        bool prevDisabled = currentPage == 1;
+                    }
+                    <li class="page-item @(prevDisabled ? "disabled" : "")">
+                        <a class="page-link"
+                           href="@Url.Action("Index", new { page = currentPage - 1, search, categoryId })">
+                            « قبلی
+                        </a>
+                    </li>
+
+                    @* شماره صفحات *@
+                    @for (int i = 1; i <= totalPages; i++)
+                    {
+                        bool active = i == currentPage;
+                        <li class="page-item @(active ? "active" : "")">
+                            <a class="page-link"
+                               href="@Url.Action("Index", new { page = i, search, categoryId })">
+                                @i
+                            </a>
+                        </li>
+                    }
+
+                    @* لینک بعدی *@
+                    @{
+                        bool nextDisabled = currentPage == totalPages;
+                    }
+                    <li class="page-item @(nextDisabled ? "disabled" : "")">
+                        <a class="page-link"
+                           href="@Url.Action("Index", new { page = currentPage + 1, search, categoryId })">
+                            بعدی »
+                        </a>
+                    </li>
+
+                </ul>
+            </nav>
+        }
+
     </div>
 </div>
