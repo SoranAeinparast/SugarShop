@@ -212,7 +212,7 @@ try
     using (var scope = app.Services.CreateScope())
     {
         var scheduler = scope.ServiceProvider.GetRequiredService<ContentSchedulerService>();
-        scheduler.ScheduleContentFetching();
+        await scheduler.ScheduleContentFetching();
     }
 }
 catch (Exception ex)

@@ -7,7 +7,6 @@
 @{
     ViewData["Title"] = "مدیریت سفارشات";
     var currentStatus = ViewBag.CurrentStatus as string ?? "all";
-    string ToPersianNumber(string input) => input.ToPersianNumber();
     var userNames = ViewBag.UserNames as Dictionary<string, string> ?? new Dictionary<string, string>();
     int totalOrders = ViewBag.TotalOrders ?? 0;
     decimal totalPayments = ViewBag.TotalPayments ?? 0;

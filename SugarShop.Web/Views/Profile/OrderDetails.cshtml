@@ -12,7 +12,6 @@
     var sweetNames = ViewBag.SweetNames as Dictionary<int, string> ?? new Dictionary<int, string>();
     var productNames = ViewBag.ProductNames as Dictionary<int, string> ?? new Dictionary<int, string>();
     var boxInfos = ViewBag.BoxInfos as Dictionary<string, BoxFinalInfo> ?? new Dictionary<string, BoxFinalInfo>();
-    string ToPersianNumber(string input) => input.ToPersianNumber();
     var hasProducts = productItems.Any();
     var hasBoxes = boxGroups.Any();
     decimal productTotal = productItems.Sum(p => p.TotalPriceSnapshot);

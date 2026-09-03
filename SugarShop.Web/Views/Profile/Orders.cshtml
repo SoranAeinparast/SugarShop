@@ -1,12 +1,9 @@
-﻿@using SugarShop.Web.Extensions
-@using SugarShop.Domain.Entities.Sales
+﻿@using SugarShop.Domain.Entities.Sales
 @using SugarShop.Web.ViewModels
 @model List<OrderListItemViewModel>
-@using SugarShop.Web.Extensions
 @using MD.PersianDateTime
 @{
     ViewData["Title"] = "سفارشات من";
-    string ToPersianNumber(string input) => input.ToPersianNumber();
 }
 <div class="container mt-4 mb-5">
     <div class="d-flex justify-content-between align-items-center mb-4">

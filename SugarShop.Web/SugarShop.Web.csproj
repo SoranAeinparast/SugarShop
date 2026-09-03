@@ -5,6 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>aspnet-SugarShop.Web-cede4fcd-e1a9-4a15-ac78-9dfe6f528349</UserSecretsId>
+    <!-- MD.PersianDateTime targets .NET Framework; the NU1701 restore fallback is benign on net8.0 -->
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

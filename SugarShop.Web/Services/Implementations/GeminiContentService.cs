@@ -51,10 +51,10 @@ namespace SugarShop.Web.Services.Implementations
             }
         }
 
-        public async Task<string> GenerateFeaturedImageAsync(string title, string description)
+        public Task<string> GenerateFeaturedImageAsync(string title, string description)
         {
             _logger.LogWarning("Gemini does not support image generation yet.");
-            return "https://via.placeholder.com/1024x1024/FFD700/000000?text=Recipe+Image";
+            return Task.FromResult("https://via.placeholder.com/1024x1024/FFD700/000000?text=Recipe+Image");
         }
     }
 }

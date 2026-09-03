@@ -4,7 +4,6 @@
 @using MD.PersianDateTime
 @{
     ViewData["Title"] = Model.CategoryTitle;
-    string ToPersianNumber(string input) => input.ToPersianNumber();
     
     // ✅ خواندن تنظیمات هدر (فقط یک بار)
     var headerSettings = ViewBag.HeaderSettings as SugarShop.Domain.Entities.CategoryHeaderSetting;

@@ -6,13 +6,11 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject SugarShop.Infrastructure.Persistence.Sales.SugarShopSalesDbContext DbContext
 @using SugarShop.Web.ViewModels
-@using MD.PersianDateTime
 @{
     var user = await UserManager.GetUserAsync(User);
     var isAdmin = user != null && await UserManager.IsInRoleAsync(user, "Admin");
     var isOrderManager = user != null && await UserManager.IsInRoleAsync(user, "OrderManager");
     var isNormalUser = user != null && !isAdmin && !isOrderManager;
-    string ToPersianNumber(string input) => input.ToPersianNumber();
     var siteSettings = await DbContext.SiteSettings.FirstOrDefaultAsync();
     if (siteSettings != null)
     {
