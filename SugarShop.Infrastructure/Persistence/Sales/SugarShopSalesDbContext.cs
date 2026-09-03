@@ -38,6 +38,8 @@ namespace SugarShop.Infrastructure.Persistence.Sales
         public DbSet<MediaAsset> MediaAssets { get; set; }
         public DbSet<GalleryHeaderSetting> GalleryHeaderSettings { get; set; }
         public DbSet<CategoryHeaderSetting> CategoryHeaderSettings { get; set; }
+        public DbSet<Invoice> Invoices { get; set; }
+        public DbSet<InvoiceItem> InvoiceItems { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -165,6 +167,8 @@ namespace SugarShop.Infrastructure.Persistence.Sales
                 e.Property(x => x.FaviconPath).HasMaxLength(500);
                 e.Property(x => x.Phone).HasMaxLength(50);
                 e.Property(x => x.Email).HasMaxLength(200);
+                e.Property(x => x.EconomicCode).HasMaxLength(50);
+                e.Property(x => x.PostalCode).HasMaxLength(50);
             });
             modelBuilder.Entity<BoxFinalInfo>(e =>
             {

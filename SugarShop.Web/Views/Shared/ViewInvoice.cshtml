@@ -1,0 +1,185 @@
+@model SugarShop.Domain.Entities.Sales.Invoice
+@using SugarShop.Domain.Entities
+@using SugarShop.Domain.Entities.Sales
+@using SugarShop.Infrastructure.Persistence.Sales
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using MD.PersianDateTime
+@using SugarShop.Web.Helpers
+@inject SugarShopSalesDbContext SalesDb
+@inject UserManager<ApplicationUser> UserManager
+@{
+    ViewData["Title"] = $"فاکتور {Model.InvoiceNumber}";
+
+    var seller = await SalesDb.SiteSettings.FirstOrDefaultAsync();
+    var sellerName = !string.IsNullOrWhiteSpace(seller?.SiteTitle) ? seller!.SiteTitle! : "شیرینی سرای تک";
+    var sellerPhone = seller?.Phone ?? "";
+    var sellerAddress = seller?.Address ?? "";
+    var sellerPostalCode = string.IsNullOrWhiteSpace(seller?.PostalCode) ? "-" : seller!.PostalCode!;
+    var sellerEconomicCode = string.IsNullOrWhiteSpace(seller?.EconomicCode) ? "-" : seller!.EconomicCode!;
+
+    ApplicationUser? buyerUser = null;
+    if (Model.Order != null && !string.IsNullOrEmpty(Model.Order.UserId))
+    {
+        buyerUser = await UserManager.FindByIdAsync(Model.Order.UserId!);
+    }
+
+    var buyerName = !string.IsNullOrWhiteSpace(buyerUser?.FullName)
+        ? buyerUser!.FullName
+        : (!string.IsNullOrWhiteSpace(buyerUser?.UserName) ? buyerUser!.UserName : "-");
+    var buyerPhone = !string.IsNullOrWhiteSpace(buyerUser?.PhoneNumber) ? buyerUser!.PhoneNumber : "-";
+    var buyerEmail = !string.IsNullOrWhiteSpace(buyerUser?.Email) ? buyerUser!.Email : "-";
+    var buyerNationalCode = string.IsNullOrWhiteSpace(buyerUser?.NationalCode) ? "-" : buyerUser!.NationalCode!;
+
+    var receiverName = Model.Order?.CustomerName ?? "-";
+    var receiverPhone = Model.Order?.CustomerPhone ?? "-";
+    var receiverAddress = Model.Order?.CustomerFullAddress ?? "-";
+    var receiverPostal = string.IsNullOrWhiteSpace(Model.Order?.CustomerPostalCode) ? "-" : Model.Order!.CustomerPostalCode!;
+
+    var invoiceDate = new PersianDateTime(Model.InvoiceDate).ToString("yyyy/MM/dd").ToPersianNumber();
+    var payableWords = NumberToWordsFa.Convert((long)(Model.TotalAmount * 10)) + " ریال";
+}
+@functions {
+    string Rial(decimal toman) => (toman * 10).ToString("N0").ToPersianNumber();
+    string WeightKg(int? grams) => grams.HasValue ? (grams.Value / 1000m).ToString("0.###").ToPersianNumber() : "-";
+}
+<div class="container my-4">
+    <div class="d-flex justify-content-between align-items-center mb-3 no-print">
+        <h2>📄 فاکتور @Model.InvoiceNumber</h2>
+        <div>
+            <button onclick="window.print()" class="btn btn-success">🖨️ چاپ فاکتور</button>
+            <button onclick="history.back()" class="btn btn-secondary">🔙 بازگشت</button>
+        </div>
+    </div>
+
+    <div id="invoiceDoc" dir="rtl" style="font-family: Vazirmatn, Tahoma, sans-serif; color: #000; border: 2px solid #000; padding: 16px 20px; background: #fff;">
+
+        @* ═══════════ هدر فاکتور ═══════════ *@
+        <div style="display: flex; justify-content: space-between; align-items: center; border: 1px solid #000; padding: 6px 10px; margin-bottom: 10px;">
+            <div style="font-size: 12px; line-height: 1.9;">
+                <div><strong>شماره فاکتور:</strong> @Model.InvoiceNumber</div>
+                <div><strong>شماره سفارش:</strong> @(Model.Order?.OrderCode ?? "-")</div>
+                <div><strong>تاریخ صدور:</strong> @invoiceDate</div>
+            </div>
+            <div style="text-align: center; flex: 1;">
+                <div style="font-size: 22px; font-weight: bold;">فاکتور فروش</div>
+                <div style="font-size: 15px; font-weight: bold; color: #333;">@sellerName</div>
+                <div style="font-size: 11px; color: #555; margin-top: 3px;">(مبالغ به ریال)</div>
+            </div>
+        </div>
+
+        @* ═══════════ فروشنده ═══════════ *@
+        <div style="border: 1px solid #000; margin-bottom: 8px; position: relative;">
+            <div style="display: flex; align-items: stretch;">
+                <div style="writing-mode: vertical-rl; transform: rotate(180deg); background: #f0f0f0; border-left: 1px solid #000; padding: 6px 4px; font-weight: bold; font-size: 13px; text-align: center;">فروشنده</div>
+                <div style="padding: 6px 10px; font-size: 13px; line-height: 1.8; flex: 1;">
+                    <div><strong>@sellerName</strong>&nbsp;&nbsp;|&nbsp;&nbsp;تلفن: @(string.IsNullOrEmpty(sellerPhone) ? "-" : sellerPhone.ToPersianNumber())&nbsp;&nbsp;|&nbsp;&nbsp;شماره اقتصادی: @sellerEconomicCode</div>
+                    <div>نشانی: @(string.IsNullOrEmpty(sellerAddress) ? "-" : sellerAddress)&nbsp;&nbsp;|&nbsp;&nbsp;کدپستی: @sellerPostalCode</div>
+                </div>
+            </div>
+        </div>
+
+        @* ═══════════ خریدار و گیرنده ═══════════ *@
+        <div style="border: 1px solid #000; margin-bottom: 10px; position: relative;">
+            <div style="display: flex; align-items: stretch;">
+                <div style="writing-mode: vertical-rl; transform: rotate(180deg); background: #f0f0f0; border-left: 1px solid #000; padding: 6px 4px; font-weight: bold; font-size: 13px; text-align: center;">خریدار</div>
+                <div style="padding: 6px 10px; font-size: 13px; line-height: 1.8; flex: 1;">
+                    <div>
+                        <strong>خریدار (دارنده حساب):</strong> @buyerName
+                        &nbsp;&nbsp;|&nbsp;&nbsp;تلفن: @buyerPhone.ToPersianNumber()
+                        &nbsp;&nbsp;|&nbsp;&nbsp;کدملی: @buyerNationalCode.ToPersianNumber()
+                        &nbsp;&nbsp;|&nbsp;&nbsp;ایمیل: @buyerEmail
+                    </div>
+                    <div style="margin-top: 4px; border-top: 1px dashed #999; padding-top: 4px;">
+                        <strong>گیرنده سفارش:</strong> @receiverName
+                        &nbsp;&nbsp;|&nbsp;&nbsp;تلفن: @receiverPhone.ToPersianNumber()
+                    </div>
+                    <div>نشانی گیرنده: @receiverAddress&nbsp;&nbsp;|&nbsp;&nbsp;کدپستی: @receiverPostal.ToPersianNumber()</div>
+                </div>
+            </div>
+        </div>
+
+        @* ═══════════ جدول اقلام ═══════════ *@
+        <table style="width: 100%; border-collapse: collapse; font-size: 12.5px;">
+            <thead>
+                <tr style="background: #e8e8e8; font-weight: bold;">
+                    <th style="border: 1px solid #000; padding: 5px; width: 5%;">ردیف</th>
+                    <th style="border: 1px solid #000; padding: 5px;">شرح کالا</th>
+                    <th style="border: 1px solid #000; padding: 5px; width: 8%;">واحد</th>
+                    <th style="border: 1px solid #000; padding: 5px; width: 7%;">تعداد</th>
+                    <th style="border: 1px solid #000; padding: 5px; width: 9%;">وزن (کیلوگرم)</th>
+                    <th style="border: 1px solid #000; padding: 5px; width: 14%;">قیمت جزء (ریال)</th>
+                    <th style="border: 1px solid #000; padding: 5px; width: 14%;">قیمت کل (ریال)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{ int rowIndex = 1; }
+                @foreach (var item in Model.Items)
+                {
+                    <tr>
+                        <td style="border: 1px solid #000; padding: 5px; text-align: center;">@rowIndex.ToPersianNumber()</td>
+                        <td style="border: 1px solid #000; padding: 5px; white-space: pre-line;">@item.ItemName</td>
+                        <td style="border: 1px solid #000; padding: 5px; text-align: center;">@(string.IsNullOrEmpty(item.BoxTitle) ? "عدد" : "جعبه")</td>
+                        <td style="border: 1px solid #000; padding: 5px; text-align: center;">@item.Quantity.ToPersianNumber()</td>
+                        <td style="border: 1px solid #000; padding: 5px; text-align: center;">@WeightKg(item.WeightGrams)</td>
+                        <td style="border: 1px solid #000; padding: 5px; text-align: center;">@Rial(item.UnitPrice)</td>
+                        <td style="border: 1px solid #000; padding: 5px; text-align: center;">@Rial(item.TotalPrice)</td>
+                    </tr>
+                    rowIndex++;
+                }
+            </tbody>
+        </table>
+
+        @* ═══════════ جمع و خلاصه ═══════════ *@
+        <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 13px;">
+            <div style="width: 46%; display: flex; align-items: center; justify-content: center; border: 1px solid #000; padding: 18px 8px; color: #444; font-size: 14px;">
+                از خرید شما متشکریم
+            </div>
+            <div style="width: 52%;">
+                <div style="display: flex; justify-content: space-between; border: 1px solid #000; border-bottom: none; background: #e8e8e8; font-weight: bold; padding: 5px 10px;">
+                    <span>جمع فاکتور</span>
+                    <span>@Rial(Model.Subtotal) ریال</span>
+                </div>
+                @if (Model.DiscountAmount > 0)
+                {
+                    <div style="display: flex; justify-content: space-between; border: 1px solid #000; border-bottom: none; padding: 5px 10px;">
+                        <span>مبلغ کد تخفیف</span>
+                        <span>- @Rial(Model.DiscountAmount) ریال</span>
+                    </div>
+                }
+                @if (Model.TaxAmount > 0)
+                {
+                    <div style="display: flex; justify-content: space-between; border: 1px solid #000; border-bottom: none; padding: 5px 10px;">
+                        <span>مالیات بر ارزش افزوده</span>
+                        <span>@Rial(Model.TaxAmount) ریال</span>
+                    </div>
+                }
+                @if (Model.DeliveryFee > 0)
+                {
+                    <div style="display: flex; justify-content: space-between; border: 1px solid #000; border-bottom: none; padding: 5px 10px;">
+                        <span>هزینه ارسال با پیک</span>
+                        <span>@Rial(Model.DeliveryFee) ریال</span>
+                    </div>
+                }
+                <div style="display: flex; justify-content: space-between; border: 1px solid #000; font-weight: bold; background: #f6f6f6; padding: 7px 10px;">
+                    <span>مبلغ قابل پرداخت (@payableWords)</span>
+                    <span>@Rial(Model.TotalAmount) ریال</span>
+                </div>
+            </div>
+        </div>
+
+        @* ═══════════ امضاها ═══════════ *@
+        <div style="display: flex; justify-content: space-between; margin-top: 14px; font-size: 13px;">
+            <div style="width: 46%; border: 1px solid #000; padding: 30px 8px; text-align: center; color: #444;">مهر و امضای خریدار</div>
+            <div style="width: 46%; border: 1px solid #000; padding: 30px 8px; text-align: center; color: #444;">مهر و امضای فروشنده</div>
+        </div>
+    </div>
+</div>
+
+<style>
+@@media print {
+    .no-print { display: none !important; }
+    body { background: #fff !important; }
+    #invoiceDoc { border: 2px solid #000 !important; box-shadow: none !important; }
+}
+</style>

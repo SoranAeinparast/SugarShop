@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SugarShop.Infrastructure.Persistence.Sales;
 
@@ -11,9 +12,11 @@ using SugarShop.Infrastructure.Persistence.Sales;
 namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
 {
     [DbContext(typeof(SugarShopSalesDbContext))]
-    partial class SugarShopSalesDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260903072716_AddSellerInvoiceInfoToSiteSetting")]
+    partial class AddSellerInvoiceInfoToSiteSetting
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

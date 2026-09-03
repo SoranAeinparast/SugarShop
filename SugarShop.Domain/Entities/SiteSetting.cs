@@ -12,6 +12,10 @@ namespace SugarShop.Domain.Entities
         public string? Phone { get; set; }
         public string? Email { get; set; }
         public string? Address { get; set; }
+
+        // ✅ اطلاعات فروشنده برای فاکتور
+        public string? EconomicCode { get; set; }
+        public string? PostalCode { get; set; }
         public string? WorkingHours { get; set; }
         public string? InstagramUrl { get; set; }
         public string? TelegramUrl { get; set; }

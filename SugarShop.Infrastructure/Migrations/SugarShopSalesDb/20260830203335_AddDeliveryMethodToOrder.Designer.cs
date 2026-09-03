@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SugarShop.Infrastructure.Persistence.Sales;
 
@@ -11,9 +12,11 @@ using SugarShop.Infrastructure.Persistence.Sales;
 namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
 {
     [DbContext(typeof(SugarShopSalesDbContext))]
-    partial class SugarShopSalesDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260830203335_AddDeliveryMethodToOrder")]
+    partial class AddDeliveryMethodToOrder
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -845,105 +848,6 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                     b.ToTable("DiscountCodes");
                 });
 
-            modelBuilder.Entity("SugarShop.Domain.Entities.Sales.Invoice", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("DeliveryFee")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("DiscountAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime>("InvoiceDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("InvoiceNumber")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsPrinted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Notes")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("OrderId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("PrintedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("Subtotal")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("TaxAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("TotalAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrderId");
-
-                    b.ToTable("Invoices");
-                });
-
-            modelBuilder.Entity("SugarShop.Domain.Entities.Sales.InvoiceItem", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("BoxTitle")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("InvoiceId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ItemName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("Quantity")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("TotalPrice")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("UnitPrice")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int?>("WeightGrams")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("InvoiceId");
-
-                    b.ToTable("InvoiceItems");
-                });
-
             modelBuilder.Entity("SugarShop.Domain.Entities.Sales.Order", b =>
                 {
                     b.Property<int>("Id")
@@ -1338,10 +1242,6 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                     b.Property<string>("ContactSuccessMessage")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("EconomicCode")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
                     b.Property<string>("Email")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
@@ -1376,10 +1276,6 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Phone")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("PostalCode")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
@@ -1750,28 +1646,6 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                     b.Navigation("Order");
                 });
 
-            modelBuilder.Entity("SugarShop.Domain.Entities.Sales.Invoice", b =>
-                {
-                    b.HasOne("SugarShop.Domain.Entities.Sales.Order", "Order")
-                        .WithMany()
-                        .HasForeignKey("OrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Order");
-                });
-
-            modelBuilder.Entity("SugarShop.Domain.Entities.Sales.InvoiceItem", b =>
-                {
-                    b.HasOne("SugarShop.Domain.Entities.Sales.Invoice", "Invoice")
-                        .WithMany("Items")
-                        .HasForeignKey("InvoiceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Invoice");
-                });
-
             modelBuilder.Entity("SugarShop.Domain.Entities.Sales.Order", b =>
                 {
                     b.HasOne("SugarShop.Domain.Entities.Sales.Address", "CustomerAddress")
@@ -1820,11 +1694,6 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                         .IsRequired();
 
                     b.Navigation("Gateway");
-                });
-
-            modelBuilder.Entity("SugarShop.Domain.Entities.Sales.Invoice", b =>
-                {
-                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("SugarShop.Domain.Entities.Sales.Order", b =>

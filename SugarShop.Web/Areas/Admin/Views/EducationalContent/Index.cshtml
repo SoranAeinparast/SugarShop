@@ -1,4 +1,6 @@
-﻿@model List<SugarShop.Domain.Entities.EducationalContent>
+﻿@using MD.PersianDateTime
+@using SugarShop.Web.Extensions
+@model List<SugarShop.Domain.Entities.EducationalContent>
 @{
     ViewData["Title"] = "مدیریت محتوای آموزشی";
     Layout = "_AdminLayout";
@@ -41,7 +43,7 @@
                                     <span class="badge bg-warning">پیش‌نویس</span>
                                 }
                             </td>
-                            <td>@item.CreatedAt.ToString("yyyy/MM/dd")</td>
+                            <td>@(new PersianDateTime(item.CreatedAt).ToString("yyyy/MM/dd").ToPersianNumber())</td>
                             <td>
                                 <a href="/Admin/EducationalContent/Edit/@item.Id" class="btn btn-sm btn-primary">✏️ ویرایش</a>
                                 <form asp-action="Delete" method="post" style="display:inline;">

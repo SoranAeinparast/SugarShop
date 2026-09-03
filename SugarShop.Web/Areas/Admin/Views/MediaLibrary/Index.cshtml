@@ -1,4 +1,6 @@
 ﻿@using SugarShop.Domain.Entities
+@using MD.PersianDateTime
+@using SugarShop.Web.Extensions
 @model List<MediaAsset>
 
 @* ✅ اضافه کردن SweetAlert2 محلی *@
@@ -162,7 +164,7 @@
                             <div class="media-name" title="@item.OriginalName">@item.OriginalName</div>
                             @* ✅ فراخوانی تابع محلی بدون هیچ خطای کامپایلری *@
                             <div class="media-meta">📁 @item.Category | 📏 @GetFormattedSize(item.FileSize)</div>
-                            <div class="media-meta">📅 @item.CreatedAt.ToString("yyyy/MM/dd")</div>
+                            <div class="media-meta">📅 @(new PersianDateTime(item.CreatedAt).ToString("yyyy/MM/dd").ToPersianNumber())</div>
                             @if (tags.Any()) {
                                 <div class="media-tags">
                                     @foreach (var tag in tags) { <span class="media-tag">@tag.Trim()</span> }

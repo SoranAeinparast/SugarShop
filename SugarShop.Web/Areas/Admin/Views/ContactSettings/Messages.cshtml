@@ -1,4 +1,6 @@
 ﻿@using SugarShop.Domain.Entities.Sales
+@using MD.PersianDateTime
+@using SugarShop.Web.Extensions
 @model List<ContactMessage>
 @{
     ViewData["Title"] = "پیام‌های دریافتی";
@@ -69,7 +71,7 @@
                                 <td dir="ltr">@msg.Phone</td>
                                 <td>@msg.Subject</td>
                                 <td>
-                                    <small>@msg.CreatedAt.ToString("yyyy/MM/dd HH:mm")</small>
+                                    <small>@(new PersianDateTime(msg.CreatedAt).ToString("yyyy/MM/dd HH:mm").ToPersianNumber())</small>
                                 </td>
                                 <td>
                                     @if (msg.IsRead)
@@ -144,7 +146,7 @@
                                                 </tr>
                                                 <tr>
                                                     <th class="text-muted">تاریخ:</th>
-                                                    <td>@msg.CreatedAt.ToString("yyyy/MM/dd - HH:mm")</td>
+                                                    <td>@(new PersianDateTime(msg.CreatedAt).ToString("yyyy/MM/dd - HH:mm").ToPersianNumber())</td>
                                                 </tr>
                                             </table>
                                             <hr />

@@ -11,6 +11,7 @@ using SugarShop.Infrastructure.Persistence.Sales;
 using SugarShop.Infrastructure.Services;
 using SugarShop.Web.Extensions;
 using SugarShop.Web.Helpers;
+using SugarShop.Web.Services;
 using System.Text;
 using System.Text.Json;
 
@@ -166,6 +167,9 @@ namespace SugarShop.Web.Controllers
             _salesDb.OrderItems.Remove(item);
             await _salesDb.SaveChangesAsync();
 
+            // اگر فاکتوری صادر شده، با وضعیت جدید سفارش همگام می‌شود
+            await InvoiceService.RegenerateIfExistsAsync(_salesDb, _catalogDb, item.OrderId);
+
             TempData["SuccessMessage"] = "محصول با موفقیت حذف شد.";
             return RedirectToAction("OrderDetails", new { id = item.OrderId });
         }
@@ -284,6 +288,9 @@ namespace SugarShop.Web.Controllers
                 await _salesDb.SaveChangesAsync();
             }
 
+            // اگر فاکتوری صادر شده، با قیمت/وزن نهایی جدید جعبه همگام می‌شود
+            await InvoiceService.RegenerateIfExistsAsync(_salesDb, _catalogDb, orderId);
+
             TempData["SuccessMessage"] = $"وزن و قیمت نهایی جعبه {boxTitle} ثبت شد. کاربر می‌تواند پس از ورود به پنل خود، سفارش را پرداخت کند.";
             return RedirectToAction("OrderDetails", new { id = orderId });
         }
@@ -298,11 +305,13 @@ namespace SugarShop.Web.Controllers
 
             order.DeliveryFeeSnapshot = deliveryFee;
 
-            // اگر سفارش فقط محصولات عادی دارد (جعبه ندارد)، قیمت نهایی را به‌روز کن
+            // اگر سفارش فقط محصولات عادی دارد (جعبه ندارد)، قیمت نهایی را به‌روز کن.
+            // هزینه پیک فقط در DeliveryFeeSnapshot ذخیره می‌شود تا هنگام پرداخت یک‌بار
+            // (FinalTotalAmount + DeliveryFeeSnapshot) محاسبه شود و دوبار حساب نشود.
             if (!order.Items.Any(x => x.ItemType == OrderItemType.SweetItem))
             {
                 var productTotal = order.Items.Sum(i => i.TotalPriceSnapshot);
-                order.FinalTotalAmount = productTotal + deliveryFee;
+                order.FinalTotalAmount = productTotal;
                 order.IsPaymentEnabled = true;
                 order.OrderStatus = OrderStatus.PendingPayment;
                 order.PaymentStatus = PaymentStatus.Unpaid;
@@ -310,6 +319,9 @@ namespace SugarShop.Web.Controllers
 
             order.UpdatedAt = DateTime.UtcNow;
             await _salesDb.SaveChangesAsync();
+
+            // اگر فاکتوری صادر شده، با هزینه پیک جدید همگام می‌شود
+            await InvoiceService.RegenerateIfExistsAsync(_salesDb, _catalogDb, orderId);
 
             TempData["SuccessMessage"] = $"هزینه پیک {deliveryFee.ToString("N0")} تومان ثبت شد.";
             return RedirectToAction("OrderDetails", new { id = orderId });
@@ -376,6 +388,9 @@ namespace SugarShop.Web.Controllers
             _salesDb.OrderItems.Remove(item);
             await _salesDb.SaveChangesAsync();
 
+            // اگر فاکتوری صادر شده، با وضعیت جدید سفارش همگام می‌شود
+            await InvoiceService.RegenerateIfExistsAsync(_salesDb, _catalogDb, item.OrderId);
+
             return Ok(new { success = true, message = "آیتم با موفقیت حذف شد." });
         }
 
@@ -399,6 +414,9 @@ namespace SugarShop.Web.Controllers
 
             await _salesDb.SaveChangesAsync();
 
+            // اگر فاکتوری صادر شده، با وضعیت جدید سفارش همگام می‌شود
+            await InvoiceService.RegenerateIfExistsAsync(_salesDb, _catalogDb, item.OrderId);
+
             return Ok(new { success = true, message = "آیتم با موفقیت به‌روزرسانی شد." });
         }
 
@@ -419,6 +437,9 @@ namespace SugarShop.Web.Controllers
             order.UpdatedAt = DateTime.UtcNow;
 
             await _salesDb.SaveChangesAsync();
+
+            // اگر فاکتوری صادر شده، با وضعیت جدید سفارش همگام می‌شود
+            await InvoiceService.RegenerateIfExistsAsync(_salesDb, _catalogDb, orderId);
 
             TempData["SuccessMessage"] = "وزن و قیمت نهایی ثبت شد. کاربر می‌تواند سفارش را پرداخت کند.";
             return RedirectToAction("OrderDetails", new { id = orderId });
@@ -450,6 +471,11 @@ namespace SugarShop.Web.Controllers
         {
             var settings = await _salesDb.WalletSettings.FirstOrDefaultAsync();
             if (settings == null || !settings.IsEnabled) return;
+
+            // جلوگیری از کشبک تکراری برای یک سفارش (مثلاً تغییر وضعیت چندباره به تحویل‌شده)
+            var cashbackAlreadyPaid = await _salesDb.WalletTransactions
+                .AnyAsync(t => t.OrderId == order.Id && t.Type == "Cashback");
+            if (cashbackAlreadyPaid) return;
 
             decimal cashbackAmount = 0;
             if (settings.ReturnType == "Percentage")
@@ -502,6 +528,9 @@ namespace SugarShop.Web.Controllers
             _salesDb.OrderItems.RemoveRange(items);
             await _salesDb.SaveChangesAsync();
 
+            // اگر فاکتوری صادر شده، با وضعیت جدید سفارش همگام می‌شود
+            await InvoiceService.RegenerateIfExistsAsync(_salesDb, _catalogDb, orderId);
+
             TempData["SuccessMessage"] = $"جعبه {boxTitle} با موفقیت حذف شد.";
             return RedirectToAction("OrderDetails", new { id = orderId });
         }
@@ -513,6 +542,10 @@ namespace SugarShop.Web.Controllers
         {
             var order = await _salesDb.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == orderId);
             if (order == null) return NotFound();
+
+            // بازگشت وجه کیف پول فقط برای سفارش‌های پرداخت‌نشده (idempotent؛ یک‌بار انجام می‌شود)
+            if (order.PaymentStatus != PaymentStatus.Succeeded)
+                await OrderWalletHelper.RefundWalletAsync(_salesDb, order);
 
             _salesDb.OrderItems.RemoveRange(order.Items);
             _salesDb.Orders.Remove(order);
@@ -560,6 +593,9 @@ namespace SugarShop.Web.Controllers
             item.WeightSnapshotGrams = sweetItem.ApproxWeightGrams;
 
             await _salesDb.SaveChangesAsync();
+
+            // اگر فاکتوری صادر شده، با وضعیت جدید سفارش همگام می‌شود
+            await InvoiceService.RegenerateIfExistsAsync(_salesDb, _catalogDb, item.OrderId);
 
             TempData["SuccessMessage"] = "شیرینی با موفقیت تغییر کرد.";
             return RedirectToAction("OrderDetails", new { id = item.OrderId });
@@ -740,67 +776,17 @@ namespace SugarShop.Web.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> GenerateInvoice(int orderId)
         {
-            var order = await _salesDb.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == orderId);
-            if (order == null) return NotFound();
-
-            var existingInvoice = await _salesDb.Invoices.FirstOrDefaultAsync(i => i.OrderId == orderId);
-            if (existingInvoice != null)
+            Invoice invoice;
+            try
             {
-                return RedirectToAction("ViewInvoice", new { invoiceId = existingInvoice.Id });
+                invoice = await InvoiceService.GetOrCreateForOrderAsync(_salesDb, _catalogDb, orderId);
+            }
+            catch (InvalidOperationException)
+            {
+                return NotFound();
             }
 
-            var invoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString().Substring(0, 6).ToUpper()}";
-            var invoice = new Invoice
-            {
-                InvoiceNumber = invoiceNumber,
-                OrderId = orderId,
-                InvoiceDate = DateTime.UtcNow,
-                Subtotal = order.TotalAmountSnapshot,
-                DiscountAmount = order.DiscountAmountSnapshot ?? 0,
-                DeliveryFee = order.DeliveryFeeSnapshot,
-                TaxAmount = order.TaxAmountSnapshot ?? 0,
-                TotalAmount = (order.FinalTotalAmount ?? order.TotalAmountSnapshot) + order.DeliveryFeeSnapshot,
-                Notes = order.AdminNotes,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            var sweetItemIds = order.Items.Where(x => x.SweetItemId.HasValue).Select(x => x.SweetItemId!.Value).Distinct().ToList();
-            var sweetNames = sweetItemIds.Any()
-                ? await _catalogDb.SweetItems.Where(x => sweetItemIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.TitleFa)
-                : new Dictionary<int, string>();
-
-            var productIds = order.Items.Where(x => x.ProductId.HasValue).Select(x => x.ProductId!.Value).Distinct().ToList();
-            var productNames = productIds.Any()
-                ? await _catalogDb.Products.Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.TitleFa)
-                : new Dictionary<int, string>();
-
-            foreach (var item in order.Items)
-            {
-                string itemName = item.ItemType switch
-                {
-                    OrderItemType.Product => item.ProductId.HasValue && productNames.ContainsKey(item.ProductId.Value)
-                        ? productNames[item.ProductId.Value] : "محصول نامشخص",
-                    OrderItemType.SweetItem => item.SweetItemId.HasValue && sweetNames.ContainsKey(item.SweetItemId.Value)
-                        ? sweetNames[item.SweetItemId.Value] : "شیرینی نامشخص",
-                    _ => "آیتم نامشخص"
-                };
-
-                invoice.Items.Add(new InvoiceItem
-                {
-                    ItemName = itemName,
-                    Quantity = item.Quantity,
-                    UnitPrice = item.UnitPriceSnapshot,
-                    TotalPrice = item.TotalPriceSnapshot,
-                    WeightGrams = item.WeightSnapshotGrams,
-                    BoxTitle = item.BoxTitle
-                });
-            }
-
-            _salesDb.Invoices.Add(invoice);
-            await _salesDb.SaveChangesAsync();
-
-            TempData["SuccessMessage"] = $"فاکتور شماره {invoiceNumber} با موفقیت صادر شد.";
+            TempData["SuccessMessage"] = $"فاکتور شماره {invoice.InvoiceNumber} با موفقیت صادر شد.";
             return RedirectToAction("ViewInvoice", new { invoiceId = invoice.Id });
         }
 
@@ -814,6 +800,12 @@ namespace SugarShop.Web.Controllers
                 .FirstOrDefaultAsync(i => i.Id == invoiceId);
 
             if (invoice == null) return NotFound();
+
+            // نمایش سهم پرداختی از کیف پول در فاکتور (برای شفافیت مبلغ)
+            var walletUsed = await _salesDb.WalletTransactions
+                .Where(t => t.OrderId == invoice.OrderId && t.Type == "Purchase" && t.Amount < 0)
+                .SumAsync(t => (decimal?)(-t.Amount)) ?? 0m;
+            ViewBag.WalletUsed = walletUsed;
 
             if (!invoice.IsPrinted)
             {

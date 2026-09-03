@@ -1,5 +1,6 @@
 ﻿@using SugarShop.Domain.Entities
 @using SugarShop.Domain.Entities.Sales
+@using MD.PersianDateTime
 @model Wallet
 @{
     var user = ViewBag.User as ApplicationUser;
@@ -62,7 +63,7 @@
                     @foreach (var t in transactions)
                     {
                         <tr>
-                            <td>@t.CreatedAt.ToString("yyyy/MM/dd HH:mm")</td>
+                            <td>@(new PersianDateTime(t.CreatedAt).ToString("yyyy/MM/dd HH:mm").ToPersianNumber())</td>
                             <td class="@(t.Amount > 0 ? "text-success" : "text-danger")">@(t.Amount > 0 ? "+" : "")@t.Amount.ToString("N0")</td>
                             <td>@t.Type</td>
                             <td>@t.Description</td>

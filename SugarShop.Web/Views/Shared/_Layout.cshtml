@@ -1,6 +1,7 @@
 ﻿@using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using SugarShop.Domain.Entities
+@using MD.PersianDateTime
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
 @inject SugarShop.Infrastructure.Persistence.Sales.SugarShopSalesDbContext DbContext
@@ -737,7 +738,7 @@
                     <div class="row align-items-center">
                         <div class="col-md-6 text-center text-md-start mb-2 mb-md-0">
                             <p class="mb-0" style="color: inherit; opacity: 0.8; font-size: 0.9rem;">
-                                &copy; @DateTime.Now.Year - @(siteSettings?.SiteTitle ?? "SugarShop") - تمامی حقوق محفوظ است.
+                                &copy; @(new PersianDateTime(DateTime.Now).Year.ToPersianNumber()) - @(siteSettings?.SiteTitle ?? "SugarShop") - تمامی حقوق محفوظ است.
                             </p>
                         </div>
                         <div class="col-md-6 text-center text-md-end">

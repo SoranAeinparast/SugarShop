@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SugarShop.Infrastructure.Persistence.Sales;
 
@@ -11,9 +12,11 @@ using SugarShop.Infrastructure.Persistence.Sales;
 namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
 {
     [DbContext(typeof(SugarShopSalesDbContext))]
-    partial class SugarShopSalesDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260901052605_AddInvoiceTables")]
+    partial class AddInvoiceTables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1338,10 +1341,6 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                     b.Property<string>("ContactSuccessMessage")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("EconomicCode")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
                     b.Property<string>("Email")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
@@ -1376,10 +1375,6 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Phone")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("PostalCode")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 

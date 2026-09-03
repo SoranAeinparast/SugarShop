@@ -55,7 +55,7 @@
                     <p><strong>تلفن:</strong> @Model.CustomerPhone</p>
                     <p><strong>آدرس:</strong> @Model.CustomerFullAddress</p>
                     <p><strong>کد پستی:</strong> @Model.CustomerPostalCode</p>
-                    @if (Model.DeliveryDate.HasValue) { <p><strong>تاریخ تحویل:</strong> @Model.DeliveryDate.Value.ToString("yyyy/MM/dd").ToPersianNumber()</p> }
+                    @if (Model.DeliveryDate.HasValue) { <p><strong>تاریخ تحویل:</strong> @(new PersianDateTime(Model.DeliveryDate.Value).ToString("yyyy/MM/dd").ToPersianNumber())</p> }
                     @if (Model.DeliveryTime.HasValue) { <p><strong>ساعت تحویل:</strong> @Model.DeliveryTime.Value.ToString(@"hh\:mm").ToPersianNumber()</p> }
                     @if (!string.IsNullOrEmpty(Model.Notes)) { <p><strong>توضیحات:</strong> @Model.Notes</p> }
                     <hr />

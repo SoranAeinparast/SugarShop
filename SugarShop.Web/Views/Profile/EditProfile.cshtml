@@ -14,7 +14,7 @@ var defaultAvatars = ViewBag.DefaultAvatars as List<string> ?? new List<string>(
     </div>
 <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
 <div class="card-body p-4 p-md-5">
-<form asp-action="EditProfile" method="post">
+<form asp-action="EditProfile" method="post" enctype="multipart/form-data">
 
 <div class="row g-4">
 <div class="col-lg-6">
@@ -43,6 +43,13 @@ var defaultAvatars = ViewBag.DefaultAvatars as List<string> ?? new List<string>(
 <label asp-for="PhoneNumber" class="form-label fw-semibold">شماره تلفن</label>
 <input asp-for="PhoneNumber" class="form-control custom-input" placeholder="مثلاً ۰۹۱۲۳۴۵۶۷۸۹" />
 <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+</div>
+
+<div class="mb-3">
+<label asp-for="NationalCode" class="form-label fw-semibold">کد ملی</label>
+<input asp-for="NationalCode" class="form-control custom-input" placeholder="مثلاً ۰۰۷۱۹۶۸۲۵۴" />
+<small class="text-muted">کد ملی در فاکتور فروش نمایش داده می‌شود.</small>
+<span asp-validation-for="NationalCode" class="text-danger small"></span>
 </div>
 </div>
 <div class="col-lg-6">
@@ -86,10 +93,8 @@ else
 }
 
 <div class="flex-grow-1">
-<label class="form-label small mb-1">تصویر پروفایل</label>
-<input type="hidden" name="AvatarPath" id="AvatarPath" value="@Model.AvatarPath" />
-<img id="avatarPreview" src="@Model.AvatarPath" class="img-thumbnail mb-1" style="max-height:80px; @(string.IsNullOrEmpty(Model.AvatarPath) ? "display:none;" : "")" />
-<button type="button" class="btn btn-sm btn-outline-primary open-media-picker" data-target="#AvatarPath" data-preview="#avatarPreview"><i class="bi bi-image"></i> انتخاب از کتابخانه</button>
+<label class="form-label small mb-1">تغییر تصویر</label>
+<input type="file" name="avatarFile" class="form-control form-control-sm" accept="image/*" />
 </div>
 </div>
 

@@ -3,17 +3,20 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SugarShop.Infrastructure.Persistence;
 
 #nullable disable
 
-namespace SugarShop.Infrastructure.Migrations
+namespace SugarShop.Infrastructure.Migrations.SugarShopIdentityDb
 {
     [DbContext(typeof(SugarShopIdentityDbContext))]
-    partial class SugarShopIdentityDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260903072733_AddNationalCodeToUser")]
+    partial class AddNationalCodeToUser
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
