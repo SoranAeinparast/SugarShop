@@ -245,7 +245,8 @@ namespace SugarShop.Web.Controllers
                     FinalTotalAmount = hasBoxes ? null : total,
                     FinalTotalWeightGrams = hasBoxes ? null : cartState.TotalApproxWeight,
                     CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    UpdatedAt = DateTime.UtcNow,
+                    DeliveryMethod = vm.DeliveryMethod
                 };
                 _salesDb.Orders.Add(order);
                 await _salesDb.SaveChangesAsync();
@@ -306,11 +307,20 @@ namespace SugarShop.Web.Controllers
                     });
                 }
 
-                // Discount usage
+                // استفاده از کد تخفیف فقط با UPDATE شرطی؛ اگر هم‌زمان سفارش دیگری
+                // کد را به سقف استفاده رسانده باشد، کل ثبت سفارش لغو می‌شود (جلوگیری از استفاده بیش از حد)
                 if (cartState.AppliedDiscountCodeId.HasValue)
                 {
-                    var discount = await _salesDb.DiscountCodes.FindAsync(cartState.AppliedDiscountCodeId.Value);
-                    if (discount != null) discount.UsedCount++;
+                    var claimed = await _salesDb.DiscountCodes
+                        .Where(c => c.Id == cartState.AppliedDiscountCodeId.Value
+                            && c.IsActive
+                            && c.StartDate <= DateTime.UtcNow
+                            && c.EndDate >= DateTime.UtcNow
+                            && (!c.UsageLimit.HasValue || c.UsedCount < c.UsageLimit))
+                        .ExecuteUpdateAsync(s => s.SetProperty(c => c.UsedCount, c => c.UsedCount + 1));
+
+                    if (claimed == 0)
+                        throw new InvalidOperationException("DiscountNoLongerAvailable");
                 }
 
                 await _salesDb.SaveChangesAsync();
@@ -328,6 +338,13 @@ namespace SugarShop.Web.Controllers
                 {
                     return RedirectToAction("Success", new { orderId = order.Id, orderCode = order.OrderCode });
                 }
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "DiscountNoLongerAvailable")
+            {
+                await salesTx.RollbackAsync();
+                _logger.LogWarning("Discount code no longer available during order placement (concurrent usage). Order for user {UserId} rolled back.", userId);
+                ModelState.AddModelError("", "کد تخفیف دیگر معتبر نیست یا به سقف استفاده رسیده است.");
+                return await PrepareFailedCheckoutView(vm);
             }
             catch (Exception ex)
             {

@@ -14,45 +14,35 @@ namespace SugarShop.Infrastructure.Services
             _catalogDb = catalogDb;
         }
 
+        /// <summary>
+        /// کسر اتمیک موجودی انبار پس از موفقیت پرداخت.
+        /// هر ردیف با یک UPDATE شرطی در سطح دیتابیس کسر می‌شود تا دو درخواست هم‌زمان
+        /// نتوانند از یک موجودی واحد دو بار کسر کنند؛ در صورت کمبود موجودی، مقدار به صفر می‌رسد (منفی نمی‌شود).
+        /// </summary>
         public async Task DecreaseInventoryAsync(Order order)
         {
             if (order.Items == null || !order.Items.Any())
                 return;
 
-            var productIds = order.Items.Where(i => i.ProductId.HasValue).Select(i => i.ProductId.Value).ToList();
-            var sweetIds = order.Items.Where(i => i.SweetItemId.HasValue).Select(i => i.SweetItemId.Value).ToList();
-
-            if (productIds.Any())
+            foreach (var item in order.Items.Where(i => i.ProductId.HasValue && i.Quantity > 0))
             {
-                var products = await _catalogDb.Products
-                    .Where(p => productIds.Contains(p.Id))
-                    .ToDictionaryAsync(p => p.Id);
-                foreach (var item in order.Items.Where(i => i.ProductId.HasValue))
-                {
-                    if (products.TryGetValue(item.ProductId.Value, out var product))
-                    {
-                        product.Inventory -= item.Quantity;
-                        if (product.Inventory < 0) product.Inventory = 0;
-                    }
-                }
+                var quantity = item.Quantity;
+                await _catalogDb.Products
+                    .Where(p => p.Id == item.ProductId!.Value)
+                    .ExecuteUpdateAsync(s => s.SetProperty(
+                        p => p.Inventory,
+                        p => p.Inventory >= quantity ? p.Inventory - quantity : 0));
             }
 
-            if (sweetIds.Any())
+            foreach (var item in order.Items.Where(i => i.SweetItemId.HasValue && i.Quantity > 0))
             {
-                var sweets = await _catalogDb.SweetItems
-                    .Where(s => sweetIds.Contains(s.Id))
-                    .ToDictionaryAsync(s => s.Id);
-                foreach (var item in order.Items.Where(i => i.SweetItemId.HasValue))
-                {
-                    if (sweets.TryGetValue(item.SweetItemId.Value, out var sweet))
-                    {
-                        sweet.InventoryCount -= item.Quantity;
-                        if (sweet.InventoryCount < 0) sweet.InventoryCount = 0;
-                    }
-                }
+                var quantity = item.Quantity;
+                await _catalogDb.SweetItems
+                    .Where(s => s.Id == item.SweetItemId!.Value)
+                    .ExecuteUpdateAsync(s => s.SetProperty(
+                        s => s.InventoryCount,
+                        s => s.InventoryCount >= quantity ? s.InventoryCount - quantity : 0));
             }
-
-            await _catalogDb.SaveChangesAsync();
         }
     }
 }
