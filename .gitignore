@@ -13,3 +13,17 @@ obj/
 *.user
 *.suo
 .vs/
+
+# Agent/workspace state
+.freebuff/
+
+# Project export archives (may contain secrets, bloat history)
+++SugarShop++.zip
+
+# Runtime uploads - keep on disk, never commit
+**/wwwroot/media/
+**/wwwroot/images/cake_orders/
+**/wwwroot/images/avatars/
+
+# Unused publish profile
+SugarShop.Web/Properties/PublishProfiles/FolderProfile3.pubxml
