@@ -23,17 +23,19 @@ namespace SugarShop.Web.Controllers
         private readonly SugarShopSalesDbContext _salesDb;
         private readonly SugarShopCatalogDbContext _catalogDb;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IWebHostEnvironment _webHostEnvironment;
 
         public ProfileController(
             SugarShopSalesDbContext salesDb,
             SugarShopCatalogDbContext catalogDb,
-            UserManager<ApplicationUser> userManager)
+            UserManager<ApplicationUser> userManager,
+            IWebHostEnvironment webHostEnvironment)
         {
             _salesDb = salesDb;
             _catalogDb = catalogDb;
             _userManager = userManager;
+            _webHostEnvironment = webHostEnvironment;
         }
-
         private List<string> GetDefaultAvatars()
         {
             var defaultAvatarPath = "/images/avatars/default/";
@@ -51,6 +53,26 @@ namespace SugarShop.Web.Controllers
                 list.AddRange(new[] { "/images/avatars/default/avatar1.png", "/images/avatars/default/avatar2.png", "/images/avatars/default/avatar3.png" });
             return list;
         }
+        private async Task<string?> SaveFile(IFormFile file, string prefix)
+        {
+            if (file == null || file.Length == 0) return null;
+
+            var uploadsFolder = Path.Combine(_webHostEnvironment.WebRootPath, "images/cake_orders");
+            if (!Directory.Exists(uploadsFolder))
+                Directory.CreateDirectory(uploadsFolder);
+
+            var uniqueFileName = $"{prefix}_{Guid.NewGuid():N}{Path.GetExtension(file.FileName)}";
+            var filePath = Path.Combine(uploadsFolder, uniqueFileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            return $"/images/cake_orders/{uniqueFileName}";
+        }
+
+
         public async Task<IActionResult> Index()
         {
             var userId = _userManager.GetUserId(User);
@@ -111,7 +133,7 @@ namespace SugarShop.Web.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> EditProfile(ApplicationUser model, string? selectedAvatar)
+        public async Task<IActionResult> EditProfile(ApplicationUser model, IFormFile? avatarFile, string? selectedAvatar)
         {
             var user = await _userManager.GetUserAsync(User) as ApplicationUser;
             if (user == null) return NotFound();
@@ -124,9 +146,21 @@ namespace SugarShop.Web.Controllers
             user.BirthDate = model.BirthDate;
             user.Gender = model.Gender;
 
-            if (!string.IsNullOrWhiteSpace(model.AvatarPath))
+            if (avatarFile != null && avatarFile.Length > 0)
             {
-                user.AvatarPath = model.AvatarPath;
+                var fileName = Guid.NewGuid().ToString() + Path.GetExtension(avatarFile.FileName);
+                var uploadPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/images/avatars");
+                if (!Directory.Exists(uploadPath)) Directory.CreateDirectory(uploadPath);
+                var filePath = Path.Combine(uploadPath, fileName);
+                using (var stream = new FileStream(filePath, FileMode.Create))
+                    await avatarFile.CopyToAsync(stream);
+
+                if (!string.IsNullOrEmpty(user.AvatarPath) && !user.AvatarPath.StartsWith("/images/avatars/default/"))
+                {
+                    var oldPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", user.AvatarPath.TrimStart('/'));
+                    if (System.IO.File.Exists(oldPath)) System.IO.File.Delete(oldPath);
+                }
+                user.AvatarPath = "/images/avatars/" + fileName;
             }
             else if (!string.IsNullOrEmpty(selectedAvatar))
             {
@@ -150,8 +184,8 @@ namespace SugarShop.Web.Controllers
             var userId = _userManager.GetUserId(User);
             var orders = await _salesDb.Orders
                 .Where(o => o.UserId == userId
-                            && o.Notes != "WalletRecharge"
-                            && (o.Notes == null || !o.Notes.StartsWith("CustomCakeOrder_")))
+                    && o.Notes != "WalletRecharge"
+                    && (o.Notes == null || !o.Notes.StartsWith("CustomCakeOrder_")))
                 .Include(o => o.Items)
                 .OrderByDescending(o => o.CreatedAt)
                 .ToListAsync();
@@ -173,11 +207,14 @@ namespace SugarShop.Web.Controllers
                 {
                     boxFinalTotal = boxInfosByOrder[order.Id].Sum(b => b.FinalPrice);
                 }
+
                 decimal productTotal = order.Items
                     .Where(i => i.ItemType == OrderItemType.Product)
                     .Sum(i => i.TotalPriceSnapshot);
 
-                decimal totalFinalPrice = boxFinalTotal + productTotal;
+                // ✅ اصلاح: اضافه کردن هزینه پیک
+                decimal totalFinalPrice = boxFinalTotal + productTotal + order.DeliveryFeeSnapshot;
+
                 bool isDeletable = order.OrderStatus == OrderStatus.AwaitingReview;
 
                 result.Add(new OrderListItemViewModel
@@ -187,15 +224,13 @@ namespace SugarShop.Web.Controllers
                     OrderStatus = order.OrderStatus,
                     PaymentStatus = order.PaymentStatus,
                     CreatedAt = order.CreatedAt,
-                    TotalFinalPrice = totalFinalPrice,
+                    TotalFinalPrice = totalFinalPrice,  // ✅ حالا شامل هزینه پیک هم هست
                     IsPaymentEnabled = order.IsPaymentEnabled,
                     IsDeletable = isDeletable
                 });
             }
-
             return View(result);
         }
-
         public async Task<IActionResult> OrderDetails(int id)
         {
             var userId = _userManager.GetUserId(User);
@@ -314,8 +349,8 @@ namespace SugarShop.Web.Controllers
                                                              CustomCakeOrder model,
                                                              string? desiredDeliveryDatePersian,
                                                              string? desiredDeliveryTime,
-                                                             string? SampleImagePath,
-                                                             string? PrintImagePath)
+                                                             IFormFile? sampleImage,
+                                                             IFormFile? printImage)
         {
             if (id != model.Id) return NotFound();
 
@@ -364,13 +399,25 @@ namespace SugarShop.Web.Controllers
             order.Occasion = model.Occasion;
             order.SpecialRequests = model.SpecialRequests;
             order.UpdatedAt = DateTime.UtcNow;
-            if (!string.IsNullOrWhiteSpace(SampleImagePath))
+            if (sampleImage != null && sampleImage.Length > 0)
             {
-                order.SampleImagePath = SampleImagePath;
+                if (!string.IsNullOrEmpty(order.SampleImagePath))
+                {
+                    var oldPath = Path.Combine(_webHostEnvironment.WebRootPath, order.SampleImagePath.TrimStart('/'));
+                    if (System.IO.File.Exists(oldPath))
+                        System.IO.File.Delete(oldPath);
+                }
+                order.SampleImagePath = await SaveFile(sampleImage, "cake_sample");
             }
-            if (!string.IsNullOrWhiteSpace(PrintImagePath))
+            if (printImage != null && printImage.Length > 0)
             {
-                order.PrintImagePath = PrintImagePath;
+                if (!string.IsNullOrEmpty(order.PrintImagePath))
+                {
+                    var oldPath = Path.Combine(_webHostEnvironment.WebRootPath, order.PrintImagePath.TrimStart('/'));
+                    if (System.IO.File.Exists(oldPath))
+                        System.IO.File.Delete(oldPath);
+                }
+                order.PrintImagePath = await SaveFile(printImage, "cake_print");
             }
 
             if (ModelState.IsValid)
@@ -396,7 +443,18 @@ namespace SugarShop.Web.Controllers
                 TempData["Error"] = "این سفارش قابل حذف نیست.";
                 return RedirectToAction("CustomCakeOrders");
             }
-            // Files are managed by the media library; just remove the DB record
+            if (!string.IsNullOrEmpty(order.SampleImagePath))
+            {
+                var samplePath = Path.Combine(_webHostEnvironment.WebRootPath, order.SampleImagePath.TrimStart('/'));
+                if (System.IO.File.Exists(samplePath))
+                    System.IO.File.Delete(samplePath);
+            }
+            if (!string.IsNullOrEmpty(order.PrintImagePath))
+            {
+                var printPath = Path.Combine(_webHostEnvironment.WebRootPath, order.PrintImagePath.TrimStart('/'));
+                if (System.IO.File.Exists(printPath))
+                    System.IO.File.Delete(printPath);
+            }
 
             _salesDb.CustomCakeOrders.Remove(order);
             await _salesDb.SaveChangesAsync();

@@ -13,6 +13,7 @@
         @TempData["BoxFullMessage"]
     </div>
 }
+@Html.AntiForgeryToken()
 <div class="container mt-4">
     <div class="row">
         <div class="col-lg-7">
@@ -258,6 +259,8 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script>
         $(document).ready(function() {
+            // ارسال توکن ضد CSRF برای همه درخواست‌های AJAX این صفحه
+            $.ajaxSetup({ headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').first().val() } });
             let selectedChangeBoxId = null;
             function showError(message) { alert('❌ ' + message); }
             $('.btn-select-box').click(function() {

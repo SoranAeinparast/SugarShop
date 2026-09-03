@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using System.Text.Json;
 using SugarShop.Domain.Entities;
 using SugarShop.Domain.Entities.Sales;
 using SugarShop.Infrastructure.Persistence;
@@ -58,12 +60,15 @@ namespace SugarShop.Web.Controllers
                     return BadRequest("پرداخت برای این سفارش امکان‌پذیر نیست.");
             }
 
-            long amountInTomans = (long)(order.FinalTotalAmount ?? order.TotalAmountSnapshot);
+            // ✅ اصلاح: محاسبه دقیق مبلغ شامل همه اقلام + هزینه پیک
+            long amountInTomans = (long)((order.FinalTotalAmount ?? order.TotalAmountSnapshot) + order.DeliveryFeeSnapshot);
             long amountInRials = amountInTomans * 10;
+
             string callbackUrl = Url.Action("Callback", "Payment", new { orderId = order.Id }, Request.Scheme);
             string description = isWalletRecharge ? "شارژ کیف پول" : $"پرداخت سفارش {order.OrderCode}";
 
-            var result = await _zibalPaymentService.RequestPayment(amountInRials, description, callbackUrl);
+            var zibalMerchant = await ResolveActiveZibalMerchantAsync();
+            var result = await _zibalPaymentService.RequestPayment(amountInRials, description, callbackUrl, merchant: zibalMerchant);
 
             if (result.Success)
             {
@@ -71,7 +76,7 @@ namespace SugarShop.Web.Controllers
                 {
                     OrderId = order.Id,
                     Authority = result.TrackId,
-                    Amount = amountInTomans,
+                    Amount = amountInTomans,  // ✅ مبلغ صحیح شامل همه چیز
                     Provider = "Zibal",
                     PaymentStatus = PaymentStatus.Initiated,
                     CreatedAt = DateTime.UtcNow,
@@ -79,7 +84,6 @@ namespace SugarShop.Web.Controllers
                 };
                 _context.Payments.Add(payment);
                 await _context.SaveChangesAsync();
-
                 return Redirect(result.PaymentUrl);
             }
             else
@@ -91,7 +95,6 @@ namespace SugarShop.Web.Controllers
                     return RedirectToAction("OrderDetails", "Profile", new { id = order.Id });
             }
         }
-
         [HttpGet]
         public async Task<IActionResult> Callback(int orderId, string trackId, string success, int status)
         {
@@ -104,7 +107,6 @@ namespace SugarShop.Web.Controllers
                 .FirstOrDefaultAsync(p => p.OrderId == orderId && p.Authority == trackId);
             if (payment == null) return NotFound();
 
-            // Idempotency: if payment already succeeded, redirect without reprocessing
             if (payment.PaymentStatus == PaymentStatus.Succeeded)
             {
                 TempData["Info"] = "این پرداخت قبلاً پردازش شده است.";
@@ -121,7 +123,8 @@ namespace SugarShop.Web.Controllers
                 return isWalletRecharge ? RedirectToAction("Recharge", "Wallet") : RedirectToAction("OrderDetails", "Profile", new { id = order.Id });
             }
 
-            var verifyResult = await _zibalPaymentService.VerifyPayment(trackId);
+            var zibalMerchant = await ResolveActiveZibalMerchantAsync();
+            var verifyResult = await _zibalPaymentService.VerifyPayment(trackId, zibalMerchant);
             if (!verifyResult.Success)
             {
                 payment.PaymentStatus = PaymentStatus.Failed;
@@ -130,8 +133,8 @@ namespace SugarShop.Web.Controllers
                 return isWalletRecharge ? RedirectToAction("Recharge", "Wallet") : RedirectToAction("OrderDetails", "Profile", new { id = order.Id });
             }
 
-            // Verify the amount matches the order
-            long expectedAmount = (long)(order.FinalTotalAmount ?? order.TotalAmountSnapshot);
+            // ✅ اصلاح: بررسی مبلغ شامل هزینه پیک
+            long expectedAmount = (long)((order.FinalTotalAmount ?? order.TotalAmountSnapshot) + order.DeliveryFeeSnapshot);
             if (payment.Amount != expectedAmount)
             {
                 _logger.LogError("Amount mismatch for order {OrderId}. Expected: {Expected}, Payment: {Actual}", order.Id, expectedAmount, payment.Amount);
@@ -141,58 +144,135 @@ namespace SugarShop.Web.Controllers
                 return RedirectToAction("OrderDetails", "Profile", new { id = order.Id });
             }
 
-            payment.PaymentStatus = PaymentStatus.Succeeded;
-            payment.TransactionCode = verifyResult.RefNumber.ToString();
-            order.PaymentStatus = PaymentStatus.Succeeded;
-            order.OrderStatus = OrderStatus.Paid;
-            await _context.SaveChangesAsync();
+            // ===== پردازش نهایی اتمیک و idempotent =====
+            // وضعیت پرداخت فقط به‌صورت شرطی از Initiated به Succeeded تغییر می‌کند؛
+            // اگر دو درخواست همزمان برسند، فقط یکی موفق می‌شود (جلوگیری از شارژ/کسر مضاعف).
+            // کسر موجودی انبار و شارژ کیف پول هم در همان تراکنش انجام می‌شود تا ناسازگاری ایجاد نشود.
+            using var tx = await _context.Database.BeginTransactionAsync();
+            _catalogDb.Database.UseTransaction(tx.GetDbTransaction());
 
-            if (!isWalletRecharge)
-                await _inventoryService.DecreaseInventoryAsync(order);
+            try
+            {
+                var claimed = await _context.Payments
+                    .Where(p => p.Id == payment.Id && p.PaymentStatus == PaymentStatus.Initiated)
+                    .ExecuteUpdateAsync(s => s
+                        .SetProperty(p => p.PaymentStatus, PaymentStatus.Succeeded)
+                        .SetProperty(p => p.TransactionCode, verifyResult.RefNumber.ToString()));
+
+                if (claimed == 0)
+                {
+                    // درخواست دیگری همین پرداخت را قبلاً پردازش کرده است
+                    await tx.RollbackAsync();
+                    TempData["Info"] = "این پرداخت قبلاً پردازش شده است.";
+                    return isWalletRecharge
+                        ? RedirectToAction("Wallet", "Profile")
+                        : RedirectToAction("OrderDetails", "Profile", new { id = order.Id });
+                }
+
+                order.PaymentStatus = PaymentStatus.Succeeded;
+                order.OrderStatus = OrderStatus.Paid;
+                order.IsPaymentEnabled = false;  // ✅ جلوگیری از پرداخت مجدد
+                await _context.SaveChangesAsync();
+
+                // کسر موجودی انبار (هر دو DbContext به یک دیتابیس وصل‌اند؛ پس داخل همین تراکنش است)
+                if (!isWalletRecharge)
+                    await _inventoryService.DecreaseInventoryAsync(order);
+
+                if (order.Notes != null && order.Notes.StartsWith("CustomCakeOrder_"))
+                {
+                    var cakeOrderId = int.Parse(order.Notes.Split('_')[1]);
+                    var cakeOrder = await _context.CustomCakeOrders.FindAsync(cakeOrderId);
+                    if (cakeOrder != null)
+                    {
+                        cakeOrder.IsPaid = true;
+                        cakeOrder.UpdatedAt = DateTime.UtcNow;
+                    }
+                }
+
+                if (isWalletRecharge)
+                {
+                    var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == order.UserId);
+                    if (wallet == null)
+                    {
+                        wallet = new Wallet { UserId = order.UserId, Balance = 0 };
+                        _context.Wallets.Add(wallet);
+                    }
+                    wallet.Balance += order.TotalAmountSnapshot;
+                    wallet.UpdatedAt = DateTime.UtcNow;
+                    _context.WalletTransactions.Add(new WalletTransaction
+                    {
+                        UserId = order.UserId,
+                        Amount = order.TotalAmountSnapshot,
+                        Type = "DirectRecharge",
+                        Description = "شارژ مستقیم کیف پول از طریق درگاه زیبال",
+                        OrderId = order.Id,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+
+                await _context.SaveChangesAsync();
+                await tx.CommitAsync();
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync();
+                _logger.LogError(ex, "خطا در پردازش نهایی پرداخت سفارش {OrderId}؛ تراکنش برگشت داده شد", order.Id);
+                TempData["Error"] = "خطا در ثبت پرداخت. اگر مبلغی کسر شده است، با پشتیبانی تماس بگیرید.";
+                return isWalletRecharge
+                    ? RedirectToAction("Wallet", "Profile")
+                    : RedirectToAction("OrderDetails", "Profile", new { id = order.Id });
+            }
 
             if (order.Notes != null && order.Notes.StartsWith("CustomCakeOrder_"))
             {
-                var cakeOrderId = int.Parse(order.Notes.Split('_')[1]);
-                var cakeOrder = await _context.CustomCakeOrders.FindAsync(cakeOrderId);
-                if (cakeOrder != null)
-                {
-                    cakeOrder.IsPaid = true;
-                    cakeOrder.UpdatedAt = DateTime.UtcNow;
-                    await _context.SaveChangesAsync();
-                }
                 TempData["Success"] = $"پرداخت با موفقیت انجام شد. شماره پیگیری: {verifyResult.RefNumber}";
                 return RedirectToAction("CustomCakeOrders", "Profile");
             }
 
             if (isWalletRecharge)
             {
-                var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == order.UserId);
-                if (wallet == null)
-                {
-                    wallet = new Wallet { UserId = order.UserId, Balance = 0 };
-                    _context.Wallets.Add(wallet);
-                }
-                wallet.Balance += order.TotalAmountSnapshot;
-                wallet.UpdatedAt = DateTime.UtcNow;
-
-                var transaction = new WalletTransaction
-                {
-                    UserId = order.UserId,
-                    Amount = order.TotalAmountSnapshot,
-                    Type = "DirectRecharge",
-                    Description = "شارژ مستقیم کیف پول از طریق درگاه زیبال",
-                    OrderId = order.Id,
-                    CreatedAt = DateTime.UtcNow
-                };
-                _context.WalletTransactions.Add(transaction);
-                await _context.SaveChangesAsync();
-
                 TempData["Success"] = $"کیف پول شما با موفقیت شارژ شد. شماره پیگیری: {verifyResult.RefNumber}";
                 return RedirectToAction("Wallet", "Profile");
             }
 
             TempData["Success"] = $"پرداخت با موفقیت انجام شد. شماره پیگیری: {verifyResult.RefNumber}";
             return RedirectToAction("OrderDetails", "Profile", new { id = order.Id });
+        }
+
+        /// <summary>
+        /// خواندن کلید پذیرنده زیبال از تنظیمات دیتابیس (حساب فعال درگاه زیبال).
+        /// اگر هنوز کلیدی ذخیره نشده باشد، مقدار appsettings (پیش‌فرض تست) استفاده می‌شود.
+        /// </summary>
+        private async Task<string?> ResolveActiveZibalMerchantAsync()
+        {
+            var merchant = _configuration["Zibal:Merchant"];
+
+            try
+            {
+                var gateway = await _context.PaymentGateways
+                    .Include(g => g.Accounts)
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(g => g.GatewayType == "Zibal" && g.IsActive);
+
+                var account = gateway?.Accounts?.FirstOrDefault(a => a.IsActive && !string.IsNullOrWhiteSpace(a.ConfigData));
+                if (account != null)
+                {
+                    using var doc = JsonDocument.Parse(account.ConfigData);
+                    var root = doc.RootElement;
+                    if (root.TryGetProperty("MerchantId", out var mid) && mid.ValueKind == JsonValueKind.String)
+                    {
+                        var stored = mid.GetString();
+                        if (!string.IsNullOrWhiteSpace(stored))
+                            merchant = stored.Trim();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "عدم موفقیت در خواندن تنظیمات درگاه زیبال از دیتابیس؛ استفاده از مقدار پیش‌فرض");
+            }
+
+            return merchant;
         }
     }
 }

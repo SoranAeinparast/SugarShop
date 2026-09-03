@@ -80,6 +80,7 @@ namespace SugarShop.Web.Controllers
             return RedirectToAction(nameof(Details), new { id });
         }
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> ChangeStatus(int id, TicketStatus status)
         {
             var ticket = await _context.Tickets.FindAsync(id);

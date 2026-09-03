@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SugarShop.Domain.Entities;
 using SugarShop.Infrastructure.Persistence.Sales;
+using SugarShop.Web.Helpers;
 using SugarShop.Web.Services.Interfaces;
 using System;
 using System.Linq;
@@ -144,7 +145,7 @@ namespace SugarShop.Web.Areas.Admin.Controllers
             if (content == null) return NotFound();
 
             content.Title = model.Title;
-            content.BodyHtml = model.BodyHtml;
+            content.BodyHtml = HtmlSanitizerHelper.Sanitize(model.BodyHtml);
             content.FeaturedImageUrl = model.FeaturedImageUrl;
             content.Category = model.Category;
             content.Tags = model.Tags;
@@ -286,6 +287,7 @@ namespace SugarShop.Web.Areas.Admin.Controllers
             model.CreatedAt = DateTime.UtcNow;
             model.IsApproved = false;
             model.IsPublished = false;
+            model.BodyHtml = HtmlSanitizerHelper.Sanitize(model.BodyHtml);
 
             _context.EducationalContents.Add(model);
             await _context.SaveChangesAsync();
@@ -310,7 +312,7 @@ namespace SugarShop.Web.Areas.Admin.Controllers
                 var newContent = new EducationalContent
                 {
                     Title = title,
-                    BodyHtml = rewritten,
+                    BodyHtml = HtmlSanitizerHelper.Sanitize(rewritten),
                     FeaturedImageUrl = featuredImage,
                     Category = "آموزشی",
                     Tags = "شیرینی, کیک, آموزش",

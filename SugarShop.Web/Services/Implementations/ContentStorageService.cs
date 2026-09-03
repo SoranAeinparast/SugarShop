@@ -1,6 +1,7 @@
 ﻿using System.Threading.Tasks;
 using SugarShop.Domain.Entities;
 using SugarShop.Infrastructure.Persistence.Sales;
+using SugarShop.Web.Helpers;
 using SugarShop.Web.Services.Interfaces;
 
 namespace SugarShop.Web.Services.Implementations
@@ -16,9 +17,17 @@ namespace SugarShop.Web.Services.Implementations
 
         public async Task<int> SaveContentAsync(EducationalContent content)
         {
+            // پاک‌سازی HTML برای جلوگیری از XSS (محتوا از منابع خارجی/هوش مصنوعی می‌آید)
+            content.BodyHtml = HtmlSanitizerHelper.Sanitize(content.BodyHtml);
+
             content.CreatedAt = System.DateTime.UtcNow;
-            content.PublishedAt = System.DateTime.UtcNow;
-            content.IsPublished = true;
+
+            // ✅ انتشار خودکار ممنوع است؛ محتوا ابتدا باید توسط ادمین تأیید و منتشر شود
+            content.IsPublished = false;
+            content.PublishedAt = null;
+            content.IsApproved = false;
+            content.ApprovedAt = null;
+
             _context.EducationalContents.Add(content);
             await _context.SaveChangesAsync();
             return content.Id;

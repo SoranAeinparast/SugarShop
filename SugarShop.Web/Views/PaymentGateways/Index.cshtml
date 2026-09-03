@@ -13,8 +13,9 @@
         <h4>💳 مدیریت درگاه‌های پرداخت</h4>
     </div>
     <div class="mb-3">
-    <a href="@Url.Action("CreateGateway")" class="btn btn-primary">➕ افزودن درگاه جدید</a>
-</div>
+        <a href="@Url.Action("CreateGateway")" class="btn btn-primary">➕ افزودن درگاه جدید</a>
+        <a href="@Url.Action("ZibalSettings")" class="btn btn-warning">🔑 تنظیم کلید درگاه زیبال</a>
+    </div>
     <div class="card-body">
         <div class="table-responsive">
             <table class="table table-bordered table-striped">
@@ -35,10 +36,13 @@
                             <td>@gateway.Title</td>
                             <td>@gateway.GatewayType</td>
                             <td>
-                                <a href="@Url.Action("ToggleGateway", new { id = gateway.Id, isActive = !gateway.IsActive })" 
-                                   class="btn btn-sm @(gateway.IsActive ? "btn-success" : "btn-secondary")">
-                                    @(gateway.IsActive ? "فعال" : "غیرفعال")
-                                </a>
+                                <form asp-action="ToggleGateway" method="post" style="display:inline;">
+                                    <input type="hidden" name="id" value="@gateway.Id" />
+                                    <input type="hidden" name="isActive" value="@(!gateway.IsActive)" />
+                                    <button type="submit" class="btn btn-sm @(gateway.IsActive ? "btn-success" : "btn-secondary")">
+                                        @(gateway.IsActive ? "فعال" : "غیرفعال")
+                                    </button>
+                                </form>
                                 <a href="@Url.Action("CreateAccount", new { gatewayId = gateway.Id })" class="btn btn-sm btn-info ms-1">➕ افزودن حساب</a>
                             </td>
                             <td></td>

@@ -24,11 +24,11 @@ namespace SugarShop.Infrastructure.Services
             _logger = logger;
         }
 
-        public async Task<(bool Success, string TrackId, string PaymentUrl, string ErrorMessage)> RequestPayment(long amountInRials, string description, string callbackUrl, string mobile = null)
+        public async Task<(bool Success, string TrackId, string PaymentUrl, string ErrorMessage)> RequestPayment(long amountInRials, string description, string callbackUrl, string mobile = null, string merchant = null)
         {
             var requestData = new
             {
-                merchant = _merchant,
+                merchant = merchant ?? _merchant,
                 amount = amountInRials,
                 callbackUrl = callbackUrl,
                 description = description,
@@ -72,11 +72,11 @@ namespace SugarShop.Infrastructure.Services
             }
         }
 
-        public async Task<(bool Success, long RefNumber, string ErrorMessage)> VerifyPayment(string trackId)
+        public async Task<(bool Success, long RefNumber, string ErrorMessage)> VerifyPayment(string trackId, string merchant = null)
         {
             var verifyData = new
             {
-                merchant = _merchant,
+                merchant = merchant ?? _merchant,
                 trackId = trackId
             };
 

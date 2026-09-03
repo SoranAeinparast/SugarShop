@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SugarShop.Domain.Entities;
 using SugarShop.Domain.Entities.Sales;
@@ -12,11 +13,13 @@ namespace SugarShop.Web.Controllers
     {
         private readonly SugarShopCatalogDbContext _catalogDb;
         private readonly SugarShopSalesDbContext _salesDb;
+        private readonly UserManager<ApplicationUser> _userManager;
 
-        public BoxController(SugarShopCatalogDbContext catalogDb, SugarShopSalesDbContext salesDb)
+        public BoxController(SugarShopCatalogDbContext catalogDb, SugarShopSalesDbContext salesDb, UserManager<ApplicationUser> userManager)
         {
             _catalogDb = catalogDb;
             _salesDb = salesDb;
+            _userManager = userManager;
         }
 
         [HttpGet]
@@ -80,6 +83,7 @@ namespace SugarShop.Web.Controllers
             return View(state);
         }
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> SelectBoxType(int boxTypeId)
         {
             var boxType = await _catalogDb.BoxTypes
@@ -183,6 +187,7 @@ namespace SugarShop.Web.Controllers
             return Ok(new { selectedBoxId = state.SelectedBoxTypeId });
         }
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public IActionResult RemoveRow(int rowIndex)
         {
             var state = HttpContext.Session.GetBoxSessionState();
@@ -194,6 +199,7 @@ namespace SugarShop.Web.Controllers
             return Ok();
         }
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> ReplaceRow(int rowIndex, int sweetItemId)
         {
             var state = HttpContext.Session.GetBoxSessionState();
@@ -225,6 +231,7 @@ namespace SugarShop.Web.Controllers
             return Ok();
         }
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> ChangeBoxType(int newBoxTypeId)
         {
             var state = HttpContext.Session.GetBoxSessionState();
@@ -242,6 +249,7 @@ namespace SugarShop.Web.Controllers
             return Ok();
         }
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public IActionResult Clear()
         {
             var state = HttpContext.Session.GetBoxSessionState();
@@ -250,6 +258,7 @@ namespace SugarShop.Web.Controllers
             return Ok();
         }
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> AddToCart(int? orderId = null)
         {
             var boxState = HttpContext.Session.GetBoxSessionState();
@@ -261,6 +270,17 @@ namespace SugarShop.Web.Controllers
             {
                 var order = await _salesDb.Orders.FindAsync(orderId.Value);
                 if (order == null) return NotFound("سفارش یافت نشد.");
+
+                // 🔒 امنیت: فقط کارکنان (Admin/Owner/OrderManager) یا صاحب سفارشِ هنوز بررسی‌نشده/پرداخت‌نشده
+                // می‌توانند ردیف شیرینی به سفارش اضافه کنند؛ سفارش‌های نهایی‌شده/پرداخت‌شده قابل تغییر نیستند.
+                bool isStaff = User.IsInRole("Admin") || User.IsInRole("Owner") || User.IsInRole("OrderManager");
+                bool isOwnerOfEditableOrder = order.UserId != null
+                    && order.UserId == _userManager.GetUserId(User)
+                    && order.OrderStatus == OrderStatus.AwaitingReview
+                    && order.PaymentStatus == PaymentStatus.Unpaid;
+                if (!isStaff && !isOwnerOfEditableOrder)
+                    return Unauthorized();
+
                 var uniqueBoxTitle = $"{boxType.TitleFa} ({Guid.NewGuid().ToString("N").Substring(0, 4)})";
                 foreach (var item in boxState.Items)
                 {

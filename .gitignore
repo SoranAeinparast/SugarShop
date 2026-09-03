@@ -2,6 +2,9 @@
 appsettings.Production.json
 appsettings.Development.json
 
+# Data Protection keys (auth cookies) - machine-specific
+DataProtectionKeys/
+
 # Build outputs
 bin/
 obj/

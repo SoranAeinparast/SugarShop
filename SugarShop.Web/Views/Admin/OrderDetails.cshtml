@@ -58,6 +58,13 @@
                     @if (Model.DeliveryDate.HasValue) { <p><strong>تاریخ تحویل:</strong> @Model.DeliveryDate.Value.ToString("yyyy/MM/dd").ToPersianNumber()</p> }
                     @if (Model.DeliveryTime.HasValue) { <p><strong>ساعت تحویل:</strong> @Model.DeliveryTime.Value.ToString(@"hh\:mm").ToPersianNumber()</p> }
                     @if (!string.IsNullOrEmpty(Model.Notes)) { <p><strong>توضیحات:</strong> @Model.Notes</p> }
+                    <hr />
+                    <div class="mb-2">
+                        <strong> روش تحویل:</strong>
+                        <span class="badge @(Model.DeliveryMethod == DeliveryMethod.Pickup ? "bg-success" : "bg-warning")">
+                            @(Model.DeliveryMethod == DeliveryMethod.Pickup ? "🏪 دریافت در محل" : "🛵 ارسال با پیک")
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -65,17 +72,107 @@
             <div class="card mb-3">
                 <div class="card-header"><h5 class="mb-0">اطلاعات مالی</h5></div>
                 <div class="card-body">
-                    <p><strong>قیمت تقریبی:</strong> @Model.TotalAmountSnapshot.ToString("N0").ToPersianNumber() تومان</p>
-                    @if (Model.FinalTotalAmount.HasValue)
-                    {
-                        <p><strong>قیمت نهایی:</strong> <span class="text-success fw-bold">@Model.FinalTotalAmount.Value.ToString("N0").ToPersianNumber() تومان</span></p>
+                    @{
+                        var deliveryFee = Model.DeliveryFeeSnapshot;
+                        var hasDeliveryFee = deliveryFee > 0;
+                        var anyBoxPendingForFinancial = boxGroups.Any(bg => !boxInfos.ContainsKey(bg.Key));
                     }
-                    @if (Model.FinalTotalWeightGrams.HasValue)
+                    @if (!productItems.Any() && !boxGroups.Any())
                     {
-                        <p><strong>وزن نهایی:</strong> @Model.FinalTotalWeightGrams.Value.ToPersianNumber() گرم</p>
+                        @if (hasDeliveryFee)
+                        {
+                            <p><strong>هزینه پیک:</strong> <span class="text-info fw-bold">@deliveryFee.ToString("N0").ToPersianNumber() تومان</span></p>
+                            <hr />
+                            <p><strong>💰 مبلغ قابل پرداخت:</strong> <span class="text-success fs-5 fw-bold">@deliveryFee.ToString("N0").ToPersianNumber() تومان</span></p>
+                        }
+                        else
+                        {
+                            <p class="text-muted">هیچ آیتمی در این سفارش وجود ندارد.</p>
+                        }
                     }
-                    <p><strong>وضعیت سفارش:</strong> <span class="badge bg-@orderStatusClass">@orderStatusText</span></p>
-                    <p><strong>وضعیت پرداخت:</strong> <span class="badge bg-@paymentStatusClass">@(Model.PaymentStatus switch {
+                    else if (productItems.Any() && !boxGroups.Any())
+                    {
+                        var productTotal = productItems.Sum(p => p.TotalPriceSnapshot);
+                        <p><strong>جمع محصولات:</strong> <span>@productTotal.ToString("N0").ToPersianNumber() تومان</span></p>
+                        @if (hasDeliveryFee)
+                        {
+                            <p><strong>هزینه پیک:</strong> <span class="text-info fw-bold">@deliveryFee.ToString("N0").ToPersianNumber() تومان</span></p>
+                            <hr />
+                            <p><strong>💰 مبلغ قابل پرداخت:</strong> <span class="text-success fs-5 fw-bold">@((productTotal + deliveryFee).ToString("N0").ToPersianNumber()) تومان</span></p>
+                        }
+                        else
+                        {
+                            <hr />
+                            <p><strong>💰 مبلغ قابل پرداخت:</strong> <span class="text-success fs-5 fw-bold">@productTotal.ToString("N0").ToPersianNumber() تومان</span></p>
+                        }
+                    }
+                    else if (!productItems.Any() && boxGroups.Any())
+                    {
+                        @if (anyBoxPendingForFinancial)
+                        {
+                            <p><strong>جمع جعبه‌ها:</strong> <span class="text-muted">بعد از وزن‌کشی اعلام خواهد شد.</span></p>
+                            @if (hasDeliveryFee)
+                            {
+                                <p><strong>هزینه پیک:</strong> <span class="text-info fw-bold">@deliveryFee.ToString("N0").ToPersianNumber() تومان</span></p>
+                            }
+                            <hr />
+                            <p><strong>💰 مبلغ قابل پرداخت:</strong> <span class="text-muted fs-5">پس از اعلام قیمت جعبه محاسبه می‌شود.</span></p>
+                        }
+                        else
+                        {
+                            var boxTotal = boxInfos.Values.Sum(b => b.FinalPrice);
+                            <p><strong>جمع جعبه‌ها:</strong> <span>@boxTotal.ToString("N0").ToPersianNumber() تومان</span></p>
+                            @if (hasDeliveryFee)
+                            {
+                                <p><strong>هزینه پیک:</strong> <span class="text-info fw-bold">@deliveryFee.ToString("N0").ToPersianNumber() تومان</span></p>
+                                <hr />
+                                <p><strong>💰 مبلغ قابل پرداخت:</strong> <span class="text-success fs-5 fw-bold">@((boxTotal + deliveryFee).ToString("N0").ToPersianNumber()) تومان</span></p>
+                            }
+                            else
+                            {
+                                <hr />
+                                <p><strong>💰 مبلغ قابل پرداخت:</strong> <span class="text-success fs-5 fw-bold">@boxTotal.ToString("N0").ToPersianNumber() تومان</span></p>
+                            }
+                        }
+                    }
+                    else if (productItems.Any() && boxGroups.Any())
+                    {
+                        var productTotal = productItems.Sum(p => p.TotalPriceSnapshot);
+                        @if (anyBoxPendingForFinancial)
+                        {
+                            <p><strong>جمع محصولات:</strong> <span>@productTotal.ToString("N0").ToPersianNumber() تومان</span></p>
+                            <p><strong>جمع جعبه‌ها:</strong> <span class="text-muted">بعد از وزن‌کشی اعلام خواهد شد.</span></p>
+                            @if (hasDeliveryFee)
+                            {
+                                <p><strong>هزینه پیک:</strong> <span class="text-info fw-bold">@deliveryFee.ToString("N0").ToPersianNumber() تومان</span></p>
+                            }
+                            <hr />
+                            <p><strong>💰 مبلغ قابل پرداخت:</strong> <span class="text-muted fs-5">پس از اعلام قیمت جعبه محاسبه می‌شود.</span></p>
+                        }
+                        else
+                        {
+                            var boxTotal = boxInfos.Values.Sum(b => b.FinalPrice);
+                            <p><strong>جمع محصولات:</strong> <span>@productTotal.ToString("N0").ToPersianNumber() تومان</span></p>
+                            <p><strong>جمع جعبه‌ها:</strong> <span>@boxTotal.ToString("N0").ToPersianNumber() تومان</span></p>
+                            @if (hasDeliveryFee)
+                            {
+                                <p><strong>هزینه پیک:</strong> <span class="text-info fw-bold">@deliveryFee.ToString("N0").ToPersianNumber() تومان</span></p>
+                                <hr />
+                                <p><strong>💰 مبلغ قابل پرداخت:</strong> <span class="text-success fs-5 fw-bold">@((productTotal + boxTotal + deliveryFee).ToString("N0").ToPersianNumber()) تومان</span></p>
+                            }
+                            else
+                            {
+                                <hr />
+                                <p><strong>💰 مبلغ قابل پرداخت:</strong> <span class="text-success fs-5 fw-bold">@((productTotal + boxTotal).ToString("N0").ToPersianNumber()) تومان</span></p>
+                            }
+                        }
+                    }
+                    <hr />
+                    <p><strong>وضعیت سفارش:</strong>
+                        <span class="badge bg-@orderStatusClass">@orderStatusText</span>
+                    </p>
+                    <p><strong>وضعیت پرداخت:</strong>
+                        <span class="badge bg-@paymentStatusClass">@(Model.PaymentStatus switch {
                             PaymentStatus.Unpaid => "پرداخت نشده",
                             PaymentStatus.Initiated => "در حال پرداخت",
                             PaymentStatus.Succeeded => "پرداخت موفق",
@@ -87,6 +184,49 @@
             </div>
         </div>
     </div>
+
+    @* ═══════════════════════════════════════════════════════════════
+       ✅ کارت ورود هزینه پیک توسط ادمین (فقط اگر روش تحویل = پیک)
+       ═══════════════════════════════════════════════════════════════ *@
+    @if (Model.DeliveryMethod == DeliveryMethod.Delivery)
+    {
+        <div class="card mb-3 border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">🛵 هزینه ارسال با پیک</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">
+                    هزینه پیک ثبت‌شده فعلی: 
+                    <strong class="text-info">@(Model.DeliveryFeeSnapshot > 0 ? Model.DeliveryFeeSnapshot.ToString("N0").ToPersianNumber() + " تومان" : "هنوز تعیین نشده")</strong>
+                </p>
+                <form asp-action="UpdateDeliveryFee" method="post" class="row g-3">
+                    <input type="hidden" name="orderId" value="@Model.Id" />
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">هزینه پیک (تومان)</label>
+                        <input type="number" name="deliveryFee" class="form-control" 
+                               value="@Model.DeliveryFeeSnapshot" min="0" step="1000" required />
+                        <small class="text-muted">این مبلغ به قیمت نهایی سفارش اضافه می‌شود و مشتری در هنگام پرداخت آن را مشاهده می‌کند.</small>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label d-block">&nbsp;</label>
+                        <button type="submit" class="btn btn-warning w-100">💾 ذخیره هزینه پیک</button>
+                    </div>
+                    @if (Model.DeliveryFeeSnapshot > 0)
+                    {
+                        <div class="col-12">
+                            <div class="alert alert-info mb-0 mt-2">
+                                <i class="bi bi-info-circle"></i> 
+                                هزینه پیک ثبت شده: <strong>@Model.DeliveryFeeSnapshot.ToString("N0").ToPersianNumber() تومان</strong>
+                                <br />
+                                <small>این مبلغ به قیمت نهایی سفارش اضافه خواهد شد و مشتری در هنگام پرداخت آن را مشاهده می‌کند.</small>
+                            </div>
+                        </div>
+                    }
+                </form>
+            </div>
+        </div>
+    }
+
     <div class="card mb-3">
         <div class="card-header"><h5 class="mb-0">🔄 تغییر وضعیت سفارش</h5></div>
         <div class="card-body">
@@ -108,11 +248,28 @@
                 </div>
             </form>
         </div>
+
+        <div class="card mb-3 border-success">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">📄 صدور فاکتور فروش</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">با کلیک روی دکمه زیر، فاکتور فروش رسمی برای این سفارش صادر می‌شود.</p>
+                <form asp-action="GenerateInvoice" method="post">
+                    <input type="hidden" name="orderId" value="@Model.Id" />
+                    <button type="submit" class="btn btn-success">
+                        📄 صدور فاکتور
+                    </button>
+                </form>
+            </div>
+        </div>
+
+
     </div>
     @if (productItems.Any())
     {
         <div class="card mb-4">
-            <div class="card-header bg-info text-white"><h5 class="mb-0">🛍️ محصولات عادی (قیمت ثابت)</h5></div>
+            <div class="card-header bg-info text-white"><h5 class="mb-0">️ محصولات عادی (قیمت ثابت)</h5></div>
             <div class="card-body">
                 <div class="table-responsive">
                     <table class="table table-bordered mb-0">
@@ -139,7 +296,7 @@
                                     <td class="align-middle text-center">
                                         <form asp-action="DeleteProductItem" method="post" onsubmit="return confirm('آیا از حذف این محصول اطمینان دارید؟');">
                                             <input type="hidden" name="itemId" value="@productItem.Id" />
-                                            <button type="submit" class="btn btn-sm btn-danger">🗑️ حذف</button>
+                                            <button type="submit" class="btn btn-sm btn-danger">️ حذف</button>
                                         </form>
                                     </td>
                                 </tr>
@@ -250,7 +407,7 @@
         <a href="/Box/Status?returnToOrder=@Model.Id" class="btn btn-success">➕ اضافه کردن جعبه جدید</a>
         <form asp-action="DeleteOrder" method="post" onsubmit="return confirm('آیا از حذف کل این سفارش اطمینان دارید؟');">
             <input type="hidden" name="orderId" value="@Model.Id" />
-            <button type="submit" class="btn btn-danger">🗑️ حذف کل سفارش</button>
+            <button type="submit" class="btn btn-danger">️ حذف کل سفارش</button>
         </form>
     </div>
 </div>
@@ -301,7 +458,12 @@
             var newSweetId = $(this).data('id');
             var sweetName = $(this).data('name');
             if (!confirm('آیا می‌خواهید شیرینی "' + sweetName + '" را جایگزین کنید؟')) return;
-            $.post('/Admin/UpdateOrderItem', { itemId: currentItemId, newSweetItemId: newSweetId, newQuantity: 1 })
+            $.ajax({
+                url: '/Admin/UpdateOrderItem',
+                type: 'POST',
+                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').first().val() },
+                data: { itemId: currentItemId, newSweetItemId: newSweetId, newQuantity: 1 }
+            })
                 .done(function() { $('#selectSweetModal').modal('hide'); location.reload(); })
                 .fail(function(xhr) { alert('خطا در ویرایش: ' + (xhr.responseText || 'خطای ناشناخته')); });
         });
