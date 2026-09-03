@@ -1,4 +1,5 @@
-﻿@using SugarShop.Web.ViewModels
+﻿@using SugarShop.Domain.Entities.Sales
+@using SugarShop.Web.ViewModels
 @model CheckoutViewModel
 @{
     ViewData["Title"] = "تسویه حساب";
@@ -111,6 +112,34 @@
                             <label class="form-label">توضیحات (اختیاری)</label>
                             <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
                         </div>
+
+                        <hr />
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">🚚 روش دریافت سفارش</label>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check border rounded p-3 mb-2 @(Model.DeliveryMethod == DeliveryMethod.Pickup ? "bg-light" : "")">
+                                        <input class="form-check-input" type="radio" name="DeliveryMethod" value="1" 
+                                               id="deliveryPickup" @(Model.DeliveryMethod == DeliveryMethod.Pickup ? "checked" : "")>
+                                        <label class="form-check-label w-100" for="deliveryPickup">
+                                            <strong> دریافت در محل شیرینی‌سرا</strong><br />
+                                            <small class="text-muted">بدون هزینه ارسال</small>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check border rounded p-3 mb-2 @(Model.DeliveryMethod == DeliveryMethod.Delivery ? "bg-light" : "")">
+                                        <input class="form-check-input" type="radio" name="DeliveryMethod" value="2" 
+                                               id="deliveryCourier" @(Model.DeliveryMethod == DeliveryMethod.Delivery ? "checked" : "")>
+                                        <label class="form-check-label w-100" for="deliveryCourier">
+                                            <strong>🛵 ارسال با پیک موتوری</strong><br />
+                                            <small class="text-muted">هزینه پیک پس از تأیید سفارش اعلام می‌شود</small>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -160,5 +189,18 @@
                 document.querySelectorAll('input[name="SelectedAddressId"]').forEach(radio => radio.checked = false);
             }
         });
+    </script>
+    <script>
+    // تغییر استایل radio button های روش تحویل
+    document.querySelectorAll('input[name="DeliveryMethod"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            document.querySelectorAll('input[name="DeliveryMethod"]').forEach(r => {
+                r.closest('.form-check').classList.remove('bg-light');
+            });
+            if (this.checked) {
+                this.closest('.form-check').classList.add('bg-light');
+            }
+        });
+    });
     </script>
 }

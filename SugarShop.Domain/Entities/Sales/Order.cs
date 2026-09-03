@@ -5,7 +5,7 @@ namespace SugarShop.Domain.Entities.Sales
 {
     public enum OrderStatus
     {
-        AwaitingReview = 1, 
+        AwaitingReview = 1,
         PendingPayment = 2,
         Paid = 3,
         Preparing = 4,
@@ -13,6 +13,7 @@ namespace SugarShop.Domain.Entities.Sales
         Delivered = 6,
         Cancelled = 7
     }
+
     public enum PaymentStatus
     {
         Unpaid = 1,
@@ -20,11 +21,19 @@ namespace SugarShop.Domain.Entities.Sales
         Succeeded = 3,
         Failed = 4
     }
+
+    // ✅ enum جدید برای روش تحویل
+    public enum DeliveryMethod
+    {
+        Pickup = 1,      // دریافت در محل
+        Delivery = 2     // ارسال با پیک
+    }
+
     public class Order
     {
         public int Id { get; set; }
         public string OrderCode { get; set; } = "";
-        public string? UserId { get; set; } 
+        public string? UserId { get; set; }
         public OrderStatus OrderStatus { get; set; } = OrderStatus.PendingPayment;
         public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Unpaid;
         public decimal TotalAmountSnapshot { get; set; }
@@ -47,6 +56,10 @@ namespace SugarShop.Domain.Entities.Sales
         public DateTime? DeliveryDate { get; set; }
         public TimeSpan? DeliveryTime { get; set; }
         public string? Notes { get; set; }
+
+        // ✅ فیلد جدید: روش تحویل
+        public DeliveryMethod DeliveryMethod { get; set; } = DeliveryMethod.Pickup;
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
         public List<OrderItem> Items { get; set; } = new();
