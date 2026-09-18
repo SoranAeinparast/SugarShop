@@ -6,6 +6,7 @@ using SugarShop.Domain.Entities;
 using SugarShop.Infrastructure.Persistence.Sales;
 using SugarShop.Web.Areas.Admin.ViewModels;
 using System;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace SugarShop.Web.Areas.Admin.Controllers
@@ -45,6 +46,20 @@ namespace SugarShop.Web.Areas.Admin.Controllers
                 StoryImagePath = settings?.StoryImagePath,
                 VideoPath = settings?.VideoPath
             };
+
+            // ✅ ساخت لیست بصری از روی JSON (بدون نیاز به ویرایش دستی JSON توسط ادمین)
+            try
+            {
+                var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var stored = JsonSerializer.Deserialize<List<AboutUsValueItem>>(vm.ValuesJson, jsonOptions);
+                vm.Values = stored ?? new List<AboutUsValueItem>();
+            }
+            catch
+            {
+                _logger.LogWarning("JSON نامعتبر در ValuesJson درباره ما؛ با لیست خالی شروع می‌شود.");
+                vm.Values = new List<AboutUsValueItem>();
+            }
+
             return View(vm);
         }
 
@@ -60,9 +75,8 @@ namespace SugarShop.Web.Areas.Admin.Controllers
                 _logger.LogInformation("=== شروع ذخیره‌سازی تنظیمات درباره ما ===");
 
                 var settings = await _context.AboutUsSettings.FirstOrDefaultAsync();
-                bool isNew = (settings == null);
 
-                if (isNew)
+                if (settings == null)
                 {
                     settings = new AboutUsSetting();
                     _context.AboutUsSettings.Add(settings);
@@ -74,7 +88,7 @@ namespace SugarShop.Web.Areas.Admin.Controllers
                 settings.StoryTitle = model.StoryTitle;
                 settings.StoryContent = model.StoryContent;
                 settings.VideoTitle = model.VideoTitle;
-                settings.ValuesJson = string.IsNullOrEmpty(model.ValuesJson) ? "[]" : model.ValuesJson;
+                settings.ValuesJson = SerializeValues(model.Values);
 
                 // مسیرهای تصاویر و ویدئو (اگر خالی نباشند به‌روز می‌شوند)
                 if (!string.IsNullOrWhiteSpace(model.HeroImagePath))
@@ -99,6 +113,25 @@ namespace SugarShop.Web.Areas.Admin.Controllers
             }
 
             return RedirectToAction(nameof(Index));
+        }
+
+        /// <summary>
+        /// تبدیل لیست کارت‌های ارزش به JSON برای ذخیره در دیتابیس.
+        /// فقط آیتم‌هایی که عنوان یا توضیح دارند ذخیره می‌شوند.
+        /// </summary>
+        private static string SerializeValues(List<AboutUsValueItem>? values)
+        {
+            var clean = (values ?? new List<AboutUsValueItem>())
+                .Where(v => !string.IsNullOrWhiteSpace(v.Title) || !string.IsNullOrWhiteSpace(v.Desc))
+                .Select(v => new AboutUsValueItem
+                {
+                    Icon = string.IsNullOrWhiteSpace(v.Icon) ? "bi-star" : v.Icon.Trim(),
+                    Title = v.Title?.Trim() ?? "",
+                    Desc = v.Desc?.Trim() ?? ""
+                })
+                .ToList();
+
+            return JsonSerializer.Serialize(clean);
         }
     }
 }

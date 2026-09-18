@@ -11,6 +11,13 @@
     <p><b>دسته‌بندی:</b> @Model.Category?.TitleFa</p>
     <p><b>موجودی:</b> @Model.InventoryCount عدد</p>
     <p><b>در انبار هست:</b> @(Model.IsInStock ? "بله" : "خیر")</p>
+    @if (!Model.IsInStock)
+    {
+        <form asp-action="NotifyMe" method="post" class="mt-2">
+            <input type="hidden" name="id" value="@Model.Id" />
+            <button type="submit" class="btn btn-warning">🔔 خبرم کن وقتی موجود شد</button>
+        </form>
+    }
     @if (!string.IsNullOrEmpty(Model.Description))
     {
         <p><b>توضیحات:</b> @Model.Description</p>

@@ -1,0 +1,263 @@
+﻿@using MD.PersianDateTime
+@using SugarShop.Web.Extensions
+@model SugarShop.Domain.Entities.EducationalContent
+@{
+    ViewData["Title"] = "جزئیات محتوا";
+    Layout = "_AdminLayout";
+
+    string FaDate(DateTime? dt)
+    {
+        return dt.HasValue
+            ? new PersianDateTime(dt.Value).ToString("yyyy/MM/dd - HH:mm").ToPersianNumber()
+            : "—";
+    }
+}
+<div class="container-fluid px-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h4 class="mb-0"><i class="bi bi-file-earmark-text text-primary"></i> جزئیات محتوا</h4>
+        <div class="d-flex gap-2">
+            <a asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-arrow-right"></i> بازگشت به لیست</a>
+            <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning"><i class="bi bi-pencil"></i> ویرایش</a>
+        </div>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @TempData["Success"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (TempData["Warning"] != null)
+    {
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            @TempData["Warning"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @TempData["Error"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <!-- نوار وضعیت و اقدام بعدی -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row align-items-center g-3">
+                <div class="col-lg-6">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="rounded-circle @(Model.IsPublished ? "bg-success" : Model.IsApproved ? "bg-info" : "bg-warning") bg-opacity-10 d-flex align-items-center justify-content-center" style="width:54px;height:54px;">
+                            <i class="bi @(Model.IsPublished ? "bi-check-circle-fill text-success" : Model.IsApproved ? "bi-patch-check-fill text-info" : "bi-hourglass-split text-warning") fs-3"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-1">
+                                @if (Model.IsPublished)
+                                {
+                                    <span class="badge bg-success fs-6"><i class="bi bi-check-circle"></i> منتشر شده</span>
+                                }
+                                else if (Model.IsApproved)
+                                {
+                                    <span class="badge bg-info text-dark fs-6"><i class="bi bi-patch-check"></i> تایید شده — در انتظار انتشار</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning text-dark fs-6"><i class="bi bi-hourglass"></i> پیش‌نویس — تایید نشده</span>
+                                }
+                            </h5>
+                            <p class="text-muted small mb-0">
+                                @if (Model.IsPublished)
+                                {
+                                    <text>این محتوا برای عموم قابل مشاهده است.</text>
+                                }
+                                else if (Model.IsApproved)
+                                {
+                                    <text>تایید انجام شده؛ برای نمایش عمومی روی «انتشار در سایت» کلیک کنید.</text>
+                                }
+                                else
+                                {
+                                    <text>برای انتشار باید ابتدا «تایید» شود (گردش کار دو مرحله‌ای).</text>
+                                }
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6 d-flex justify-content-lg-end">
+                    <div class="d-flex flex-wrap gap-2">
+                        @if (!Model.IsApproved)
+                        {
+                            <form asp-action="Approve" asp-route-id="@Model.Id" method="post" style="display:inline;">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-patch-check"></i> تایید محتوا
+                                    @if (!Model.IsPublished)
+                                    {
+                                        <span class="opacity-75 small">(گام ۱ از ۲)</span>
+                                    }
+                                </button>
+                            </form>
+                        }
+                        else if (!Model.IsPublished)
+                        {
+                            <form asp-action="TogglePublish" asp-route-id="@Model.Id" method="post" style="display:inline;">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-success btn-lg">
+                                    <i class="bi bi-cloud-arrow-up"></i> انتشار در سایت (گام ۲ از ۲)
+                                </button>
+                            </form>
+                            <form asp-action="Unapprove" asp-route-id="@Model.Id" method="post" style="display:inline;">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-outline-secondary" title="برگشت به پیش‌نویس">
+                                    <i class="bi bi-x-circle"></i> لغو تایید
+                                </button>
+                            </form>
+                        }
+                        else
+                        {
+                            <form asp-action="TogglePublish" asp-route-id="@Model.Id" method="post" style="display:inline;">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-outline-danger">
+                                    <i class="bi bi-cloud-arrow-down"></i> لغو انتشار
+                                </button>
+                            </form>
+                            <a asp-action="Index" asp-route-isPublished="true" class="btn btn-outline-success">
+                                <i class="bi bi-globe2"></i> مشاهده در فهرست عمومی
+                            </a>
+                        }
+                        <form asp-action="Delete" asp-route-id="@Model.Id" method="post" style="display:inline;"
+                              onsubmit="return confirm('«@Model.Title» برای همیشه حذف شود؟ این عمل قابل بازگشت نیست.');">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-outline-danger" title="حذف">
+                                <i class="bi bi-trash"></i> حذف
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- پیش‌نمایش محتوا -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                        <h2 class="h3 fw-bold mb-0">@Model.Title</h2>
+                        <span class="badge bg-light text-dark border text-nowrap">#@Model.Id.ToString().ToPersianNumber()</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(Model.FeaturedImageUrl) && !Model.FeaturedImageUrl.Contains("placeholder"))
+                    {
+                        <img src="@Model.FeaturedImageUrl" class="img-fluid rounded mb-3 w-100" style="max-height:340px;object-fit:cover;" alt="@Model.Title" />
+                    }
+                    <div class="educational-content" style="font-size:1.05rem;line-height:1.9;color:#2c3e50;">
+                        @Html.Raw(Model.BodyHtml)
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ابرداده و وضعیت -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-info-circle text-primary"></i> مشخصات</h6></div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0 align-middle">
+                        <tbody>
+                            <tr>
+                                <th class="ps-3 text-muted fw-normal">دسته‌بندی</th>
+                                <td><span class="badge bg-light text-dark border">@(Model.Category ?? "—")</span></td>
+                            </tr>
+                            <tr>
+                                <th class="ps-3 text-muted fw-normal">برچسب‌ها</th>
+                                <td class="small">@(Model.Tags ?? "—")</td>
+                            </tr>
+                            <tr>
+                                <th class="ps-3 text-muted fw-normal">تاریخ ایجاد</th>
+                                <td class="small">@FaDate(Model.CreatedAt)</td>
+                            </tr>
+                            <tr>
+                                <th class="ps-3 text-muted fw-normal">تاریخ تایید</th>
+                                <td class="small">@FaDate(Model.ApprovedAt)</td>
+                            </tr>
+                            <tr>
+                                <th class="ps-3 text-muted fw-normal">تاریخ انتشار</th>
+                                <td class="small">@FaDate(Model.PublishedAt)</td>
+                            </tr>
+                            @if (Model.Source != null)
+                            {
+                                <tr>
+                                    <th class="ps-3 text-muted fw-normal">منبع</th>
+                                    <td class="small">
+                                        <a href="@Model.Source.Url" target="_blank" rel="noopener">
+                                            @(string.IsNullOrEmpty(Model.Source.Title) ? Model.Source.Url : Model.Source.Title)
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                            @if (Model.Topic != null)
+                            {
+                                <tr>
+                                    <th class="ps-3 text-muted fw-normal">موضوع</th>
+                                    <td class="small">@Model.Topic.Name</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(Model.MetaDescription))
+            {
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-search text-primary"></i> توضیح متا (SEO)</h6></div>
+                    <div class="card-body small text-muted">@Model.MetaDescription</div>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(Model.AdminNotes))
+            {
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-sticky text-primary"></i> یادداشت مدیر</h6></div>
+                    <div class="card-body small">@Model.AdminNotes</div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .educational-content h2 {
+        color: #d4a056;
+        border-right: 4px solid #d4a056;
+        padding-right: 15px;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+        font-weight: 700;
+    }
+    .educational-content h3 {
+        color: #d4a056;
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
+        font-weight: 700;
+    }
+    .educational-content ul, .educational-content ol {
+        padding-right: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .educational-content li {
+        margin-bottom: 0.5rem;
+    }
+    .educational-content strong {
+        color: #2c3e50;
+    }
+    .educational-content p {
+        margin-bottom: 1.2rem;
+    }
+    .educational-content img {
+        max-width: 100%;
+        border-radius: 8px;
+    }
+</style>

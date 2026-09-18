@@ -12,6 +12,31 @@
     var sweetNames = ViewBag.SweetNames as Dictionary<int, string> ?? new Dictionary<int, string>();
     var productNames = ViewBag.ProductNames as Dictionary<int, string> ?? new Dictionary<int, string>();
     var boxInfos = ViewBag.BoxInfos as Dictionary<string, BoxFinalInfo> ?? new Dictionary<string, BoxFinalInfo>();
+    // ظرفیت نوع هر جعبه (گرم) — از نوع جعبه‌ای که در زمان خرید انتخاب شده است
+    var boxCapacities = ViewBag.BoxCapacities as Dictionary<string, SugarShop.Web.ViewModels.BoxCapacityViewModel>
+        ?? new Dictionary<string, SugarShop.Web.ViewModels.BoxCapacityViewModel>();
+    var sweetPricePerKg = ViewBag.SweetPricePerKg as Dictionary<int, decimal> ?? new Dictionary<int, decimal>();
+    var sweetApproxWeight = ViewBag.SweetApproxWeight as Dictionary<int, int> ?? new Dictionary<int, int>();
+    // وزن هر ردیف جعبه: وزن وزن‌کشی‌شده‌ی قبلی و در غیر این صورت وزن تقریبی همان شیرینی
+    Func<OrderItem, int> rowWeightOf = i => i.WeightSnapshotGrams is > 0
+        ? i.WeightSnapshotGrams!.Value
+        : (i.SweetItemId.HasValue && sweetApproxWeight.ContainsKey(i.SweetItemId.Value) ? sweetApproxWeight[i.SweetItemId.Value] : 0);
+    Func<OrderItem, decimal> rowPriceOf = i =>
+    {
+        var pricePerKg = i.SweetItemId.HasValue && sweetPricePerKg.ContainsKey(i.SweetItemId.Value) ? sweetPricePerKg[i.SweetItemId.Value] : 0m;
+        var quantity = i.Quantity < 1 ? 1 : i.Quantity;
+        return (rowWeightOf(i) / 1000m) * pricePerKg * quantity;
+    };
+    var rowWeightById = Model.Items.ToDictionary(i => i.Id, rowWeightOf);
+    var rowPriceById = Model.Items.ToDictionary(i => i.Id, rowPriceOf);
+    // پالت رنگی برای تفکیک بصری جعبه‌ها
+    var boxColorPalette = new[] {
+        ("#e8f1ff", "#2c6ecb"), ("#e9f9ef", "#1e9e50"), ("#fff4e0", "#e08a00"),
+        ("#fdeaea", "#d94848"), ("#f3e8ff", "#7a3fd1"), ("#e0f7fa", "#00838f"),
+        ("#fff8e1", "#b58900"), ("#fce4ec", "#c2185b")
+    };
+    string boxColor(int i) => boxColorPalette[i % boxColorPalette.Length].Item1;
+    string boxAccent(int i) => boxColorPalette[i % boxColorPalette.Length].Item2;
     string orderStatusClass = Model.OrderStatus switch
     {
         OrderStatus.AwaitingReview => "secondary",
@@ -39,11 +64,22 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2 class="mb-0">📦 سفارش @Model.OrderCode</h2>
-        <a asp-action="Orders" class="btn btn-secondary">بازگشت</a>
+        <div class="d-flex gap-2">
+            @if (boxGroups.Any())
+            {
+                <a href="@Url.Action("BoxLabels", "Admin", new { orderId = Model.Id })" target="_blank" rel="noopener"
+                   class="btn btn-dark" title="چاپ برچسب وزن‌کشی همه جعبه‌ها برای چسباندن روی جعبه">🏷️ چاپ برچسب وزن‌کشی</a>
+            }
+            <a asp-action="Orders" class="btn btn-secondary">بازگشت</a>
+        </div>
     </div>
     @if (TempData["SuccessMessage"] != null)
     {
         <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
     }
     <div class="row">
         <div class="col-md-6">
@@ -74,7 +110,7 @@
                     @{
                         var deliveryFee = Model.DeliveryFeeSnapshot;
                         var hasDeliveryFee = deliveryFee > 0;
-                        var anyBoxPendingForFinancial = boxGroups.Any(bg => !boxInfos.ContainsKey(bg.Key));
+                        var anyBoxPendingForFinancial = boxGroups.Any(bg => !boxInfos.ContainsKey(bg.Key!));
                     }
                     @if (!productItems.Any() && !boxGroups.Any())
                     {
@@ -268,9 +304,8 @@
     @if (productItems.Any())
     {
         <div class="card mb-4">
-            <div class="card-header bg-info text-white"><h5 class="mb-0">️ محصولات عادی (قیمت ثابت)</h5></div>
-            <div class="card-body">
-                <div class="table-responsive">
+            <div class="card-header bg-info text-white"><h5 class="mb-0">️ محصولات عادی (قیمت ثابت)</h5></div>                <div class="card-body">
+                    <div class="table-responsive">
                     <table class="table table-bordered mb-0">
                         <thead class="table-light">
                             <tr>
@@ -315,95 +350,184 @@
     @if (boxGroups.Any())
     {
         <h4 class="mt-4">📦 جعبه‌های شیرینی</h4>
+        int boxIndex = 0;
         foreach (var boxGroup in boxGroups)
         {
             var boxTitle = boxGroup.Key;
             var sweetGroups = boxGroup.GroupBy(x => x.SweetItemId).ToList();
-            var boxInfo = boxInfos.ContainsKey(boxTitle) ? boxInfos[boxTitle] : null;
-            <div class="card mb-4 border-primary">
-                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">📦 @boxTitle</h5>
-                    <form asp-action="DeleteBox" method="post" onsubmit="return confirm('آیا از حذف کل این جعبه اطمینان دارید؟');">
-                        <input type="hidden" name="orderId" value="@Model.Id" />
-                        <input type="hidden" name="boxTitle" value="@boxTitle" />
-                        <button type="submit" class="btn btn-sm btn-danger">🗑️ حذف کل جعبه</button>
-                    </form>
+            var boxInfo = boxInfos.ContainsKey(boxTitle!) ? boxInfos[boxTitle!] : null;
+            var boxCapacity = boxCapacities.ContainsKey(boxTitle!) ? boxCapacities[boxTitle!] : null;
+            // جمع وزن و قیمت ردیف‌های همین جعبه = وزن و قیمت نهایی جعبه (مبنای محاسبه خودکار)
+            var rowsWeight = boxGroup.Sum(r => rowWeightById.ContainsKey(r.Id) ? rowWeightById[r.Id] : 0);
+            var rowsPrice = boxGroup.Sum(r => rowPriceById.ContainsKey(r.Id) ? rowPriceById[r.Id] : 0m);
+            var bg = boxColor(boxIndex);
+            var accent = boxAccent(boxIndex);
+            boxIndex++;
+            <div class="card mb-4 border-0 shadow-sm box-card" data-box-index="@boxIndex" style="background:@bg; border-right:5px solid @accent !important;">
+                <div class="card-header text-white d-flex justify-content-between align-items-center" style="background:@accent;">
+                    <h5 class="mb-0">
+                        📦 @boxTitle
+                        @if (boxCapacity != null && boxCapacity.CapacityGrams > 0)
+                        {
+                            <span class="badge bg-light text-dark ms-1">ظرفیت @boxCapacity.TypeTitle: @boxCapacity.CapacityGrams.ToPersianNumber() گرم</span>
+                        }
+                    </h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <a href="@Url.Action("BoxLabels", "Admin", new { orderId = Model.Id, boxTitle })" target="_blank" rel="noopener"
+                           class="btn btn-sm btn-light" title="چاپ برچسب وزن‌کشی همین جعبه">🏷️ چاپ برچسب این جعبه</a>
+                        <form asp-action="DeleteBox" method="post" onsubmit="return confirm('آیا از حذف کل این جعبه اطمینان دارید؟');">
+                            <input type="hidden" name="orderId" value="@Model.Id" />
+                            <input type="hidden" name="boxTitle" value="@boxTitle" />
+                            <button type="submit" class="btn btn-sm btn-light">🗑️ حذف کل جعبه</button>
+                        </form>
+                    </div>
                 </div>
                 <div class="card-body">
+                    @if (boxCapacity != null && boxCapacity.CapacityGrams > 0)
+                    {
+                        @* هشدار زنده ظرفیت: با JS پر می‌شود و دکمه‌های ثبت را غیرفعال می‌کند *@
+                        <div class="alert alert-danger py-2 px-3 mb-2 d-none box-capacity-alert"
+                             data-capacity="@boxCapacity.CapacityGrams"
+                             data-type-title="@boxCapacity.TypeTitle"></div>
+                    }
                     <div class="table-responsive">
                         <table class="table table-bordered mb-0">
                             <thead class="table-light">
                                 <tr>
                                     <th>🍪 شیرینی</th>
-                                    <th class="text-center">🔢 تعداد ردیف</th>
+                                    <th class="text-center" style="width:180px;">⚖️ وزن این ردیف (گرم)</th>
+                                    <th class="text-center">💰 قیمت هر کیلو</th>
+                                    <th class="text-center">🧮 قیمت این ردیف</th>
                                     <th class="text-center">⚙️ عملیات</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var sweetGroup in sweetGroups)
+                                @foreach (var row in boxGroup.ToList())
                                 {
-                                    var first = sweetGroup.First();
-                                    var sweetName = first.SweetItemId.HasValue && sweetNames.ContainsKey(first.SweetItemId.Value)
-                                        ? sweetNames[first.SweetItemId.Value]
-                                        : $"شیرینی (شناسه {first.SweetItemId})";
-                                    var rowCount = sweetGroup.Count();
+                                    var sweetName = row.SweetItemId.HasValue && sweetNames.ContainsKey(row.SweetItemId.Value)
+                                        ? sweetNames[row.SweetItemId.Value]
+                                        : $"شیرینی (شناسه {row.SweetItemId})";
+                                    var pricePerKg = row.SweetItemId.HasValue && sweetPricePerKg.ContainsKey(row.SweetItemId.Value) ? sweetPricePerKg[row.SweetItemId.Value] : 0m;
+                                    var rowQuantity = row.Quantity < 1 ? 1 : row.Quantity;
+                                    var rowWeight = rowWeightById.ContainsKey(row.Id) ? rowWeightById[row.Id] : 0;
+                                    var rowPrice = rowPriceById.ContainsKey(row.Id) ? rowPriceById[row.Id] : 0m;
                                     <tr>
-                                        <td class="align-middle"><strong>@sweetName</strong></td>
-                                        <td class="align-middle text-center">@rowCount.ToPersianNumber() ردیف</td>
+                                        <td class="align-middle">
+                                            <strong>@sweetName</strong>
+                                            @if (rowQuantity > 1)
+                                            {
+                                                <span class="badge bg-secondary ms-1">@rowQuantity.ToPersianNumber() عدد</span>
+                                            }
+                                        </td>
                                         <td class="align-middle text-center">
-                                            <a href="@Url.Action("EditOrderItem", "Admin", new { itemId = first.Id })" class="btn btn-sm btn-warning">✏️ ویرایش</a>
+                                            <input type="hidden" name="itemWeightId" form="finalizeWeightsForm" value="@row.Id" />
+                                            <input type="number" name="itemWeight" form="finalizeWeightsForm"
+                                                   class="form-control form-control-sm text-center box-row-weight"
+                                                   min="0" max="20000" step="1" value="@rowWeight"
+                                                   data-price-per-kg="@pricePerKg.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-quantity="@rowQuantity" />
+                                        </td>
+                                        <td class="align-middle text-center">@pricePerKg.ToString("N0").ToPersianNumber() تومان</td>
+                                        <td class="align-middle text-center row-price">@rowPrice.ToString("N0").ToPersianNumber() تومان</td>
+                                        <td class="align-middle text-center">
+                                            <a href="@Url.Action("EditOrderItem", "Admin", new { itemId = row.Id })" class="btn btn-sm btn-warning">✏️ ویرایش</a>
                                         </td>
                                     </tr>
                                 }
                             </tbody>
                             <tfoot class="table-secondary">
                                 <tr>
-                                    <td class="text-end align-middle"><strong>نوع شیرینی‌های انتخابی:</strong></td>
-                                    <td class="text-center align-middle" colspan="2"><strong>@sweetGroups.Count().ToPersianNumber() نوع شیرینی</strong></td>
+                                    <td class="text-end align-middle"><strong>جمع این جعبه:</strong></td>
+                                    <td class="text-center align-middle"><strong class="box-total-weight">@rowsWeight.ToPersianNumber() گرم</strong></td>
+                                    <td class="text-center align-middle"><span class="text-muted small">@sweetGroups.Count().ToPersianNumber() نوع شیرینی</span></td>
+                                    <td class="text-center align-middle"><strong class="box-total-price">@rowsPrice.ToString("N0").ToPersianNumber() تومان</strong></td>
+                                    <td></td>
                                 </tr>
                             </tfoot>
                         </table>
                     </div>
-                    <div class="card mt-3">
-                        <div class="card-header bg-primary text-white"><h5 class="mb-0">⚖️ ثبت وزن دقیق و قیمت نهایی جعبه @boxTitle</h5></div>
-                        <div class="card-body">
-                            @if (boxInfo != null)
+                    @* ورودی‌های وزن/قیمت این جعبه — عضو فرم واحد پایین صفحه (فرم‌های تو در تو مجاز نیستند)  *@
+                    <div class="card mt-3 bg-white border-0">
+                        <div class="card-body py-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="mb-0">
+                                    ⚖️ وزن و قیمت نهایی جعبه @boxTitle
+                                    <span class="badge bg-light text-dark calc-mode-label">@(boxInfo != null ? "ویرایش دستی" : "محاسبه خودکار")</span>
+                                </h6>
+                                @if (boxInfo != null)
+                                {
+                                    <span class="badge bg-info text-dark">ثبت شده: @boxInfo.FinalWeightGrams.ToPersianNumber() گرم | @boxInfo.FinalPrice.ToString("N0").ToPersianNumber() تومان</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning text-dark">هنوز وزن‌کشی نشده</span>
+                                }
+                            </div>
+                            @if (boxInfo != null && !string.IsNullOrEmpty(boxInfo.AdminNotes))
                             {
-                                <div class="alert alert-info">
-                                    <strong>اطلاعات ثبت شده قبلی:</strong><br />
-                                    وزن: @boxInfo.FinalWeightGrams.ToPersianNumber() گرم | قیمت: @boxInfo.FinalPrice.ToString("N0").ToPersianNumber() تومان<br />
-                                    @if (!string.IsNullOrEmpty(boxInfo.AdminNotes)) { <span>یادداشت: @boxInfo.AdminNotes</span> }
-                                </div>
+                                <small class="text-muted d-block mb-2">یادداشت قبلی: @boxInfo.AdminNotes</small>
                             }
-                            <form asp-action="UpdateBoxWeight" method="post">
-                                <input type="hidden" name="orderId" value="@Model.Id" />
-                                <input type="hidden" name="boxTitle" value="@boxTitle" />
-                                <div class="row">
-                                    <div class="col-md-4">
-                                        <label class="form-label">وزن نهایی (گرم)</label>
-                                        <input type="number" name="finalWeightGrams" class="form-control" required value="@(boxInfo?.FinalWeightGrams ?? 0)" />
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label">قیمت نهایی (تومان)</label>
-                                        <input type="number" name="finalPrice" class="form-control" required value="@(boxInfo?.FinalPrice ?? 0)" />
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label">یادداشت (اختیاری)</label>
-                                        <input type="text" name="adminNotes" class="form-control" value="@(boxInfo?.AdminNotes ?? "")" />
-                                    </div>
-                                    <div class="col-md-12 mt-3">
-                                        <button type="submit" class="btn btn-success">✅ ثبت و فعال کردن دکمه پرداخت</button>
-                                    </div>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="form-label small">وزن نهایی (گرم) <span class="text-muted">(قابل ویرایش دستی)</span></label>
+                                    <input type="number" name="finalWeightGrams" form="finalizeWeightsForm"
+                                           class="form-control final-weight-input"
+                                           data-manual="@(boxInfo != null ? "1" : "0")"
+                                           min="0" max="100000" step="1" required
+                                           value="@((boxInfo?.FinalWeightGrams ?? rowsWeight).ToString(System.Globalization.CultureInfo.InvariantCulture))" />
                                 </div>
-                            </form>
+                                <div class="col-md-4">
+                                    <label class="form-label small">قیمت نهایی (تومان) <span class="text-muted">(قابل ویرایش دستی)</span></label>
+                                    <input type="number" name="finalPrice" form="finalizeWeightsForm"
+                                           class="form-control final-price-input"
+                                           data-manual="@(boxInfo != null ? "1" : "0")"
+                                           min="0" step="1" required
+                                           value="@((boxInfo?.FinalPrice ?? rowsPrice).ToString(System.Globalization.CultureInfo.InvariantCulture))" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small">یادداشت (اختیاری)</label>
+                                    <input type="text" name="adminNotes" form="finalizeWeightsForm" class="form-control" value="@(boxInfo?.AdminNotes ?? "")" />
+                                </div>
+                            </div>
+                            <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary auto-calc-btn">
+                                    🔄 محاسبه خودکار از روی وزن ردیف‌ها
+                                </button>
+                                <small class="text-muted">جمع وزن و قیمت ردیف‌های بالا (وزن ردیف × قیمت هر کیلو) نتیجه را تعیین می‌کند؛ اگر خودتان عددی را تغییر دهید، همان مقدار حفظ می‌شود.</small>
+                            </div>
                         </div>
                     </div>
+                    <input type="hidden" name="boxTitle" form="finalizeWeightsForm" value="@boxTitle" />
                 </div>
             </div>
         }
     }
-    <div class="mt-3 d-flex gap-2">
+    @if (boxGroups.Any())
+    {
+        @* ═══ دکمه واحد ثبت وزن/قیمت همه جعبه‌ها — یکبار در کل صفحه ═══ *@
+        <form id="finalizeWeightsForm" asp-action="FinalizeOrderWeights" method="post" class="card shadow-sm border-success mb-4">
+            <input type="hidden" name="orderId" value="@Model.Id" />
+            <div class="card-body d-flex flex-wrap align-items-center gap-3">
+                <div class="flex-grow-1">
+                    <strong>⚖️ ثبت وزن و قیمت همه جعبه‌ها و فعال‌سازی پرداخت</strong>
+                    <div class="small text-muted">پس از ثبت، مشتری می‌تواند مبلغ قابل پرداخت را تسویه کند و پیامک «آماده پرداخت» برایش ارسال می‌شود.</div>
+                </div>
+                <button type="submit" class="btn btn-success btn-lg px-4">
+                    ✅ ثبت و فعال کردن دکمه پرداخت
+                </button>
+                <button type="submit" class="btn btn-outline-success btn-lg px-4"
+                        formaction="@Url.Action("SaveBoxRowWeights", "Admin")">
+                    💾 فقط ذخیره وزن ردیف‌ها و محاسبه جعبه‌ها
+                </button>
+            </div>
+        </form>
+    }
+    <div class="mt-3 d-flex gap-2 flex-wrap">
         <a href="/Box/Status?returnToOrder=@Model.Id" class="btn btn-success">➕ اضافه کردن جعبه جدید</a>
+        @if (boxGroups.Any())
+        {
+            <a href="@Url.Action("BoxLabels", "Admin", new { orderId = Model.Id })" target="_blank" rel="noopener"
+               class="btn btn-outline-dark" title="چاپ برچسب وزن‌کشی همه جعبه‌های این سفارش">🏷️ چاپ برچسب همه جعبه‌ها</a>
+        }
         <form asp-action="DeleteOrder" method="post" onsubmit="return confirm('آیا از حذف کل این سفارش اطمینان دارید؟');">
             <input type="hidden" name="orderId" value="@Model.Id" />
             <button type="submit" class="btn btn-danger">️ حذف کل سفارش</button>
@@ -466,5 +590,143 @@
                 .done(function() { $('#selectSweetModal').modal('hide'); location.reload(); })
                 .fail(function(xhr) { alert('خطا در ویرایش: ' + (xhr.responseText || 'خطای ناشناخته')); });
         });
+        // ============================================================
+        // ⚖️ محاسبه خودکار وزن/قیمت جعبه از روی وزن تک‌تک ردیف‌ها
+        // ============================================================
+        function refreshCalcMode(card) {
+            var label = card.querySelector('.calc-mode-label');
+            if (!label) return;
+            var manual = false;
+            card.querySelectorAll('.final-weight-input, .final-price-input').forEach(function (i) {
+                if (i.dataset.manual === '1') manual = true;
+            });
+            label.textContent = manual ? 'ویرایش دستی' : 'محاسبه خودکار';
+            label.className = 'badge calc-mode-label ' + (manual ? 'bg-warning text-dark' : 'bg-light text-dark');
+        }
+
+        function recalcBoxCard(card) {
+            if (!card) return;
+            var totalWeight = 0;
+            var totalPrice = 0;
+
+            card.querySelectorAll('.box-row-weight').forEach(function (input) {
+                var weight = parseFloat(input.value) || 0;
+                var pricePerKg = parseFloat(input.dataset.pricePerKg) || 0;
+                var quantity = parseInt(input.dataset.quantity, 10) || 1;
+                var rowPrice = (weight / 1000) * pricePerKg * quantity;
+
+                var tr = input.closest('tr');
+                var cell = tr ? tr.querySelector('.row-price') : null;
+                if (cell) cell.textContent = Math.round(rowPrice).toLocaleString('fa-IR') + ' تومان';
+
+                totalWeight += weight;
+                totalPrice += rowPrice;
+            });
+
+            var weightLabel = card.querySelector('.box-total-weight');
+            if (weightLabel) weightLabel.textContent = Math.round(totalWeight).toLocaleString('fa-IR') + ' گرم';
+            var priceLabel = card.querySelector('.box-total-price');
+            if (priceLabel) priceLabel.textContent = Math.round(totalPrice).toLocaleString('fa-IR') + ' تومان';
+
+            // اگر مدیر خودش وزن/قیمت نهایی را تغییر داده باشد، مقدار او دست‌نخورده می‌ماند
+            var finalWeight = card.querySelector('.final-weight-input');
+            var finalPrice = card.querySelector('.final-price-input');
+            if (finalWeight && finalWeight.dataset.manual !== '1') finalWeight.value = Math.round(totalWeight);
+            if (finalPrice && finalPrice.dataset.manual !== '1') finalPrice.value = Math.round(totalPrice);
+
+            refreshCalcMode(card);
+            refreshCapacityGuards();
+        }
+
+        // ============================================================
+        // ⛔ کنترل ظرفیت جعبه: وزن بیشتر از ظرفیت نوع جعبه قابل ثبت نیست
+        // (همین کنترل سمت سرور هم دوباره انجام می‌شود و مبنا همان است)
+        // ============================================================
+        function faNum(n) { return Math.round(n).toLocaleString('fa-IR'); }
+
+        // وزن مؤثر جعبه: بیشترین مقدار بین جمع وزن ردیف‌ها و وزن نهایی واردشده
+        function boxEffectiveWeight(card) {
+            var rowsWeight = 0;
+            card.querySelectorAll('.box-row-weight').forEach(function (input) {
+                rowsWeight += parseFloat(input.value) || 0;
+            });
+            var finalInput = card.querySelector('.final-weight-input');
+            var finalWeight = finalInput ? (parseFloat(finalInput.value) || 0) : 0;
+            return { rowsWeight: rowsWeight, finalWeight: finalWeight, effective: Math.max(rowsWeight, finalWeight) };
+        }
+
+        function checkBoxCapacity(card) {
+            var alertBox = card.querySelector('.box-capacity-alert');
+            if (!alertBox) return false;
+
+            var capacity = parseInt(alertBox.dataset.capacity, 10) || 0;
+            if (capacity <= 0) return false;
+
+            var w = boxEffectiveWeight(card);
+            var over = w.effective > capacity;
+
+            if (over)
+            {
+                var reason = w.rowsWeight > capacity
+                    ? 'جمع وزن ردیف‌ها ' + faNum(w.rowsWeight) + ' گرم است'
+                    : 'وزن نهایی واردشده ' + faNum(w.finalWeight) + ' گرم است';
+                alertBox.innerHTML = '⚠️ ' + reason + '، در حالی که ظرفیت ' +
+                    (alertBox.dataset.typeTitle || 'این جعبه') + ' فقط ' + faNum(capacity) +
+                    ' گرم است. تا اصلاح نشود، ثبت وزن انجام نمی‌شود (وزن ردیف‌ها را کم کنید یا با جعبه بزرگ‌تر وزن‌کشی کنید).';
+                alertBox.classList.remove('d-none');
+            }
+            else
+            {
+                alertBox.classList.add('d-none');
+            }
+
+            return over;
+        }
+
+        function refreshCapacityGuards() {
+            var over = false;
+            document.querySelectorAll('.box-card').forEach(function (card) {
+                if (checkBoxCapacity(card)) over = true;
+            });
+
+            // تا وقتی یک جعبه از ظرفیت گذشته، هیچ‌کدام از دکمه‌های ثبت کار نمی‌کنند
+            document.querySelectorAll('#finalizeWeightsForm button[type="submit"]').forEach(function (btn) {
+                btn.disabled = over;
+                btn.title = over ? 'ابتدا وزن بیش از ظرفیت جعبه را اصلاح کنید.' : '';
+            });
+
+            return over;
+        }
+
+        document.querySelectorAll('.box-card').forEach(function (card) {
+            card.querySelectorAll('.box-row-weight').forEach(function (input) {
+                input.addEventListener('input', function () { recalcBoxCard(card); });
+            });
+            card.querySelectorAll('.final-weight-input, .final-price-input').forEach(function (input) {
+                input.addEventListener('input', function () {
+                    input.dataset.manual = '1';
+                    refreshCalcMode(card);
+                });
+            });
+            var autoBtn = card.querySelector('.auto-calc-btn');
+            if (autoBtn) {
+                autoBtn.addEventListener('click', function () {
+                    card.querySelectorAll('.final-weight-input, .final-price-input').forEach(function (i) { i.dataset.manual = '0'; });
+                    recalcBoxCard(card);
+                });
+            }
+            recalcBoxCard(card);
+        });
+
+        // نگهبان دوم روی فرم: اگر با کلید میانبر یا Enter هم ارسال شود، جلوی ثبت گرفته می‌شود
+        var finalForm = document.getElementById('finalizeWeightsForm');
+        if (finalForm) {
+            finalForm.addEventListener('submit', function (e) {
+                if (refreshCapacityGuards()) {
+                    e.preventDefault();
+                    alert('⛔ وزن یک یا چند جعبه از ظرفیت آن نوع جعبه بیشتر است؛ ابتدا وزن‌ها را اصلاح کنید.');
+                }
+            });
+        }
     </script>
 }

@@ -1,0 +1,442 @@
+﻿@using SugarShop.Web.Extensions
+@model SugarShop.Web.ViewModels.StagePaymentViewModel
+@{
+    Layout = null;
+    string Toman(decimal t) => t.ToString("N0").ToPersianNumber() + " تومان";
+    bool hasFinalizedBoxes = Model.Boxes.Any(b => b.IsFinalized);
+    bool hasPendingBoxes = Model.Boxes.Any(b => !b.IsFinalized);
+    bool isFirstStage = !hasFinalizedBoxes && hasPendingBoxes;
+
+    // حالت «لینک اختصاصی»: مشتری از پیامک آمده و وارد حساب نشده، پس دکمه‌های دانلود باید از توکن استفاده کنند
+    bool isPublicLink = !string.IsNullOrWhiteSpace(Model.PublicToken);
+    string? pdfUrl = isPublicLink
+        ? Url.Action("PublicStatementPdf", "Payment", new { token = Model.PublicToken })
+        : Url.Action("StatementPdf", "Payment", new { orderId = Model.OrderId });
+    string? excelUrl = isPublicLink
+        ? Url.Action("PublicStatementExcel", "Payment", new { token = Model.PublicToken })
+        : Url.Action("StatementExcel", "Payment", new { orderId = Model.OrderId });
+    string stageTitle = isFirstStage
+        ? "صورت‌حساب پرداخت مرحله اول (بخش قیمت‌ثابت)"
+        : (hasPendingBoxes ? "صورت‌حساب پرداخت مرحله دوم (بخشی از جعبه‌ها)" : "صورت‌حساب پرداخت مرحله دوم (جعبه‌های وزن‌کشی‌شده)");
+
+}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>صورت‌حساب پرداخت سفارش @Model.OrderCode</title>
+    @* این صفحه چیدمان سایت را ندارد، پس حالت «داخل اپ / مرورگر» را خودش تعیین می‌کند *@
+    <script src="~/js/app-mode.js" asp-append-version="true"></script>
+    @if (isPublicLink)
+    {
+        @* سند شخصی با لینک اختصاصی باز شده است: نباید در موتورهای جست‌وجو یا کش واسط بماند *@
+        <meta name="robots" content="noindex, nofollow, noarchive" />
+    }
+    <style>
+        @@font-face {
+            font-family: 'Vazir';
+            src: url('/fonts/Vazir/Vazir.woff2') format('woff2');
+            font-weight: 100 900;
+            font-display: swap;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: "Vazir", Tahoma, sans-serif;
+            direction: rtl;
+            background: #f4f4f4;
+            color: #000;
+            margin: 0;
+            padding: 16px;
+            font-size: 13px;
+        }
+
+        .toolbar {
+            max-width: 210mm;
+            margin: 0 auto 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 10px 14px;
+        }
+
+        .toolbar button, .toolbar a {
+            font-family: inherit;
+            font-size: 13px;
+            padding: 7px 14px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            background: #fff;
+            color: #222;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .toolbar button.primary, .toolbar a.primary { background: #1e9e50; border-color: #1e9e50; color: #fff; font-weight: 700; }
+
+        /* ── کارت پرداخت (فقط روی صفحه، در چاپ دیده نمی‌شود) ── */
+        .pay-card {
+            max-width: 210mm;
+            margin: 0 auto 14px;
+            background: #fff;
+            border: 2px solid #1e9e50;
+            border-radius: 12px;
+            padding: 12px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .pay-card__amount { font-size: 16px; font-weight: 700; color: #14663a; }
+        .pay-card__hint { font-size: 12px; color: #555; margin-top: 3px; }
+
+        .pay-card__btn {
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 700;
+            padding: 11px 22px;
+            border: none;
+            border-radius: 10px;
+            background: #1e9e50;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .pay-card__btn:hover { background: #177f40; }
+
+        .doc {
+            width: 210mm;
+            margin: 0 auto 18px;
+            background: #fff;
+            border: 2px solid #000;
+            padding: 10mm 8mm;
+        }
+
+        .doc-head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #000; padding-bottom: 4mm; }
+        .brand { font-size: 18px; font-weight: 700; }
+        .doc-type { font-size: 12.5px; color: #333; margin-top: 2px; }
+        .order-badge { border: 2px solid #000; padding: 3mm 4mm; text-align: center; }
+        .order-badge .code { font-size: 16px; font-weight: 700; letter-spacing: 1px; }
+        .order-badge .caption { font-size: 11px; color: #444; }
+
+        .meta { display: flex; flex-wrap: wrap; gap: 2mm 8mm; font-size: 12.5px; line-height: 1.9; margin: 4mm 0; }
+        .meta div span { color: #555; }
+
+        h3 { font-size: 13.5px; margin: 6mm 0 2mm; border-right: 4px solid #000; padding-right: 2mm; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th, td { border: 1px solid #000; padding: 1.8mm 2mm; text-align: center; }
+        th { background: #e8e8e8; font-weight: 700; }
+        td.name { text-align: right; }
+        tfoot td { background: #f6f6f6; font-weight: 700; }
+        .box-note { font-size: 11.5px; color: #555; margin: 1.5mm 0 0; }
+
+        .summary { margin-top: 6mm; }
+        .summary td:first-child { text-align: right; }
+        .summary td:last-child { width: 40mm; text-align: left; }
+        .summary tr.total td { background: #ececec; font-weight: 700; }
+        .summary tr.payable td { background: #e6f4ea; font-weight: 700; font-size: 15px; }
+
+        .foot-note { margin-top: 6mm; font-size: 11.5px; color: #444; border-top: 1px dashed #999; padding-top: 3mm; }
+        .sign { margin-top: 8mm; display: flex; justify-content: space-between; font-size: 12px; }
+        .sign div { width: 46%; border: 1px solid #000; padding: 12mm 4mm; text-align: center; }
+
+        @@page { size: A4 portrait; margin: 8mm; }
+
+        @@media print {
+            body { background: #fff; padding: 0; }
+            .no-print { display: none !important; }
+            .doc { width: 100%; margin: 0; border: none; padding: 0; }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; }
+        }
+
+        @@media screen and (max-width: 900px) {
+            .doc { width: 100%; }
+        }
+
+        /* حالت «داخل اپ» را کامپوننت AppLinkBar روی <html> می‌گذارد؛ در آن حالت دعوت به ورود لازم نیست */
+        html[data-app-mode="inapp"] .browser-only { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="toolbar no-print">
+        <div>
+            <strong>🧾 صورت‌حساب پرداخت سفارش @Model.OrderCode</strong>
+            <span style="color:#666;font-size:12px;">— قابل چاپ و ذخیره به‌صورت PDF</span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <a class="primary" href="@pdfUrl">⬇️ دانلود PDF</a>
+            <button type="button" onclick="window.print()">🖨️ چاپ</button>
+            <a href="@excelUrl">⬇️ دانلود اکسل</a>
+            @if (!isPublicLink)
+            {
+                <a href="@Url.Action("Confirm", "Payment", new { orderId = Model.OrderId })">🔙 بازگشت به صفحه پرداخت</a>
+            }
+        </div>
+    </div>
+
+    @if (isPublicLink)
+    {
+        <div class="no-print" style="max-width:210mm;margin:0 auto 12px;background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:10px 14px;font-size:12.5px;line-height:1.9;">
+            🔒 این سند با <strong>لینک اختصاصی پیامکی</strong> شما باز شده است و کسی جز شما آن را نمی‌بیند.
+            @if (!string.IsNullOrWhiteSpace(Model.LinkExpiresAtText))
+            {
+                <span>این لینک تا <strong>@Model.LinkExpiresAtText</strong> معتبر است.</span>
+            }
+            @* حالت مرورگر: دعوت به ورود برای دیدن همیشگی سفارش‌ها.
+               داخل اپ این خط پنهان می‌شود (data-app-mode توسط کامپوننت زیر تعیین می‌شود). *@
+            <span class="browser-only">
+                برای دیدن همیشگی سفارش‌ها و صورت‌حساب‌ها
+                <a href="@Url.Action("Login", "Account", new { returnUrl = Url.Action("PublicStatement", "Payment", new { token = Model.PublicToken }) })">وارد حساب خود شوید</a>.
+            </span>
+
+            @* دکمه «باز کردن در اپلیکیشن» (مرورگر اندرویدی) و راهنمای داخل‌اپ: همان کامپوننت صفحات دیگر *@
+            <vc:app-link-bar order-id="@Model.OrderId" />
+        </div>
+    }
+
+    @* ── نتیجه پرداخت: مشتری بدون ورود پرداخت کرده و از درگاه به همین صفحه برگشته است ── *@
+    @if (TempData["Success"] != null || TempData["Info"] != null || TempData["Error"] != null)
+    {
+        var isError = TempData["Error"] != null;
+        var tint = isError
+            ? "background:#fdecea;border:1px solid #f5c6cb;color:#a02020;"
+            : "background:#e6f4ea;border:1px solid #b7e1c1;color:#1b6b34;";
+        <div class="no-print" style="max-width:210mm;margin:0 auto 12px;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600;@tint">
+            @(TempData["Error"] ?? TempData["Info"] ?? TempData["Success"])
+        </div>
+    }
+
+    @* ── پرداخت یک‌کلیکی بدون ورود ──
+       مشتری از پیامک آمده، ریز وزن/قیمت را دیده و همین‌جا پرداخت می‌کند؛ «ورود» از وسط مسیر حذف شده است.
+       این کارت فقط روی صفحه دیده می‌شود و در چاپ/PDF نمی‌آید. *@
+    @if (isPublicLink && Model.CanPayNow)
+    {
+        <div class="no-print pay-card">
+            <div>
+                <div class="pay-card__amount">مبلغ قابل پرداخت: @Toman(Model.PayableNow)</div>
+                <div class="pay-card__hint">
+                    @if (Model.PayFromPublicLink)
+                    {
+                        <span>برای تکمیل سفارش، همین حالا پرداخت کنید — بدون نیاز به ورود.</span>
+                    }
+                    else
+                    {
+                        <span>این سفارش در انتظار پرداخت است؛ با یک کلیک به درگاه بانک می‌روید.</span>
+                    }
+                </div>
+            </div>
+            <form method="post" action="@Url.Action("PublicPay", "Payment", new { token = Model.PublicToken })">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="pay-card__btn">💳 پرداخت آنلاین</button>
+            </form>
+        </div>
+    }
+
+    <div class="doc">
+        <div class="doc-head">
+            <div>
+                <div class="brand">@Model.StoreName</div>
+                <div class="doc-type">@stageTitle</div>
+                @if (!string.IsNullOrWhiteSpace(Model.StorePhone))
+                {
+                    <div class="doc-type">تلفن: @Model.StorePhone.ToPersianNumber()</div>
+                }
+            </div>
+            <div class="order-badge">
+                <div class="caption">شماره سفارش</div>
+                <div class="code">@Model.OrderCode.ToPersianNumber()</div>
+            </div>
+        </div>
+
+        <div class="meta">
+            <div><span>مشتری:</span> @(string.IsNullOrWhiteSpace(Model.CustomerName) ? "-" : Model.CustomerName)</div>
+            <div><span>تاریخ سفارش:</span> @Model.OrderDate.ToPersianNumber()</div>
+            <div><span>شیوه تحویل:</span> @Model.DeliveryMethodText</div>
+            <div><span>تاریخ صدور سند:</span> @Model.PrintDate.ToPersianNumber()</div>
+        </div>
+
+        @if (Model.Boxes.Any())
+        {
+            <h3>📦 @(isFirstStage ? "جعبه‌های شیرینی (پرداخت در مرحله دوم پس از وزن‌کشی)" : "ریز وزن و قیمت جعبه‌های شیرینی")</h3>
+            foreach (var box in Model.Boxes)
+            {
+                <table style="margin-bottom:3mm;">
+                    <thead>
+                        <tr>
+                            <th style="width:9%;">ردیف</th>
+                            <th>🍪 شیرینی</th>
+                            <th style="width:9%;">تعداد</th>
+                            <th style="width:18%;">⚖️ وزن (گرم)</th>
+                            <th style="width:24%;">💰 قیمت این ردیف</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ int rowNo = 1; }
+                        @foreach (var line in box.Rows)
+                        {
+                            <tr>
+                                <td>@rowNo.ToPersianNumber()</td>
+                                <td class="name">@line.Name</td>
+                                <td>@line.Quantity.ToPersianNumber()</td>
+                                <td>
+                                    @(line.WeightGrams.HasValue ? line.WeightGrams.Value.ToPersianNumber() : "-")
+                                    @if (line.IsApproximate)
+                                    {
+                                        <span> (تقریبی)</span>
+                                    }
+                                </td>
+                                <td>@Toman(line.TotalPrice)</td>
+                            </tr>
+                            rowNo++;
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="3" class="name">جمع ردیف‌های @box.BoxTitle (جعبه @box.BoxNumber.ToPersianNumber() از @box.BoxCount.ToPersianNumber())</td>
+                            <td>@box.RowsWeightGrams.ToPersianNumber() گرم</td>
+                            <td>@Toman(box.RowsPrice)</td>
+                        </tr>
+                        @if (box.IsFinalized)
+                        {
+                            <tr>
+                                <td colspan="3" class="name">⚖️ وزن نهایی و 💰 مبلغ نهایی این جعبه (مبنای پرداخت)</td>
+                                <td>@(box.FinalWeightGrams ?? 0).ToPersianNumber() گرم</td>
+                                <td>@Toman(box.FinalPrice ?? 0)</td>
+                            </tr>
+                        }
+                    </tfoot>
+                </table>
+                if (!box.IsFinalized)
+                {
+                    <p class="box-note">این جعبه هنوز وزن‌کشی/ثبت نشده است؛ وزن و قیمت بالا تقریبی است و مرحله بعد تسویه می‌شود.</p>
+                }
+                else if (box.RowsPrice != (box.FinalPrice ?? 0))
+                {
+                    <p class="box-note">مبلغ نهایی این جعبه توسط فروشگاه ثبت شده است؛ جمع ردیف‌ها (@Toman(box.RowsPrice)) ممکن است کمی تفاوت داشته باشد و مبنای دریافتی، مبلغ نهایی جعبه است.</p>
+                }
+            }
+        }
+
+        @if (Model.Products.Any())
+        {
+            <h3>🛍️ محصولات قیمت‌ثابت</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>محصول</th>
+                        <th style="width:10%;">تعداد</th>
+                        <th style="width:22%;">قیمت واحد</th>
+                        <th style="width:22%;">جمع</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var product in Model.Products)
+                    {
+                        <tr>
+                            <td class="name">@product.Name</td>
+                            <td>@product.Quantity.ToPersianNumber()</td>
+                            <td>@Toman(product.UnitPrice)</td>
+                            <td>@Toman(product.TotalPrice)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        <h3>🧾 جمع‌بندی مبلغ</h3>
+        <table class="summary">
+            <tbody>
+                @if (Model.FinalizedBoxTotal > 0)
+                {
+                    <tr>
+                        <td>جمع جعبه‌های وزن‌کشی‌شده @(Model.HasUnfinalizedBoxes ? "(فقط جعبه‌های نهایی‌شده)" : "")</td>
+                        <td>@Toman(Model.FinalizedBoxTotal)</td>
+                    </tr>
+                }
+                @if (Model.Products.Any())
+                {
+                    <tr>
+                        <td>جمع محصولات قیمت‌ثابت</td>
+                        <td>@Toman(Model.ProductTotal)</td>
+                    </tr>
+                }
+                <tr class="total">
+                    <td>جمع کالاها</td>
+                    <td>@Toman(Model.GoodsTotal)</td>
+                </tr>
+                @if (Model.DiscountAmount > 0)
+                {
+                    <tr>
+                        <td>کد تخفیف</td>
+                        <td>− @Toman(Model.DiscountAmount)</td>
+                    </tr>
+                }
+                <tr>
+                    <td>هزینه ارسال با پیک @(Model.IsDeliveryFree ? "(ارسال رایگان)" : "")</td>
+                    <td>
+                        @if (Model.IsDeliveryFree)
+                        {
+                            <span style="text-decoration: line-through; color:#777;">@Toman(Model.StoredDeliveryFee)</span>
+                            <span> ۰ تومان</span>
+                        }
+                        else
+                        {
+                            @Toman(Model.DeliveryFee)
+                        }
+                    </td>
+                </tr>
+                <tr class="total">
+                    <td>مبلغ کل سفارش تا این لحظه</td>
+                    <td>@Toman(Model.GrandTotal)</td>
+                </tr>
+                @if (Model.PaidTotal > 0)
+                {
+                    <tr>
+                        <td>
+                            پرداخت‌های قبلی
+                            @foreach (var payment in Model.PreviousPayments)
+                            {
+                                <span style="display:block;font-size:11px;color:#666;">
+                                    @payment.Date.ToPersianNumber() — @payment.Provider — @Toman(payment.Amount)
+                                </span>
+                            }
+                        </td>
+                        <td>− @Toman(Model.PaidTotal)</td>
+                    </tr>
+                }
+                <tr class="payable">
+                    <td>💰 @(hasFinalizedBoxes ? "مبلغ قابل پرداخت در این مرحله" : "مبلغ قابل پرداخت در مرحله اول")</td>
+                    <td>@Toman(Model.PayableNow)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p class="foot-note">
+            این سند ریز مبلغ پرداخت سفارش شماست و اعداد آن از همان محاسبه‌ای می‌آید که مبلغ دریافتی درگاه را تعیین می‌کند.
+            @if (Model.HasUnfinalizedBoxes)
+            {
+                <span>
+                    جعبه‌های شیرینی که هنوز وزن‌کشی نشده‌اند در این مبلغ لحاظ نشده‌اند و پس از وزن‌کشی، صورت‌حساب مرحله بعد
+                    با همین ریز جزئیات صادر و مبلغ آن دریافت می‌شود.
+                </span>
+            }
+        </p>
+
+        <div class="sign">
+            <div>امضای مشتری</div>
+            <div>مهر و امضای فروشگاه</div>
+        </div>
+    </div>
+</body>
+</html>

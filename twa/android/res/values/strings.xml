@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="splash_app_name">شیرینی سرای ایران</string>
+    <string name="splash_loading">در حال بارگذاری فروشگاه…</string>
+    <string name="offline_title">اتصال برقرار نشد</string>
+    <string name="offline_message">اینترنت در دسترس نیست یا سرور در دسترس قرار ندارد. لطفاً اتصال اینترنت خود را بررسی کنید.</string>
+    <string name="offline_retry">تلاش مجدد</string>
+    <string name="offline_autoretry_hint">اگر اینترنت برگردد، صفحه خودکار بارگذاری می‌شود</string>
+    <string name="offline_still_no_internet">هنوز اینترنتی در دسترس نیست</string>
+    <string name="offline_server_down">سرور فروشگاه در حال حاضر پاسخ نمی‌دهد. کمی بعد دوباره تلاش کنید.</string>
+    <string name="offline_dns_fail">آدرس فروشگاه پیدا نشد. اتصال اینترنت را بررسی کنید.</string>
+    <string name="offline_ssl_title">اتصال امن برقرار نشد. لطفاً بعداً تلاش کنید.</string>
+
+    <!-- صفحه‌ی تشخیص خطا -->
+    <string name="diag_title">راه‌اندازی اپلیکیشن با مشکل مواجه شد</string>
+    <string name="diag_hint_webview">احتمالاً مؤلفه‌ی «Android System WebView» روی گوشی شما غیرفعال یا قدیمی است.\n\nتنظیمات گوشی ← برنامه‌ها ← «Android System WebView» ← اگر غیرفعال است فعالش کنید، یا «به‌روزرسانی» را بزنید. سپس اپ را دوباره باز کنید.</string>
+    <string name="diag_hint_other">لطفاً یک‌بار دیگر تلاش کنید. اگر مشکل ادامه داشت، جزئیات فنی زیر برای پشتیبانی فروشگاه بفرستید.</string>
+    <string name="diag_saved_note">جزئیات خطا برای پشتیبانی قابل ارسال است.</string>
+
+    <!-- قفل بیومتریک اپ -->
+    <string name="biometric_title">ورود با اثر انگشت</string>
+    <string name="biometric_hint">برای باز کردن فروشگاه، اثر انگشت خود را لمس کنید</string>
+    <string name="biometric_button">🔓 باز کردن با اثر انگشت</string>
+    <string name="biometric_disable">غیرفعال کردن قفل اثر انگشت</string>
+    <string name="biometric_ok">✅ تأیید شد</string>
+    <string name="biometric_fail">اثر انگشت شناخته نشد؛ دوباره تلاش کنید</string>
+    <string name="biometric_disabled_by_user">قفل اثر انگشت خاموش شد — هر زمان خواستید از تنظیمات اپ فعالش کنید</string>
+    <string name="biometric_prefs">app_lock</string>
+    <string name="biometric_prefs_key">biometric_enabled</string>
+</resources>

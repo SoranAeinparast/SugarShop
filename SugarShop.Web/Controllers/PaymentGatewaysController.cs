@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SugarShop.Domain.Entities.Sales;
 using SugarShop.Infrastructure.Persistence.Sales;
 using SugarShop.Web.ViewModels;
@@ -12,10 +13,12 @@ namespace SugarShop.Web.Controllers
     public class PaymentGatewaysController : Controller
     {
         private readonly SugarShopSalesDbContext _context;
+        private readonly ILogger<PaymentGatewaysController> _logger;
 
-        public PaymentGatewaysController(SugarShopSalesDbContext context)
+        public PaymentGatewaysController(SugarShopSalesDbContext context, ILogger<PaymentGatewaysController> logger)
         {
             _context = context;
+            _logger = logger;
         }
         public async Task<IActionResult> Index()
         {
@@ -98,16 +101,10 @@ namespace SugarShop.Web.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> CreateGateway(PaymentGateway model)
         {
-            Console.WriteLine("=== CreateGateway called ===");
-            Console.WriteLine($"Model: Name={model.Name}, Title={model.Title}, GatewayType={model.GatewayType}");
-
             if (!ModelState.IsValid)
             {
-                Console.WriteLine("ModelState is invalid!");
-                foreach (var error in ModelState.Values.SelectMany(v => v.Errors))
-                {
-                    Console.WriteLine($"Error: {error.ErrorMessage}");
-                }
+                _logger.LogWarning("CreateGateway با مدل نامعتبر فراخوانی شد: {Errors}",
+                    string.Join(" | ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
                 TempData["Error"] = "اطلاعات وارد شده معتبر نیست. لطفاً خطاها را بررسی کنید.";
                 return View(model);
             }
@@ -118,13 +115,12 @@ namespace SugarShop.Web.Controllers
                 model.UpdatedAt = DateTime.UtcNow;
                 _context.PaymentGateways.Add(model);
                 await _context.SaveChangesAsync();
-                Console.WriteLine("Gateway saved successfully!");
                 TempData["Success"] = "درگاه جدید با موفقیت اضافه شد.";
                 return RedirectToAction(nameof(Index));
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Exception: {ex.Message}");
+                _logger.LogError(ex, "ذخیره درگاه پرداخت جدید ناموفق بود");
                 TempData["Error"] = $"خطا در ذخیره‌سازی: {ex.Message}";
                 return View(model);
             }
@@ -142,15 +138,10 @@ namespace SugarShop.Web.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> CreateAccount(PaymentGatewayAccount model, string configJson)
         {
-            Console.WriteLine("CreateAccount called");
-            Console.WriteLine($"ModelState.IsValid: {ModelState.IsValid}");
-
             if (!ModelState.IsValid)
             {
-                foreach (var error in ModelState.Values.SelectMany(v => v.Errors))
-                {
-                    Console.WriteLine($"Validation error: {error.ErrorMessage}");
-                }
+                _logger.LogWarning("CreateAccount با مدل نامعتبر فراخوانی شد: {Errors}",
+                    string.Join(" | ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
                 var gateway = await _context.PaymentGateways.FindAsync(model.GatewayId);
                 ViewBag.Gateway = gateway;
                 return View(model);
@@ -255,7 +246,7 @@ namespace SugarShop.Web.Controllers
                             if (root.TryGetProperty("MerchantId", out var mid) && mid.ValueKind == JsonValueKind.String)
                                 model.MerchantId = mid.GetString();
                             if (root.TryGetProperty("Mode", out var mode) && mode.ValueKind == JsonValueKind.String)
-                                model.Mode = mode.GetString();
+                                model.Mode = mode.GetString()!;
                         }
                         catch
                         {

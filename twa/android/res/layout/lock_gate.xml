@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- دروازه‌ی قفل اپ با اثر انگشت — روی WebView می‌نشیند تا کاربر احراز شود -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/lockGate"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="#FFF8F0"
+    android:padding="32dp"
+    android:visibility="gone">
+
+    <ImageView
+        android:layout_width="96dp"
+        android:layout_height="96dp"
+        android:src="@drawable/splash_logo"
+        android:contentDescription="@string/splash_app_name"
+        android:layout_marginBottom="18dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/splash_app_name"
+        android:textColor="#6D3410"
+        android:textSize="19sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="26dp" />
+
+    <ImageView
+        android:id="@+id/lockFingerprintIcon"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:src="@android:drawable/ic_lock_idle_lock"
+        android:tint="#8B4513"
+        android:contentDescription="@string/biometric_title"
+        android:layout_marginBottom="14dp" />
+
+    <TextView
+        android:id="@+id/txtLockHint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/biometric_hint"
+        android:textColor="#7A6A5F"
+        android:textSize="15sp"
+        android:gravity="center"
+        android:layout_marginBottom="26dp" />
+
+    <Button
+        android:id="@+id/btnLockUnlock"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minWidth="220dp"
+        android:text="@string/biometric_button"
+        android:textColor="#FFFFFF"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:background="@drawable/btn_retry_bg" />
+
+    <TextView
+        android:id="@+id/btnLockDisable"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/biometric_disable"
+        android:textColor="#8D6E63"
+        android:textSize="13sp"
+        android:padding="10dp"
+        android:layout_marginTop="10dp" />
+</LinearLayout>

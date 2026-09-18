@@ -9,6 +9,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - پنل مدیریت</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.rtl.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/bootstrap-icons.css" />
     <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/lib/persian-datepicker/css/persian-datepicker.css" />
     <style>
@@ -137,13 +138,16 @@
                         
                         <li class="nav-divider">تنظیمات</li>
                         <li><a asp-area="" asp-controller="SiteSettings" asp-action="Index">⚙️ <span>تنظیمات سایت</span></a></li>
+                        <li><a asp-area="" asp-controller="Admin" asp-action="Settings">🧾 <span>تنظیمات فروشگاه (ارسال رایگان/کش‌بک)</span></a></li>
                         <li><a asp-area="" asp-controller="Newsletter" asp-action="Settings">⚙️ <span>تنظیمات ایمیل</span></a></li>
                         <li><a asp-area="Admin" asp-controller="ContactSettings" asp-action="Messages">📨 <span>پیام‌های فرم تماس</span></a></li>
                         <li><a asp-area="" asp-controller="Menu" asp-action="Index">📋 <span>مدیریت منو</span></a></li>
                         <li><a asp-area="" asp-controller="PaymentGateways" asp-action="Index">💳 <span>مدیریت درگاه‌ها</span></a></li>
                         <li><a asp-area="" asp-controller="PaymentGateways" asp-action="ZibalSettings">🔑 <span>تنظیم کلید درگاه زیبال</span></a></li>
                         <li><a asp-area="" asp-controller="Wallet" asp-action="Index">💰 <span>مدیریت کیف پول</span></a></li>
+                        <li><a asp-area="" asp-controller="SmsSettings" asp-action="Index">📱 <span>تنظیمات سامانه پیامکی</span></a></li>
                         <li><a asp-area="Admin" asp-controller="EducationalContent" asp-action="Index">📚 <span>مدیریت محتوای آموزشی</span></a></li>
+                        <li><a asp-area="Admin" asp-controller="EducationalHeaderSettings" asp-action="Index">🎓 <span>تنظیمات هدر صفحه آموزش</span></a></li>
                         <li><a asp-area="Admin" asp-controller="AIContentSettings" asp-action="Index">🤖 <span>تنظیمات تولید محتوای هوشمند</span></a></li>
                     }
                 </ul>
@@ -281,6 +285,7 @@
 // ============================================================
 let currentTargetInput = null;
 let currentPreviewImg = null;
+let mediaPickerModal = null;
 
 $(document).on('click', '.open-media-picker', function(e) {
     e.preventDefault();
@@ -295,8 +300,12 @@ $(document).on('click', '.open-media-picker', function(e) {
     currentTargetInput = targetSelector ? $(targetSelector) : null;
     currentPreviewImg = previewSelector ? $(previewSelector) : null;
 
-    // باز کردن مودال و بارگذاری داده‌ها
-    $('#mediaPickerModal').modal('show');
+    // باز کردن مودال و بارگذاری داده‌ها (API استاندارد Bootstrap 5)
+    if (!mediaPickerModal) {
+        const modalEl = document.getElementById('mediaPickerModal');
+        if (modalEl) mediaPickerModal = new bootstrap.Modal(modalEl);
+    }
+    if (mediaPickerModal) mediaPickerModal.show();
     loadPickerFiles();
 });
 
@@ -373,8 +382,8 @@ $(document).on('click', '.media-picker-item', function() {
         }
     }
 
-    // . بستن مودال
-    $('#mediaPickerModal').modal('hide');
+    // بستن مودال
+    if (mediaPickerModal) mediaPickerModal.hide();
 });
 
 // فیلتر کردن در داخل مودال

@@ -181,6 +181,47 @@ namespace SugarShop.Web.Controllers
             return PartialView("_BoxContent", state);
         }
         [HttpGet]
+        public async Task<IActionResult> GetMiniPanel()
+        {
+            var state = HttpContext.Session.GetBoxSessionState();
+
+            BoxType? selectedBoxType = null;
+            if (state.SelectedBoxTypeId.HasValue)
+            {
+                selectedBoxType = await _catalogDb.BoxTypes
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(b => b.Id == state.SelectedBoxTypeId.Value && b.IsActive);
+            }
+
+            var sweetItems = await _catalogDb.SweetItems
+                .AsNoTracking()
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.SortOrder)
+                .ToListAsync();
+
+            ViewBag.SelectedBoxType = selectedBoxType;
+            ViewBag.SweetItems = sweetItems;
+
+            return PartialView("_BoxMiniPanel", state);
+        }
+        [HttpGet]
+        public async Task<IActionResult> GetBoxSelectContent()
+        {
+            var state = HttpContext.Session.GetBoxSessionState();
+
+            var boxTypes = await _catalogDb.BoxTypes
+                .AsNoTracking()
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.SortOrder)
+                .ToListAsync();
+
+            ViewBag.BoxTypes = boxTypes;
+            ViewBag.SelectedBoxTypeId = state.SelectedBoxTypeId;
+            ViewBag.HasItems = state.Items.Count > 0;
+
+            return PartialView("_BoxSelectContent");
+        }
+        [HttpGet]
         public IActionResult GetCurrentBoxType()
         {
             var state = HttpContext.Session.GetBoxSessionState();
@@ -259,6 +300,14 @@ namespace SugarShop.Web.Controllers
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
+        public IActionResult CancelBox()
+        {
+            // انصراف کامل از فرآیند چیدن جعبه: جعبه انتخاب‌شده و همه ردیف‌ها حذف می‌شوند
+            HttpContext.Session.Remove(BoxSessionState.SessionKey);
+            return Ok();
+        }
+        [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> AddToCart(int? orderId = null)
         {
             var boxState = HttpContext.Session.GetBoxSessionState();
@@ -308,6 +357,12 @@ namespace SugarShop.Web.Controllers
             }
             else
             {
+                // 🔒 جعبه ناقص هرگز به سبد خرید منتقل نمی‌شود؛ فقط جعبه‌ای که ظرفیتش کامل شده است.
+                bool boxIsFull = (boxState.TotalRowsUsed >= boxType.MaxRows) ||
+                                 (boxState.TotalApproxWeightGrams >= boxType.CapacityGrams);
+                if (!boxIsFull)
+                    return BadRequest("جعبه هنوز کامل نشده است؛ ابتدا همه ردیف‌های جعبه را پر کنید و سپس آن را به سبد خرید منتقل کنید.");
+
                 var cartState = HttpContext.Session.GetCartSessionState();
                 var cartItem = new CartItem
                 {
@@ -320,8 +375,9 @@ namespace SugarShop.Web.Controllers
                 cartState.Items.Add(cartItem);
                 HttpContext.Session.SetCartSessionState(cartState);
 
-                boxState.Items.Clear();
-                HttpContext.Session.SetBoxSessionState(boxState);
+                // جعبه به سبد منتقل شد؛ وضعیت جعبه کاملاً پاک می‌شود تا دفعه بعد با انتخاب
+                // شیرینی، مودال انتخاب جعبه از نو باز شود (کار قبلی کنسل شده باشد).
+                HttpContext.Session.Remove(BoxSessionState.SessionKey);
 
                 return Ok(new { cartItemCount = cartState.TotalItems });
             }

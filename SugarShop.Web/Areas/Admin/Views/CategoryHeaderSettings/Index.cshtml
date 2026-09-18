@@ -28,7 +28,7 @@
                 <div class="col-md-9">
                     <label class="form-label fw-bold">دسته‌بندی مورد نظر:</label>
                     <select name="categoryId" class="form-select form-select-lg" onchange="this.form.submit()">
-                        @foreach (var cat in allCategories) { <option value="@cat.Id" @(selectedCategoryId == cat.Id ? "selected" : "")>@cat.TitleFa (@cat.Slug)</option> }
+                        @foreach (var cat in allCategories) { <option value="@cat.Id" selected="@(selectedCategoryId == cat.Id ? "selected" : null)">@cat.TitleFa (@cat.Slug)</option> }
                     </select>
                 </div>
                 <div class="col-md-3">

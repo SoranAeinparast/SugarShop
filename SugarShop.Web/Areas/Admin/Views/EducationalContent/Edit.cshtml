@@ -1,48 +1,130 @@
-﻿@model SugarShop.Domain.Entities.EducationalContent
+@model SugarShop.Domain.Entities.EducationalContent
 @{
     ViewData["Title"] = "ویرایش محتوای آموزشی";
     Layout = "_AdminLayout";
 }
-<div class="card">
-    <div class="card-header">
-        <h4>✏️ ویرایش محتوا</h4>
-    </div>
-    <div class="card-body">
-        <form asp-action="Edit" method="post">
-            @Html.AntiForgeryToken()
-            <input type="hidden" asp-for="Id" />
-            <div class="mb-3">
-                <label class="form-label">عنوان</label>
-                <input asp-for="Title" class="form-control" />
-            </div>
-            <div class="mb-3">
-                <label class="form-label">محتوا (HTML)</label>
-                <textarea asp-for="BodyHtml" class="form-control" rows="15"></textarea>
-            </div>
-            <div class="mb-3">
-                <label class="form-label">تصویر شاخص (URL)</label>
-                <input asp-for="FeaturedImageUrl" class="form-control" />
-                @if (!string.IsNullOrEmpty(Model.FeaturedImageUrl))
+<div class="container-fluid px-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h4 class="mb-0">✏️ ویرایش محتوا</h4>
+        <div class="d-flex gap-2">
+            <div class="d-flex gap-1 align-items-center">
+                @if (Model.IsPublished)
                 {
-                    <div class="mt-2">
-                        <img src="@Model.FeaturedImageUrl" style="max-height: 200px; max-width: 100%;" />
-                    </div>
+                    <span class="badge bg-success fs-6"><i class="bi bi-check-circle"></i> منتشر شده</span>
+                }
+                else
+                {
+                    <span class="badge bg-secondary fs-6"><i class="bi bi-file-earmark"></i> پیش‌نویس</span>
+                }
+                @if (Model.IsApproved)
+                {
+                    <span class="badge bg-info text-dark fs-6"><i class="bi bi-patch-check"></i> تایید شده</span>
+                }
+                else
+                {
+                    <span class="badge bg-warning text-dark fs-6"><i class="bi bi-hourglass"></i> تایید نشده</span>
                 }
             </div>
-            <div class="mb-3">
-                <label class="form-label">دسته‌بندی</label>
-                <input asp-for="Category" class="form-control" />
-            </div>
-            <div class="mb-3">
-                <label class="form-label">برچسب‌ها</label>
-                <input asp-for="Tags" class="form-control" />
-            </div>
-            <div class="mb-3 form-check">
-                <input asp-for="IsPublished" class="form-check-input" />
-                <label class="form-check-label">منتشر شده</label>
-            </div>
-            <button type="submit" class="btn btn-success">💾 ذخیره</button>
-            <a href="/Admin/EducationalContent" class="btn btn-secondary">بازگشت</a>
-        </form>
+            <a asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-arrow-right"></i> بازگشت</a>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <form asp-action="Edit" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="Id" />
+                <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label class="form-label">عنوان <span class="text-danger">*</span></label>
+                        <input asp-for="Title" class="form-control" required />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">دسته‌بندی</label>
+                        <input asp-for="Category" class="form-control" />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">محتوا <span class="text-danger">*</span></label>
+                        <partial name="_RichTextEditor" model="Model" />
+                        <small class="text-muted">
+                            ویرایشگر بصری — نیازی به دانش کدنویسی نیست. برای تصویر، دکمه <i class="bi bi-image"></i> را بزنید و از کتابخانه رسانه انتخاب کنید.
+                            محتوا به‌صورت خودکار پاک‌سازی امنیتی می‌شود.
+                        </small>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">تصویر شاخص</label>
+                        <div class="input-group">
+                            <input asp-for="FeaturedImageUrl" class="form-control" id="imgUrlInput" placeholder="/media/… یا https://…" />
+                            <button type="button" class="btn btn-outline-primary open-media-picker" data-target="#imgUrlInput" data-preview="#imgPreviewTag" title="انتخاب از کتابخانه رسانه">
+                                <i class="bi bi-images"></i> کتابخانه
+                            </button>
+                        </div>
+                        <small class="text-muted">تصویر دلخواه را از کتابخانه رسانه انتخاب کنید یا آدرس مستقیم وارد کنید.</small>
+                        <div id="imgPreview" class="d-none mt-2">
+                            <img id="imgPreviewTag" src="" alt="پیش‌نمایش تصویر شاخص"
+                                 style="max-height:180px;max-width:100%;border-radius:8px;border:1px solid #dee2e6;"
+                                 onerror="this.style.display='none';" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">برچسب‌ها</label>
+                        <input asp-for="Tags" class="form-control" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">توضیح متا (SEO)</label>
+                        <input asp-for="MetaDescription" class="form-control" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">یادداشت مدیر</label>
+                        <input asp-for="AdminNotes" class="form-control" />
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check form-switch">
+                            <input asp-for="IsPublished" class="form-check-input" />
+                            <label class="form-check-label" asp-for="IsPublished">منتشر شده (برای عموم قابل مشاهده)</label>
+                        </div>
+                        <small class="text-muted d-block">
+                            @if (!Model.IsApproved)
+                            {
+                                <text>⚠️ این محتوا هنوز تایید نشده است؛ انتشار آن فقط از لیست محتوا ممکن است.</text>
+                            }
+                            else
+                            {
+                                <text>✅ این محتوا تایید شده است و با فعال‌سازی گزینه بالا منتشر می‌شود.</text>
+                            }
+                        </small>
+                    </div>
+                    <div class="col-12 text-end">
+                        <button type="submit" class="btn btn-success px-5"><i class="bi bi-save"></i> ذخیره تغییرات</button>
+                    </div>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        $(function () {
+            var initial = $.trim($('#imgUrlInput').val());
+            if (initial) {
+                $('#imgPreviewTag').attr('src', initial).show();
+                $('#imgPreview').removeClass('d-none');
+            }
+            $('#imgUrlInput').on('input change', function () {
+                var val = $.trim($(this).val());
+                var $prev = $('#imgPreview');
+                var $tag = $('#imgPreviewTag');
+                if (val) {
+                    $tag.attr('src', val).show();
+                    $prev.removeClass('d-none');
+                } else {
+                    $prev.addClass('d-none');
+                }
+            });
+        });
+    </script>
+}

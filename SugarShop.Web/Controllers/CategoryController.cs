@@ -24,6 +24,19 @@ namespace SugarShop.Web.Controllers
             _salesDb = salesDb; // ✅ اضافه شد
         }
 
+        /// <summary>
+        /// صفحه‌ی «دسته‌بندی‌ها» برای نوار پایین اپ موبایل — همه دسته‌بندی‌های فعال را در یک گرید زیبا نشان می‌دهد.
+        /// </summary>
+        [HttpGet("/Category/All")]
+        public async Task<IActionResult> All()
+        {
+            var categories = await _catalogDb.Categories
+                .Where(c => c.IsActive)
+                .OrderBy(c => c.SortOrder)
+                .ToListAsync();
+            return View(categories);
+        }
+
         [HttpGet("/Category/{slug}")]
         public async Task<IActionResult> Index(string slug)
         {

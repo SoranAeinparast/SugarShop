@@ -1,4 +1,4 @@
-﻿@{
+@{
     ViewData["Title"] = "ورود / ثبت‌نام";
     Layout = "_Layout";
     var returnUrl = ViewData["ReturnUrl"] as string;
@@ -9,7 +9,7 @@
     .auth-header { background: linear-gradient(135deg, #d4a056 0%, #b8860b 100%); padding: 30px 20px; text-align: center; color: white; }
     .auth-header h2 { margin: 0; font-weight: 700; }
     .auth-tabs { display: flex; background: #f8f9fa; border-bottom: 2px solid #e9ecef; }
-    .auth-tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; font-weight: 600; color: #6c757d; transition: all 0.3s; border: none; background: none; }
+    .auth-tab { flex: 1; padding: 15px 6px; text-align: center; cursor: pointer; font-weight: 600; color: #6c757d; transition: all 0.3s; border: none; background: none; font-size: 0.9rem; }
     .auth-tab.active { color: #d4a056; background: white; border-bottom: 3px solid #d4a056; }
     .tab-content { display: none; padding: 30px; animation: fadeIn 0.4s ease; }
     .tab-content.active { display: block; }
@@ -25,23 +25,136 @@
     .form-options { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-size: 0.9rem; }
     .remember-me { display: flex; align-items: center; gap: 8px; cursor: pointer; color: #495057; }
     .remember-me input { width: 18px; height: 18px; accent-color: #d4a056; cursor: pointer; }
-    .forgot-password-link { color: #d4a056; text-decoration: none; font-weight: 600; }
+    .forgot-password-link { color: #d4a056; text-decoration: none; font-weight: 600; cursor: pointer; }
     .forgot-password-link:hover { text-decoration: underline; }
     .btn-auth { width: 100%; padding: 14px; background: linear-gradient(135deg, #d4a056 0%, #b8860b 100%); color: white; border: none; border-radius: 10px; font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 15px rgba(212, 160, 86, 0.3); }
     .btn-auth:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(212, 160, 86, 0.4); }
     .btn-auth:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
     .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; margin-left: 8px; vertical-align: middle; }
     @@keyframes spin { to { transform: rotate(360deg); } }
+    .otp-steps { position: relative; }
+    .otp-step { display: none; }
+    .otp-step.active { display: block; animation: fadeIn .35s ease; }
+    /* ── 📱 OTP حرفه‌ای ── */
+    .otp-hero { text-align: center; padding: 18px 0 6px; }
+    .otp-hero-icon {
+        width: 74px; height: 74px; margin: 0 auto 14px;
+        border-radius: 24px;
+        background: linear-gradient(135deg, #FFF3E0, #FFE0B2);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 2rem; color: #8B4513;
+        box-shadow: 0 8px 22px rgba(212,160,86,.25);
+        animation: otpPulse 2.4s ease-in-out infinite;
+    }
+    @@keyframes otpPulse { 0%,100% { transform: scale(1);} 50% { transform: scale(1.05);} }
+    .otp-hero h4 { font-weight: 800; color: #4E342E; margin-bottom: 6px; }
+    .otp-hero p { font-size: .92rem; color: #8D6E63; margin-bottom: 4px; }
+    .otp-hero b { color: #5D4037; letter-spacing: .5px; }
+    .otp-inputs { display: flex; gap: 7px; direction: ltr; justify-content: center; margin: 20px 0 8px; }
+    .otp-inputs input {
+        width: 48px; height: 58px; text-align: center;
+        font-size: 1.5rem; font-weight: 800; color: #4E342E;
+        border: 2px solid #EAD9C2; border-radius: 14px;
+        background: #FFFBF5; caret-color: #D4A056;
+        transition: all .18s ease;
+    }
+    .otp-inputs input:focus {
+        border-color: #D4A056; background: #fff; outline: none;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(212,160,86,.22);
+    }
+    .otp-inputs input.filled { border-color: #D4A056; background: #FFF; }
+    .otp-timer { text-align: center; color: #8D6E63; font-size: 0.87rem; margin-top: 12px; }
+    .otp-timer button {
+        background: none; border: none; color: #D4A056; font-weight: 700;
+        cursor: pointer; padding: 0;
+    }
+    .otp-timer button:disabled { color: #BCAAA4; cursor: not-allowed; }
+    .otp-timer button:not(:disabled):hover { text-decoration: underline; }
+    .phone-dir { direction: ltr; text-align: center; letter-spacing: 1px; }
+    .badge-new {
+        background: linear-gradient(135deg,#E8F5E9,#DCEDC8); color: #2E7D32;
+        border: 1px solid #A5D6A7;
+        border-radius: 999px; padding: 7px 16px; font-size: .84rem;
+        display: inline-block; margin-bottom: 6px;
+    }
+    .back-link {
+        background: none; border: none; color: #8D6E63; cursor: pointer;
+        font-size: .9rem; padding: 0; margin-bottom: 4px;
+        display: inline-flex; align-items: center; gap: 4px;
+    }
+    .back-link:hover { color: #D4A056; }
 </style>
 
 <div class="auth-page">
     <div class="auth-card">
         <div class="auth-header"><h2>@(ViewBag.SiteTitle ?? "شیرینی سرا ...")</h2><p>به خانواده ما خوش آمدید</p></div>
         <div class="auth-tabs">
-            <button class="auth-tab active" data-tab="login"><i class="bi bi-box-arrow-in-right"></i> ورود</button>
+            <button class="auth-tab active" data-tab="otp"><i class="bi bi-phone"></i> ورود سریع</button>
+            <button class="auth-tab" data-tab="login"><i class="bi bi-box-arrow-in-right"></i> ورود با رمز</button>
             <button class="auth-tab" data-tab="register"><i class="bi bi-person-plus"></i> ثبت‌نام</button>
         </div>
-        <div class="tab-content active" id="login-tab">
+
+        @* ─────────── تب ۱: ورود سریع با موبایل + کد ─────────── *@
+        <div class="tab-content active" id="otp-tab">
+            <div class="otp-steps">
+                <div class="otp-step active" id="otpStep1">
+                    <p class="text-muted" style="font-size:.9rem">شماره موبایل خود را وارد کنید؛ یک کد تأیید برای شما پیامک می‌شود.</p>
+                    @Html.AntiForgeryToken()
+                    <form id="otpRequestForm">
+                        <input type="hidden" name="returnUrl" value="@returnUrl" />
+                        <div class="form-group">
+                            <label class="form-label">شماره موبایل</label>
+                            <div class="input-wrapper">
+                                <i class="bi bi-phone input-icon"></i>
+                                <input type="tel" name="phone" id="otpPhone" class="form-control phone-dir" placeholder="0912 345 6789"
+                                       maxlength="14" required autocomplete="tel" />
+                            </div>
+                        </div>
+                        <button type="submit" class="btn-auth" id="otpRequestBtn">
+                            <i class="bi bi-shield-lock"></i> دریافت کد تأیید
+                        </button>
+                    </form>
+                </div>
+
+                <div class="otp-step" id="otpStep2">
+                    <button type="button" class="back-link" id="otpBack">← تغییر شماره</button>
+                    <div class="otp-hero">
+                        <div class="otp-hero-icon"><i class="bi bi-shield-lock-fill"></i></div>
+                        <h4>کد تأیید را وارد کنید</h4>
+                        <p>کد ۶ رقمی به شماره <b id="otpMasked" dir="ltr"></b> پیامک شد</p>
+                        <span class="badge-new" id="otpIsNew" style="display:none">🎉 حساب شما خودکار ساخته می‌شود؛ فقط کد را وارد کنید</span>
+                    </div>
+                    <form id="otpVerifyForm">
+                        <input type="hidden" name="returnUrl" value="@returnUrl" />
+                        <div class="otp-inputs" id="otpInputs">
+                            <input type="tel" maxlength="1" inputmode="numeric" autocomplete="one-time-code" />
+                            <input type="tel" maxlength="1" inputmode="numeric" />
+                            <input type="tel" maxlength="1" inputmode="numeric" />
+                            <input type="tel" maxlength="1" inputmode="numeric" />
+                            <input type="tel" maxlength="1" inputmode="numeric" />
+                            <input type="tel" maxlength="1" inputmode="numeric" />
+                        </div>
+                        <div class="otp-timer">
+                            <span id="otpTimerText"></span>
+                            <button type="button" id="otpResend" disabled>ارسال مجدد کد</button>
+                        </div>
+                        <div class="form-group mt-3" id="otpNameGroup" style="display:none">
+                            <label class="form-label">نام و نام خانوادگی شما</label>
+                            <div class="input-wrapper">
+                                <i class="bi bi-person input-icon"></i>
+                                <input type="text" id="otpFullName" class="form-control" placeholder="مثال: علی محمدی" />
+                            </div>
+                            <small class="text-muted">برای شخصی‌سازی پیامک‌ها و سفارش‌ها استفاده می‌شود.</small>
+                        </div>
+                        <button type="submit" class="btn-auth" id="otpVerifyBtn"><i class="bi bi-check-circle"></i> ورود</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        @* ─────────── تب ۲: ورود با نام کاربری/رمز (مخصوص مدیریت و کارکنان) ─────────── *@
+        <div class="tab-content" id="login-tab">
             <form id="loginForm">
                 <input type="hidden" name="ReturnUrl" value="@returnUrl" />
                 <div class="form-group">
@@ -65,19 +178,24 @@
                         <input type="checkbox" name="RememberMe" value="true" id="rememberMe" />
                         <span>مرا به خاطر بسپار</span>
                     </label>
-                    <a href="@Url.Action("ForgotPassword")" class="forgot-password-link">فراموشی رمز عبور؟</a>
+                    <a class="forgot-password-link" id="forgotBySmsLink">فراموشی رمز عبور؟</a>
                 </div>
                 <button type="submit" class="btn-auth" id="loginBtn"><i class="bi bi-box-arrow-in-right"></i> ورود به حساب</button>
             </form>
         </div>
+
+        @* ─────────── تب ۳: ثبت‌نام کامل ─────────── *@
         <div class="tab-content" id="register-tab">
+            <div class="text-center mb-3">
+                <small class="text-muted">راه سریع‌تر: از تب «ورود سریع» فقط با شماره موبایل ثبت‌نام کنید!</small>
+            </div>
             <form id="registerForm">
                 <input type="hidden" name="ReturnUrl" value="@returnUrl" />
                 <div class="form-group">
                     <label class="form-label">نام کاربری</label>
                     <div class="input-wrapper">
                         <i class="bi bi-person-badge input-icon"></i>
-                        <input type="text" name="Username" class="form-control" placeholder="مثال: Ali22 یا soran یا ..." required />
+                        <input type="text" name="Username" class="form-control" placeholder="مثال: Ali22" required />
                     </div>
                     <small class="text-muted" style="font-size: 0.75rem;">فقط حروف و اعداد انگلیسی</small>
                 </div>
@@ -87,8 +205,6 @@
                         <i class="bi bi-person input-icon"></i>
                         <input type="text" name="FullName" class="form-control" placeholder="نام کامل خود را وارد کنید" required />
                     </div>
-                    <small class="text-muted" style="font-size: 0.75rem;">استفاده از حروف فارسی مجاز است</small>
-
                 </div>
                 <div class="form-group">
                     <label class="form-label">ایمیل</label>
@@ -101,7 +217,7 @@
                     <label class="form-label">رمز عبور</label>
                     <div class="input-wrapper">
                         <i class="bi bi-lock input-icon"></i>
-                        <input type="password" name="Password" id="registerPassword" class="form-control" placeholder=" حداقل 6 کاراکتر - ترکیب حروف و اعداد" required />
+                        <input type="password" name="Password" id="registerPassword" class="form-control" placeholder="حداقل ۶ کاراکتر" required />
                         <button type="button" class="toggle-password" data-target="registerPassword"><i class="bi bi-eye"></i></button>
                     </div>
                 </div>
@@ -116,12 +232,49 @@
                 <button type="submit" class="btn-auth" id="registerBtn"><i class="bi bi-person-plus"></i> ثبت‌نام</button>
             </form>
         </div>
+
+        @* ─────────── بازیابی رمز با پیامک ─────────── *@
+        <div class="tab-content" id="forgot-tab">
+            <div class="otp-steps">
+                <div class="otp-step active" id="forgotStep1">
+                    <button type="button" class="back-link" id="forgotBack">← بازگشت به ورود</button>
+                    <h5 class="text-center mb-3">بازیابی رمز عبور با پیامک</h5>
+                    <form id="forgotSmsForm">
+                        <div class="form-group">
+                            <label class="form-label">شماره موبایل حساب</label>
+                            <div class="input-wrapper">
+                                <i class="bi bi-phone input-icon"></i>
+                                <input type="tel" name="phone" id="forgotPhone" class="form-control phone-dir" placeholder="09123456789" maxlength="14" required />
+                            </div>
+                        </div>
+                        <button type="submit" class="btn-auth" id="forgotBtn">دریافت کد بازیابی</button>
+                    </form>
+                </div>
+                <div class="otp-step" id="forgotStep2">
+                    <h5 class="text-center mb-3">کد بازیابی را وارد کنید</h5>
+                    <form id="forgotVerifyForm">
+                        <input type="hidden" name="phone" id="forgotPhoneHidden" />
+                        <div class="otp-inputs" id="forgotInputs">
+                            <input type="tel" maxlength="1" inputmode="numeric" />
+                            <input type="tel" maxlength="1" inputmode="numeric" />
+                            <input type="tel" maxlength="1" inputmode="numeric" />
+                            <input type="tel" maxlength="1" inputmode="numeric" />
+                            <input type="tel" maxlength="1" inputmode="numeric" />
+                            <input type="tel" maxlength="1" inputmode="numeric" />
+                        </div>
+                        <button type="submit" class="btn-auth mt-3" id="forgotVerifyBtn">تأیید و تغییر رمز</button>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
 @section Scripts {
 <script>
     $(function() {
+        var otpPhone = '', otpTimerInterval = null;
+
         $('.auth-tab').click(function() {
             var tabId = $(this).data('tab');
             $('.auth-tab').removeClass('active');
@@ -129,67 +282,241 @@
             $('.tab-content').removeClass('active');
             $('#' + tabId + '-tab').addClass('active');
         });
+
         $('.toggle-password').click(function() {
-            var targetId = $(this).data('target');
-            var $input = $('#' + targetId);
+            var $input = $('#' + $(this).data('target'));
             var $icon = $(this).find('i');
-            if ($input.attr('type') === 'password') {
-                $input.attr('type', 'text');
-                $icon.removeClass('bi-eye').addClass('bi-eye-slash');
-            } else {
-                $input.attr('type', 'password');
-                $icon.removeClass('bi-eye-slash').addClass('bi-eye');
-            }
+            if ($input.attr('type') === 'password') { $input.attr('type', 'text'); $icon.removeClass('bi-eye').addClass('bi-eye-slash'); }
+            else { $input.attr('type', 'password'); $icon.removeClass('bi-eye-slash').addClass('bi-eye'); }
         });
+
+        function err(msg) { Swal.fire({ icon: 'error', title: 'خطا', text: msg, confirmButtonColor: '#d4a056' }); }
+        function token() { return $('input[name="__RequestVerificationToken"]').first().val(); }
+
+        // ── OTP: درخواست کد ──
+        $('#otpRequestForm').submit(function(e) {
+            e.preventDefault();
+            var $btn = $('#otpRequestBtn');
+            $btn.prop('disabled', true).html('<span class="spinner"></span> در حال ارسال...');
+            $.post('/Account/RequestOtp', { phone: $('#otpPhone').val(), __RequestVerificationToken: token() })
+                .done(function(r) {
+                    if (r.success) {
+                        otpPhone = $('#otpPhone').val().replace(/\D/g, '');
+                        $('#otpMasked').text(r.maskedPhone || otpPhone);
+                        $('#otpIsNew').toggle(r.isNew);
+                        $('#otpNameGroup').toggle(r.isNew);
+                        $('#otpStep1').removeClass('active');
+                        $('#otpStep2').addClass('active');
+                        startTimer();
+                        $('#otpInputs input').first().focus();
+                        startOtpAutofill(); // ═══ خواندن خودکار کد از پیامک (داخل اپ اندروید) ═══
+                    } else err(r.message);
+                })
+                .fail(function() { err('خطا در ارتباط با سرور.'); })
+                .always(function() { $btn.prop('disabled', false).html('<i class="bi bi-shield-lock"></i> دریافت کد تأیید'); });
+        });
+
+        // ─────────────────────────────────────────────────────────────
+        // ورود خودکار با کد پیامکی (اپ اندروید): کد به‌محض رسیدن پیامک،
+        // در خانه‌ها ریخته می‌شود و فرم خودکار تأیید می‌گردد.
+        // ─────────────────────────────────────────────────────────────
+        var otpAutofillTimer = null;
+        function startOtpAutofill() {
+            stopOtpAutofill();
+            var bridge = window.SugarShopApp;
+            if (!bridge || !bridge.startOtpListener) return; // خارج از اپ: رفتار دستی
+            try { bridge.startOtpListener(); } catch (e) { return; }
+            var tries = 0;
+            otpAutofillTimer = setInterval(function () {
+                var code = '';
+                try { code = bridge.pollOtpCode() || ''; } catch (e) { code = ''; }
+                if (code.length === 6 && /^\d{6}$/.test(code)) {
+                    stopOtpAutofill();
+                    fillOtpCode(code);
+                    // کاربر جدید که هنوز نامش را وارد نکرده: فقط پر کردن کد — فرم دستی تأیید می‌شود
+                    if ($('#otpNameGroup').is(':visible') && !$('#otpFullName').val().trim()) return;
+                    // کمی تأخیر برای دیده‌شدن پرشدن خانه‌ها، بعد ارسال خودکار
+                    setTimeout(function () { $('#otpVerifyForm').submit(); }, 450);
+                } else if (++tries > 120) { // ۶۰ ثانیه بدون پیامک: گوش‌دادن را متوقف کن
+                    stopOtpAutofill();
+                }
+            }, 500);
+        }
+        function stopOtpAutofill() {
+            if (otpAutofillTimer) { clearInterval(otpAutofillTimer); otpAutofillTimer = null; }
+            try { if (window.SugarShopApp && window.SugarShopApp.stopOtpListener) window.SugarShopApp.stopOtpListener(); } catch (e) { }
+        }
+        function fillOtpCode(code) {
+            var inputs = $('#otpInputs input');
+            inputs.each(function (i) {
+                this.value = code[i] || '';
+                this.classList.toggle('filled', !!this.value);
+            });
+            inputs.last().focus();
+        }
+        // با تغییر شماره یا خروج از صفحه، گوش‌دادن متوقف شود
+        $('#otpBack').on('click', stopOtpAutofill);
+
+        $('#otpBack').click(function() {
+            clearInterval(otpTimerInterval);
+            $('#otpStep2').removeClass('active');
+            $('#otpStep1').addClass('active');
+        });
+
+        // ── خانه‌های کد: حرکت خودکار، انتخاب هنگام فوکوس، Backspace و Paste ──
+        $('.otp-inputs input').on('input', function() {
+            this.value = this.value.replace(/\D/g, '');
+            this.classList.toggle('filled', !!this.value);
+            if (this.value && this.nextElementSibling) this.nextElementSibling.focus();
+        }).on('focus', function() { this.select(); }).on('keydown', function(e) {
+            if (e.key === 'Backspace' && !this.value && this.previousElementSibling) {
+                this.previousElementSibling.focus();
+                this.previousElementSibling.value = '';
+                this.previousElementSibling.classList.remove('filled');
+            }
+        }).on('paste', function(e) {
+            e.preventDefault();
+            var digits = (e.originalEvent.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 6).split('');
+            var inputs = $(this).closest('.otp-inputs').find('input');
+            inputs.each(function(i) { this.value = digits[i] || ''; this.classList.toggle('filled', !!this.value); });
+            inputs.eq(Math.min(digits.length, 5)).focus();
+        });
+
+        function collectCode(sel) { return $(sel + ' input').map(function() { return this.value; }).get().join(''); }
+
+        function startTimer() {
+            var seconds = 60;
+            $('#otpResend').prop('disabled', true);
+            clearInterval(otpTimerInterval);
+            otpTimerInterval = setInterval(function() {
+                $('#otpTimerText').text(seconds > 0 ? 'ارسال مجدد کد پس از ' + toFa(seconds) + ' ثانیه' : '');
+                if (seconds-- <= 0) { clearInterval(otpTimerInterval); $('#otpResend').prop('disabled', false); }
+            }, 1000);
+        }
+        function toFa(n) { return String(n).replace(/\d/g, function(d) { return '۰۱۲۳۴۵۶۷۸۹'[d]; }); }
+
+        $('#otpResend').click(function() {
+            $.post('/Account/RequestOtp', { phone: otpPhone, __RequestVerificationToken: token() })
+                .done(function(r) {
+                    if (r.success) { startTimer(); Swal.fire({ icon: 'success', title: 'ارسال شد', toast: true, position: 'top', timer: 2000, showConfirmButton: false }); }
+                    else err(r.message);
+                });
+        });
+
+        $('#otpVerifyForm').submit(function(e) {
+            e.preventDefault();
+            var code = collectCode('#otpInputs');
+            if (code.length < 6) { err('کد ۶ رقمی را کامل وارد کنید.'); return; }
+            // برای کاربر جدید، نام الزامی است (فقط اگر کاربر دستی نامش را نداده باشد —
+            // ورود خودکار با کد پیامکی برای کاربر جدید تا وارد شدن نام متوقف می‌ماند)
+            if ($('#otpNameGroup').is(':visible') && !$('#otpFullName').val().trim()) {
+                err('لطفاً نام و نام خانوادگی خود را وارد کنید.');
+                $('#otpFullName').focus();
+                return;
+            }
+            var $btn = $('#otpVerifyBtn');
+            $btn.prop('disabled', true).html('<span class="spinner"></span> در حال بررسی...');
+            $.post('/Account/VerifyOtp', {
+                phone: otpPhone, code: code,
+                fullName: $('#otpFullName').val() || '', returnUrl: $('input[name=returnUrl]').val() || '',
+                __RequestVerificationToken: token()
+            })
+            .done(function(r) {
+                if (r.success) {
+                    if (r.isNew) {
+                        // کاربر جدید: پیام تکمیل اطلاعات + انتقال به داشبورد پروفایل
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'به خانواده ما خوش آمدید! 🌸',
+                            text: 'برای تکمیل اطلاعات مشتری و ثبت دقیق سفارش‌ها، لطفاً اطلاعات صحیح خود (نام، ایمیل، آدرس) را در پروفایل ثبت کنید.',
+                            confirmButtonText: 'رفتن به پروفایل',
+                            confirmButtonColor: '#d4a056'
+                        }).then(function() { window.location.href = '/Profile'; });
+                    } else {
+                        Swal.fire({ icon: 'success', title: 'خوش آمدید!', timer: 1200, showConfirmButton: false })
+                            .then(function() { window.location.href = r.redirectUrl; });
+                    }
+                } else err(r.message);
+            })
+            .fail(function() { err('خطا در ارتباط با سرور.'); })
+            .always(function() { $btn.prop('disabled', false).html('<i class="bi bi-check-circle"></i> ورود'); });
+        });
+
+        // ── ورود با نام کاربری/رمز ──
         $('#loginForm').submit(function(e) {
             e.preventDefault();
             var $btn = $('#loginBtn');
-            var originalText = $btn.html();
             $btn.prop('disabled', true).html('<span class="spinner"></span> در حال ورود...');
-            
-            $.ajax({
-                url: '/Account/Login',
-                type: 'POST',
-                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
-                data: $(this).serialize(),
-                success: function(response) {
+            $.post('/Account/Login', $(this).serialize() + '&__RequestVerificationToken=' + encodeURIComponent(token() || ''))
+                .done(function(response) {
                     if (response.success) {
-                        Swal.fire({ icon: 'success', title: 'ورود موفق', text: 'با موفقیت وارد شدید!', timer: 1500, showConfirmButton: false })
-                            .then(() => { window.location.href = response.redirectUrl; });
+                        Swal.fire({ icon: 'success', title: 'ورود موفق', timer: 1200, showConfirmButton: false })
+                            .then(function() { window.location.href = response.redirectUrl; });
                     } else {
                         Swal.fire({ icon: response.type || 'error', title: response.type === 'warning' ? 'توجه' : 'خطا', text: response.message, confirmButtonColor: '#d4a056' });
                     }
-                },
-                error: function() {
-                    Swal.fire({ icon: 'error', title: 'خطا', text: 'خطا در ارتباط با سرور.', confirmButtonColor: '#dc3545' });
-                },
-                complete: function() { $btn.prop('disabled', false).html(originalText); }
-            });
+                })
+                .fail(function() { err('خطا در ارتباط با سرور.'); })
+                .always(function() { $btn.prop('disabled', false).html('<i class="bi bi-box-arrow-in-right"></i> ورود به حساب'); });
         });
+
+        // ── ثبت‌نام ──
         $('#registerForm').submit(function(e) {
             e.preventDefault();
             var $btn = $('#registerBtn');
-            var originalText = $btn.html();
             $btn.prop('disabled', true).html('<span class="spinner"></span> در حال ثبت‌نام...');
-            
-            $.ajax({
-                url: '/Account/Register',
-                type: 'POST',
-                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
-                data: $(this).serialize(),
-                success: function(response) {
+            $.post('/Account/Register', $(this).serialize() + '&__RequestVerificationToken=' + encodeURIComponent(token() || ''))
+                .done(function(response) {
                     if (response.success) {
-                        Swal.fire({ icon: 'success', title: 'ثبت‌نام موفق', text: response.message, timer: 2000, showConfirmButton: false })
-                            .then(() => { window.location.href = response.redirectUrl; });
-                    } else {
-                        Swal.fire({ icon: 'error', title: 'خطا در ثبت‌نام', text: response.message, confirmButtonColor: '#d4a056' });
-                    }
-                },
-                error: function() {
-                    Swal.fire({ icon: 'error', title: 'خطا', text: 'خطا در ارتباط با سرور.', confirmButtonColor: '#dc3545' });
-                },
-                complete: function() { $btn.prop('disabled', false).html(originalText); }
-            });
+                        Swal.fire({ icon: 'success', title: 'ثبت‌نام موفق', text: response.message, timer: 1800, showConfirmButton: false })
+                            .then(function() { window.location.href = response.redirectUrl; });
+                    } else err(response.message);
+                })
+                .fail(function() { err('خطا در ارتباط با سرور.'); })
+                .always(function() { $btn.prop('disabled', false).html('<i class="bi bi-person-plus"></i> ثبت‌نام'); });
+        });
+
+        // ── بازیابی رمز با پیامک ──
+        $('#forgotBySmsLink').click(function(e) {
+            e.preventDefault();
+            $('.auth-tab').removeClass('active');
+            $('.tab-content').removeClass('active');
+            $('#forgot-tab').addClass('active');
+        });
+        $('#forgotBack').click(function() {
+            $('#forgot-tab').removeClass('active');
+            $('#login-tab').addClass('active');
+            $('[data-tab=login]').addClass('active');
+        });
+        $('#forgotSmsForm').submit(function(e) {
+            e.preventDefault();
+            var $btn = $('#forgotBtn');
+            $btn.prop('disabled', true).html('<span class="spinner"></span> در حال ارسال...');
+            $.post('/Account/ForgotPasswordBySms', { phone: $('#forgotPhone').val(), __RequestVerificationToken: token() })
+                .done(function(r) {
+                    if (r.success) {
+                        $('#forgotPhoneHidden').val(r.phone);
+                        $('#forgotStep1').removeClass('active');
+                        $('#forgotStep2').addClass('active');
+                        $('#forgotInputs input').first().focus();
+                    } else err(r.message);
+                })
+                .fail(function() { err('خطا در ارتباط با سرور.'); })
+                .always(function() { $btn.prop('disabled', false).html('دریافت کد بازیابی'); });
+        });
+        $('#forgotVerifyForm').submit(function(e) {
+            e.preventDefault();
+            var code = collectCode('#forgotInputs');
+            if (code.length < 6) { err('کد ۶ رقمی را کامل وارد کنید.'); return; }
+            var $btn = $('#forgotVerifyBtn');
+            $btn.prop('disabled', true).html('<span class="spinner"></span> در حال بررسی...');
+            $.post('/Account/VerifyResetOtp', { phone: $('#forgotPhoneHidden').val(), code: code, __RequestVerificationToken: token() })
+                .done(function(r) {
+                    if (r.success) window.location.href = r.redirectUrl;
+                    else err(r.message);
+                })
+                .fail(function() { err('خطا در ارتباط با سرور.'); })
+                .always(function() { $btn.prop('disabled', false).html('تأیید و تغییر رمز'); });
         });
     });
 </script>

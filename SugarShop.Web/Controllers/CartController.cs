@@ -11,6 +11,9 @@ namespace SugarShop.Web.Controllers
 {
     public class CartController : Controller
     {
+        /// <summary>سقف تعداد هر محصول در یک ردیف سبد خرید (محافظت از ورودی دستی/AJAX).</summary>
+        private const int MaxQuantityPerProduct = 100;
+
         private readonly SugarShopCatalogDbContext _catalogDb;
         private readonly SugarShopSalesDbContext _salesDb;
 
@@ -30,8 +33,26 @@ namespace SugarShop.Web.Controllers
                 return Json(new { success = false, title = "خطا", message = "محصول نامعتبر یا غیرفعال است.", type = "error" });
             }
 
-            bool isOutOfStock = product.Inventory < quantity;
-            if (isOutOfStock)
+            // 🔒 امنیت مالی: تعداد باید عدد صحیح مثبت باشد؛ تعداد منفی/صفر باعث معکوس شدن
+            // محاسبات قیمت و در نتیجه بستانکار شدن اشتباه کیف پول می‌شد.
+            if (quantity < 1)
+            {
+                return Json(new { success = false, title = "خطا", message = "تعداد انتخاب‌شده معتبر نیست.", type = "error" });
+            }
+            if (quantity > MaxQuantityPerProduct) quantity = MaxQuantityPerProduct;
+
+            var cartState = HttpContext.Session.GetCartSessionState();
+            var existing = cartState.Products.FirstOrDefault(p => p.ProductId == productId);
+
+            // ردیف‌های معیوبِ باقی‌مانده از نشست‌های قبلی (تعداد صفر/منفی) پاک‌سازی می‌شوند
+            if (existing != null && existing.Quantity < 1)
+            {
+                existing.Quantity = 0;
+            }
+
+            // موجودی بر اساس مجموع ردیف (موجود + درخواست جدید) بررسی می‌شود، نه فقط درخواست جدید
+            int resultingQuantity = (existing?.Quantity ?? 0) + quantity;
+            if (resultingQuantity > product.Inventory)
             {
                 return Json(new
                 {
@@ -42,10 +63,8 @@ namespace SugarShop.Web.Controllers
                 });
             }
 
-            var cartState = HttpContext.Session.GetCartSessionState();
-            var existing = cartState.Products.FirstOrDefault(p => p.ProductId == productId);
             if (existing != null)
-                existing.Quantity += quantity;
+                existing.Quantity = resultingQuantity;
             else
             {
                 cartState.Products.Add(new CartProductItem
@@ -59,7 +78,7 @@ namespace SugarShop.Web.Controllers
             }
             HttpContext.Session.SetCartSessionState(cartState);
 
-            return Json(new { success = true, title = "افوده شد", message = $"{product.TitleFa} با موفقیت به سبد خرید اضافه شد.", type = "success" });
+            return Json(new { success = true, title = "افزوده شد", message = $"{product.TitleFa} با موفقیت به سبد خرید اضافه شد.", type = "success" });
         }
 
         [HttpPost]

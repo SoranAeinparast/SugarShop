@@ -1,0 +1,152 @@
+@{
+    Layout = null;
+    var storeName = (string)(ViewBag.StoreName ?? "شیرینی سرا");
+    var logoPath = (string)(ViewBag.LogoPath ?? "/Pwa/Icon?size=192");
+    var apkVersion = (string)(ViewBag.ApkVersion ?? "1.4.1");
+    var androidEnabled = (bool)(ViewBag.AndroidEnabled ?? true);
+    var iosEnabled = (bool)(ViewBag.IosEnabled ?? true);
+    // آدرس پایه‌ی اپ: تنظیم ادمین، وگرنه دامنه‌ی فعلی — تغییر دامنه هرگز این صفحه را نمی‌شکند
+    var appBase = string.IsNullOrWhiteSpace((string?)ViewBag.AppBaseUrl)
+        ? ""
+        : ((string)ViewBag.AppBaseUrl).TrimEnd('/');
+    var qrUrl = appBase + "/App/Qr";   // مسیر نسبیِ به دامنه‌ی تنظیم‌شده یا جاری
+    if (!string.IsNullOrEmpty(appBase)) { qrUrl = appBase + "/App/Qr"; }
+}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#6D3410" />
+    <title>دانلود اپلیکیشن @storeName</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Vazirmatn, Vazir, Tahoma, sans-serif;
+            background: linear-gradient(160deg, #FFF8F0 0%, #FDF1E3 55%, #F7E6CE 100%);
+            min-height: 100vh;
+            color: #4E342E;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 32px 20px 48px;
+        }
+        .hero { text-align: center; margin-bottom: 28px; }
+        .hero img { width: 84px; height: 84px; border-radius: 20px; object-fit: cover; box-shadow: 0 8px 24px rgba(109,52,16,.18); background: #fff; padding: 6px; }
+        h1 { font-size: 26px; margin-top: 16px; color: #6D3410; }
+        .hero p { margin-top: 8px; font-size: 15px; opacity: .8; line-height: 1.9; max-width: 420px; }
+
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; max-width: 900px; width: 100%; align-items: stretch; }
+        @@media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+
+        .card {
+            background: #fff;
+            border-radius: 24px;
+            box-shadow: 0 12px 40px rgba(109,52,16,.14);
+            padding: 26px 22px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .platform-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            font-size: 15px; font-weight: 700; color: #fff;
+            background: linear-gradient(135deg, #6D3410, #8B4513);
+            padding: 7px 18px; border-radius: 999px; margin-bottom: 16px;
+        }
+        .platform-badge.ios { background: linear-gradient(135deg, #4E342E, #7A6A5F); }
+
+        .qr-wrap {
+            display: inline-block;
+            padding: 12px;
+            background: #FFF8F0;
+            border: 2px dashed #D9B382;
+            border-radius: 18px;
+        }
+        .qr-wrap img, .qr-wrap object { width: 190px; height: 190px; display: block; }
+        .qr-hint { margin-top: 10px; font-size: 13px; opacity: .75; line-height: 1.9; }
+
+        .btn {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            width: 100%; margin-top: 18px; padding: 14px 20px;
+            border: none; border-radius: 999px; font-size: 15.5px;
+            font-family: inherit; font-weight: 700; cursor: pointer;
+            color: #fff; background: linear-gradient(135deg, #6D3410, #B8860B);
+            box-shadow: 0 8px 20px rgba(109,52,16,.30);
+            transition: transform .15s, box-shadow .15s; text-decoration: none;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(109,52,16,.38); }
+        .btn.ghost { background: #fff; color: #6D3410; border: 2px solid #E4C9A6; box-shadow: none; }
+        .btn.ghost:hover { background: #FFF8F0; }
+        .ver { margin-top: 10px; font-size: 12px; opacity: .55; }
+
+        .steps { text-align: right; margin-top: 14px; font-size: 13.5px; line-height: 2.1; opacity: .85; width: 100%; }
+        .steps b { color: #8B4513; }
+
+        .note { margin-top: 20px; max-width: 640px; text-align: center; font-size: 12.5px; opacity: .65; line-height: 2; }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <img src="@logoPath" alt="لوگوی @storeName" />
+        <h1>اپلیکیشن @storeName</h1>
+        <p>فروشگاه، همیشه در جیب شما 🎂 — سفارش کیک و شیرینی فقط با چند لمس</p>
+    </div>
+
+    <div class="grid">
+        @if (androidEnabled)
+        {
+        @* ═══════════ اندروید — APK مستقیم از سایت ═══════════ *@
+        <div class="card">
+            <div class="platform-badge">🤖 اندروید — نصب مستقیم</div>
+
+            <div class="qr-wrap">
+                <img src="@qrUrl" alt="QR کد دانلود اپلیکیشن" onerror="this.parentNode.style.display='none'" />
+            </div>
+            <div class="qr-hint">📱 QR بالا را با دوربین گوشی اسکن کنید تا همین صفحه روی گوشی باز شود</div>
+
+            <a class="btn" href="@(string.IsNullOrEmpty(appBase) ? "/App/GetTheApp" : appBase + "/App/GetTheApp")">⬇️ دانلود مستقیم اپلیکیشن اندروید (APK)</a>
+            <div class="ver">نسخه @apkVersion — دانلود از سایت خود فروشگاه، بدون واسطه</div>
+
+            <div class="steps">
+                <b>۱.</b> فایل APK را دانلود کنید<br />
+                <b>۲.</b> روی فایل بزنید؛ اگر پرسید، یک‌بار «اجازه نصب از منابع ناشناس» را بدهید<br />
+                <b>۳.</b> نصب را تأیید کنید — اپلیکیشن با لوگوی فروشگاه روی گوشی قرار می‌گیرد
+            </div>
+        </div>
+
+        }
+
+        @if (iosEnabled)
+        {
+        @* ═══════════ آیفون / آیپد — PWA از طریق سافاری ═══════════ *@
+        <div class="card">
+            <div class="platform-badge ios">🍎 آیفون و آیپد (iOS)</div>
+
+            <div class="qr-wrap">
+                <img src="@qrUrl" alt="QR کد دسترسی با آیفون" onerror="this.parentNode.style.display='none'" />
+            </div>
+            <div class="qr-hint">📱 QR را با دوربین آیفون اسکن کنید تا فروشگاه در سافاری باز شود</div>
+
+            <a class="btn ghost" href="@(string.IsNullOrEmpty(appBase) ? "/" : appBase)">🎂 ورود به فروشگاه در سافاری</a>
+
+            <div class="steps">
+                <b>۱.</b> فروشگاه را در <b>Safari</b> باز کنید (نسخه‌ی اپ آیفون از طریق سافاری نصب می‌شود)<br />
+                <b>۲.</b> دکمه‌ی اشتراک‌گذاری <b>⬆️</b> را بزنید<br />
+                <b>۳.</b> گزینه‌ی <b>«Add to Home Screen»</b> را انتخاب و تأیید کنید — آیکون فروشگاه روی صفحه‌ی اصلی می‌نشیند و اپ اجرا می‌شود
+            </div>
+        </div>
+        }
+    </div>
+
+    @if (!androidEnabled && !iosEnabled)
+    {
+        <div class="note">در حال حاضر نسخه‌ای از اپلیکیشن ارائه نشده است — می‌توانید از خود سایت استفاده کنید. 🎂</div>
+    }
+
+    <div class="note">
+        هر دو نسخه مستقیماً به فروشگاه متصل هستند؛ سفارش‌ها، کیف پول و سابقه‌ی خرید شما در اپ و سایت یکی است.
+    </div>
+</body>
+</html>

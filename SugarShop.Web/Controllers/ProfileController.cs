@@ -25,17 +25,29 @@ namespace SugarShop.Web.Controllers
         private readonly SugarShopCatalogDbContext _catalogDb;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IWebHostEnvironment _webHostEnvironment;
+        private readonly SugarShop.Web.Services.Sms.SmsService _sms;
+        private readonly SugarShop.Web.Services.OrderPricingService _pricingService;
+        private readonly ImageStorageService _images;
+        private readonly SugarShop.Web.Services.SmsLinkTrackingService _linkTracking;
 
         public ProfileController(
             SugarShopSalesDbContext salesDb,
             SugarShopCatalogDbContext catalogDb,
             UserManager<ApplicationUser> userManager,
-            IWebHostEnvironment webHostEnvironment)
+            IWebHostEnvironment webHostEnvironment,
+            SugarShop.Web.Services.Sms.SmsService sms,
+            SugarShop.Web.Services.OrderPricingService pricingService,
+            ImageStorageService images,
+            SugarShop.Web.Services.SmsLinkTrackingService linkTracking)
         {
+            _linkTracking = linkTracking;
             _salesDb = salesDb;
             _catalogDb = catalogDb;
             _userManager = userManager;
             _webHostEnvironment = webHostEnvironment;
+            _sms = sms;
+            _pricingService = pricingService;
+            _images = images;
         }
         private List<string> GetDefaultAvatars()
         {
@@ -54,38 +66,27 @@ namespace SugarShop.Web.Controllers
                 list.AddRange(new[] { "/images/avatars/default/avatar1.png", "/images/avatars/default/avatar2.png", "/images/avatars/default/avatar3.png" });
             return list;
         }
-        private async Task<string?> SaveFile(IFormFile file, string prefix)
-        {
-            if (file == null || file.Length == 0) return null;
-
-            var uploadsFolder = Path.Combine(_webHostEnvironment.WebRootPath, "images/cake_orders");
-            if (!Directory.Exists(uploadsFolder))
-                Directory.CreateDirectory(uploadsFolder);
-
-            var uniqueFileName = $"{prefix}_{Guid.NewGuid():N}{Path.GetExtension(file.FileName)}";
-            var filePath = Path.Combine(uploadsFolder, uniqueFileName);
-
-            using (var stream = new FileStream(filePath, FileMode.Create))
-            {
-                await file.CopyToAsync(stream);
-            }
-
-            return $"/images/cake_orders/{uniqueFileName}";
-        }
-
 
         public async Task<IActionResult> Index()
         {
             var userId = _userManager.GetUserId(User);
-            var user = await _userManager.FindByIdAsync(userId) as ApplicationUser;
+            var user = await _userManager.FindByIdAsync(userId!) as ApplicationUser;
 
             var orders = await _salesDb.Orders
-                .Where(o => o.UserId == userId && o.Notes != "WalletRecharge")
+                .Where(o => o.UserId == userId
+                    && o.Notes != "WalletRecharge"
+                    && (o.Notes == null || !o.Notes.StartsWith("CustomCakeOrder_")))
                 .ToListAsync();
 
-            int totalOrders = orders.Count;
+            // سفارش‌های کیک سفارشی هم در آمار داشبورد لحاظ می‌شوند
+            var cakeOrders = await _salesDb.CustomCakeOrders
+                .Where(o => o.UserId == userId)
+                .ToListAsync();
+
+            int totalOrders = orders.Count + cakeOrders.Count;
             int pendingPaymentOrders = orders.Count(o => o.OrderStatus == OrderStatus.PendingPayment);
-            int deliveredOrders = orders.Count(o => o.OrderStatus == OrderStatus.Delivered);
+            int deliveredOrders = orders.Count(o => o.OrderStatus == OrderStatus.Delivered)
+                + cakeOrders.Count(o => o.Status == CustomCakeOrderStatus.Completed);
 
             var wallet = await _salesDb.Set<Wallet>().FirstOrDefaultAsync(w => w.UserId == userId);
             decimal walletBalance = wallet?.Balance ?? 0;
@@ -95,9 +96,15 @@ namespace SugarShop.Web.Controllers
                 .CountAsync();
 
             var lastOrder = await _salesDb.Orders
-                .Where(o => o.UserId == userId)
+                .Where(o => o.UserId == userId
+                    && o.Notes != "WalletRecharge"
+                    && (o.Notes == null || !o.Notes.StartsWith("CustomCakeOrder_")))
                 .OrderByDescending(o => o.CreatedAt)
                 .FirstOrDefaultAsync();
+
+            var lastCakeOrder = cakeOrders
+                .OrderByDescending(o => o.CreatedAt)
+                .FirstOrDefault();
 
             var defaultAddress = await _salesDb.Addresses
                 .FirstOrDefaultAsync(a => a.UserId == userId && a.IsDefault);
@@ -110,6 +117,7 @@ namespace SugarShop.Web.Controllers
                 WalletBalance = walletBalance,
                 OpenTickets = openTickets,
                 LastOrder = lastOrder,
+                LastCakeOrder = lastCakeOrder,
                 FullName = user?.FullName ?? "",
                 Email = user?.Email ?? "",
                 PhoneNumber = user?.PhoneNumber ?? "",
@@ -147,6 +155,30 @@ namespace SugarShop.Web.Controllers
             user.BirthDate = model.BirthDate;
             user.Gender = model.Gender;
             user.NationalCode = string.IsNullOrWhiteSpace(model.NationalCode) ? null : model.NationalCode.Trim();
+
+            // ایمیل و نام کاربری برای حساب‌های OTP (که خودکار با placeholder ساخته شده‌اند) قابل تغییر است
+            if (!string.IsNullOrWhiteSpace(model.Email) &&
+                !string.Equals(user.Email, model.Email.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                if (await _userManager.FindByEmailAsync(model.Email.Trim()) != null)
+                    ModelState.AddModelError("Email", "این ایمیل قبلاً توسط کاربر دیگری استفاده شده است.");
+            }
+            if (!string.IsNullOrWhiteSpace(model.UserName) &&
+                !string.Equals(user.UserName, model.UserName.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                if (await _userManager.FindByNameAsync(model.UserName.Trim()) != null)
+                    ModelState.AddModelError("UserName", "این نام کاربری قبلاً ثبت شده است.");
+            }
+
+            if (ModelState.IsValid)
+            {
+                if (!string.IsNullOrWhiteSpace(model.Email) &&
+                    !string.Equals(user.Email, model.Email.Trim(), StringComparison.OrdinalIgnoreCase))
+                    await _userManager.SetEmailAsync(user, model.Email.Trim());
+                if (!string.IsNullOrWhiteSpace(model.UserName) &&
+                    !string.Equals(user.UserName, model.UserName.Trim(), StringComparison.OrdinalIgnoreCase))
+                    await _userManager.SetUserNameAsync(user, model.UserName.Trim());
+            }
 
             if (avatarFile != null && avatarFile.Length > 0)
             {
@@ -202,31 +234,12 @@ namespace SugarShop.Web.Controllers
                 .OrderByDescending(o => o.CreatedAt)
                 .ToListAsync();
 
-            var orderIds = orders.Select(o => o.Id).ToList();
-            var boxInfos = await _salesDb.BoxFinalInfos
-                .Where(b => orderIds.Contains(b.OrderId))
-                .ToListAsync();
-
-            var boxInfosByOrder = boxInfos
-                .GroupBy(b => b.OrderId)
-                .ToDictionary(g => g.Key, g => g.ToList());
-
             var result = new List<OrderListItemViewModel>();
             foreach (var order in orders)
             {
-                decimal boxFinalTotal = 0;
-                if (boxInfosByOrder.ContainsKey(order.Id))
-                {
-                    boxFinalTotal = boxInfosByOrder[order.Id].Sum(b => b.FinalPrice);
-                }
-
-                decimal productTotal = order.Items
-                    .Where(i => i.ItemType == OrderItemType.Product)
-                    .Sum(i => i.TotalPriceSnapshot);
-
-                // ✅ اصلاح: اضافه کردن هزینه پیک
-                decimal totalFinalPrice = boxFinalTotal + productTotal + order.DeliveryFeeSnapshot;
-
+                // مبلغ نمایش‌داده‌شده از همان منبعی می‌آید که مبلغ دریافتی درگاه را تعیین می‌کند
+                // (تخفیف، هزینه پیک، ارسال رایگان و فقط جعبه‌های وزن‌کشی‌شده)
+                var pricing = await _pricingService.ComputeAsync(order, includePayments: false);
                 bool isDeletable = order.OrderStatus == OrderStatus.AwaitingReview;
 
                 result.Add(new OrderListItemViewModel
@@ -236,13 +249,68 @@ namespace SugarShop.Web.Controllers
                     OrderStatus = order.OrderStatus,
                     PaymentStatus = order.PaymentStatus,
                     CreatedAt = order.CreatedAt,
-                    TotalFinalPrice = totalFinalPrice,  // ✅ حالا شامل هزینه پیک هم هست
+                    TotalFinalPrice = pricing.GrandTotal,
                     IsPaymentEnabled = order.IsPaymentEnabled,
                     IsDeletable = isDeletable
                 });
             }
-            return View(result);
+
+            // ✅ افزودن سفارش‌های کیک سفارشی به همان لیست «سفارشات من»
+            var cakeOrders = await _salesDb.CustomCakeOrders
+                .Where(o => o.UserId == userId)
+                .ToListAsync();
+
+            // سیاست ارسال رایگان باید در نمایش سفارش کیک هم اعمال شود تا با مبلغ دریافتی یکی بماند
+            var freeDeliveryThreshold = await _salesDb.SiteSettings.AsNoTracking()
+                .Select(s => (decimal?)s.FreeDeliveryThreshold).FirstOrDefaultAsync() ?? 0m;
+
+            foreach (var cake in cakeOrders)
+            {
+                decimal cakeGoods = cake.FinalPrice ?? 0;
+                decimal cakeDeliveryFee = cake.DeliveryMethod == DeliveryMethod.Delivery ? (cake.DeliveryFee ?? 0) : 0;
+                if (freeDeliveryThreshold > 0 && cakeGoods >= freeDeliveryThreshold)
+                    cakeDeliveryFee = 0;
+
+                decimal cakePrice = cakeGoods + cakeDeliveryFee;
+                result.Add(new OrderListItemViewModel
+                {
+                    IsCustomCake = true,
+                    CustomCakeOrderId = cake.Id,
+                    OrderCode = $"CAKE-{cake.Id:D4}",
+                    CreatedAt = cake.CreatedAt,
+                    TotalFinalPrice = cakePrice,
+                    PaymentStatus = cake.IsPaid ? PaymentStatus.Succeeded : PaymentStatus.Unpaid,
+                    CakeStatus = cake.Status,
+                    CakeIsPaid = cake.IsPaid,
+                    CakeFlavor = cake.Flavor,
+                    CakeDeliveryFee = cake.DeliveryFee,
+                    CakeDeliveryMethod = cake.DeliveryMethod,
+                    IsPaymentEnabled = cake.Status == CustomCakeOrderStatus.Accepted
+                        && !cake.IsPaid && cake.FinalPrice.HasValue,
+                    IsDeletable = cake.Status == CustomCakeOrderStatus.Pending
+                });
+            }
+
+            return View(result.OrderByDescending(r => r.CreatedAt).ToList());
         }
+        /// <summary>
+        /// آدرس کوتاه <c>/o/{id}</c> مخصوص لینک داخل پیامک «سفارش شما آماده پرداخت است» —
+        /// چون هر کاراکتر اضافه در آدرس، هزینه پیامک را بالا می‌برد. کاربر را به همان صفحه جزئیات
+        /// همان سفارش می‌رساند؛ اگر وارد نشده باشد، به ورود هدایت می‌شود و سپس به همین آدرس برمی‌گردد.
+        /// دسترسی به سفارش در همان اکشن اصلی بررسی می‌شود (کاربر فقط سفارش خودش را می‌بیند).
+        /// </summary>
+        [AllowAnonymous]
+        [Route("o/{orderId:int}")]
+        public async Task<IActionResult> ShortOrderLink(int orderId)
+        {
+            // پیامک‌های قدیمی‌تر همین آدرس را دارند؛ بازدیدها هم در اثرسنجی ثبت می‌شود.
+            await _linkTracking.RegisterOpenAsync(orderId, SmsLinkKind.WaitingPayment);
+
+            if (User?.Identity?.IsAuthenticated != true) return Challenge();
+
+            return RedirectToAction(nameof(OrderDetails), new { id = orderId });
+        }
+
         public async Task<IActionResult> OrderDetails(int id)
         {
             var userId = _userManager.GetUserId(User);
@@ -257,7 +325,7 @@ namespace SugarShop.Web.Controllers
 
             var sweetItemIds = order.Items
                 .Where(x => x.SweetItemId.HasValue)
-                .Select(x => x.SweetItemId.Value)
+                .Select(x => x.SweetItemId!.Value)
                 .Distinct();
             var sweetNames = await _catalogDb.SweetItems
                 .Where(x => sweetItemIds.Contains(x.Id))
@@ -265,15 +333,35 @@ namespace SugarShop.Web.Controllers
 
             var productIds = order.Items
                 .Where(x => x.ProductId.HasValue)
-                .Select(x => x.ProductId.Value)
+                .Select(x => x.ProductId!.Value)
                 .Distinct();
             var productNames = await _catalogDb.Products
                 .Where(p => productIds.Contains(p.Id))
                 .ToDictionaryAsync(p => p.Id, p => p.TitleFa);
 
-            var boxInfos = await _salesDb.BoxFinalInfos
-                .Where(b => b.OrderId == id)
-                .ToDictionaryAsync(b => b.BoxTitle, b => b);
+            // در صورت وجود ردیف تکراری برای یک جعبه، فقط جدیدترین ردیف استفاده می‌شود
+            var boxInfos = (await _salesDb.BoxFinalInfos
+                    .Where(b => b.OrderId == id)
+                    .ToListAsync())
+                .GroupBy(b => b.BoxTitle)
+                .ToDictionary(g => g.Key, g => g.OrderByDescending(b => b.UpdatedAt).ThenByDescending(b => b.Id).First());
+
+            // ── محاسبات پرداخت مرحله‌ای از منبع واحد مبلغ سفارش ──
+            // (همین محاسبه مبلغ دریافتی درگاه را تعیین می‌کند؛ پس اعداد این صفحه همیشه با پرداخت یکی است)
+            var pricing = await _pricingService.ComputeAsync(order);
+
+            ViewBag.ProductTotal = pricing.ProductTotal;
+            ViewBag.FinalizedBoxTotal = pricing.FinalizedBoxTotal;
+            ViewBag.HasUnfinalizedBoxes = pricing.HasUnfinalizedBoxes;
+            ViewBag.PaidSoFar = pricing.PaidTotal;
+            ViewBag.GrandTotalSoFar = pricing.GrandTotal;
+            ViewBag.PayableNow = pricing.PayableNow;
+            ViewBag.DiscountAmount = pricing.DiscountAmount;
+            ViewBag.DeliveryFee = pricing.DeliveryFee;
+            ViewBag.Payments = await _salesDb.Payments
+                .Where(p => p.OrderId == order.Id && p.PaymentStatus == PaymentStatus.Succeeded)
+                .OrderBy(p => p.CreatedAt)
+                .ToListAsync();
 
             ViewBag.SweetNames = sweetNames;
             ViewBag.ProductNames = productNames;
@@ -313,7 +401,7 @@ namespace SugarShop.Web.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> PayOrder(int orderId)
+        public async Task<IActionResult> PayOrder(int orderId, bool confirmed = false)
         {
             var userId = _userManager.GetUserId(User);
             var order = await _salesDb.Orders
@@ -324,6 +412,18 @@ namespace SugarShop.Web.Controllers
             {
                 TempData["Error"] = "پرداخت برای این سفارش امکان‌پذیر نیست.";
                 return RedirectToAction("OrderDetails", new { id = orderId });
+            }
+
+            // ── سفارش جعبه‌ای: پرداخت مرحله دوم است و مبلغش از وزن‌کشی می‌آید،
+            // پس پیش از درگاه، صفحه «تأیید و پرداخت» با ریز وزن و قیمت هر ردیف نشان داده می‌شود.
+            // (دکمه همان صفحه با confirmed=true برمی‌گردد و به درگاه می‌رود.)
+            if (!confirmed)
+            {
+                var hasBoxRows = await _salesDb.OrderItems
+                    .AnyAsync(i => i.OrderId == order.Id && i.ItemType == OrderItemType.SweetItem && i.BoxTitle != null);
+
+                if (hasBoxRows)
+                    return RedirectToAction("Confirm", "Payment", new { orderId = order.Id });
             }
 
             return RedirectToAction("RequestPayment", "Payment", new { orderId = order.Id });
@@ -383,6 +483,14 @@ namespace SugarShop.Web.Controllers
                 .FirstOrDefaultAsync(o => o.Id == id && o.UserId == userId);
             if (order == null || order.Status != CustomCakeOrderStatus.Pending)
                 return NotFound();
+
+            ViewData["CakeDeliveryAddresses"] = await _salesDb.Addresses
+                .Where(a => a.UserId == userId)
+                .OrderByDescending(a => a.IsDefault)
+                .ThenBy(a => a.CreatedAt)
+                .ToListAsync();
+            ViewData["CakeDeliveryMethod"] = (int)order.DeliveryMethod;
+            ViewData["CakeDeliveryAddressId"] = order.AddressId;
             return View(order);
         }
 
@@ -393,7 +501,13 @@ namespace SugarShop.Web.Controllers
                                                              string? desiredDeliveryDatePersian,
                                                              string? desiredDeliveryTime,
                                                              IFormFile? sampleImage,
-                                                             IFormFile? printImage)
+                                                             IFormFile? printImage,
+                                                             bool useNewAddress,
+                                                             string? newAddressTitle,
+                                                             string? newFullAddress,
+                                                             string? newPostalCode,
+                                                             string? newReceiverName,
+                                                             string? newReceiverPhone)
         {
             if (id != model.Id) return NotFound();
 
@@ -434,6 +548,61 @@ namespace SugarShop.Web.Controllers
                 order.DesiredDeliveryDateTime = null;
             }
 
+            // ✅ روش تحویل: در صورت «ارسال با پیک» آدرس تحویل الزامی است
+            order.DeliveryMethod = model.DeliveryMethod;
+            if (model.DeliveryMethod == DeliveryMethod.Delivery)
+            {
+                Address? deliveryAddress = null;
+                if (model.AddressId.HasValue)
+                {
+                    deliveryAddress = await _salesDb.Addresses
+                        .FirstOrDefaultAsync(a => a.Id == model.AddressId.Value && a.UserId == userId);
+                    if (deliveryAddress == null)
+                        ModelState.AddModelError("AddressId", "آدرس انتخابی نامعتبر است.");
+                }
+                else if (useNewAddress &&
+                         !string.IsNullOrWhiteSpace(newFullAddress) &&
+                         !string.IsNullOrWhiteSpace(newReceiverName) &&
+                         !string.IsNullOrWhiteSpace(newReceiverPhone))
+                {
+                    deliveryAddress = new Address
+                    {
+                        UserId = userId!,
+                        Title = string.IsNullOrWhiteSpace(newAddressTitle) ? "آدرس جدید" : newAddressTitle!.Trim(),
+                        FullAddress = newFullAddress!.Trim(),
+                        PostalCode = string.IsNullOrWhiteSpace(newPostalCode) ? null : newPostalCode.Trim(),
+                        ReceiverName = newReceiverName!.Trim(),
+                        ReceiverPhone = newReceiverPhone!.Trim(),
+                        IsDefault = !await _salesDb.Addresses.AnyAsync(a => a.UserId == userId),
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    _salesDb.Addresses.Add(deliveryAddress);
+                    await _salesDb.SaveChangesAsync();
+                }
+                else
+                {
+                    ModelState.AddModelError("AddressId", "برای ارسال با پیک، لطفاً آدرس تحویل را انتخاب کنید یا آدرس جدید وارد کنید.");
+                }
+
+                if (deliveryAddress != null)
+                {
+                    order.AddressId = deliveryAddress.Id;
+                    order.ReceiverName = deliveryAddress.ReceiverName;
+                    order.ReceiverPhone = deliveryAddress.ReceiverPhone;
+                    order.CustomerFullAddress = deliveryAddress.FullAddress;
+                    order.CustomerPostalCode = deliveryAddress.PostalCode;
+                }
+            }
+            else
+            {
+                order.AddressId = null;
+                order.ReceiverName = null;
+                order.ReceiverPhone = null;
+                order.CustomerFullAddress = null;
+                order.CustomerPostalCode = null;
+            }
+
             order.WeightGrams = model.WeightGrams;
             order.Servings = model.Servings;
             order.Flavor = model.Flavor;
@@ -444,38 +613,38 @@ namespace SugarShop.Web.Controllers
             order.UpdatedAt = DateTime.UtcNow;
             if (sampleImage != null && sampleImage.Length > 0)
             {
-                if (!ImageUploadValidator.IsValidImage(sampleImage, ImageUploadValidator.MaxCakeImageBytes, out var sampleImageError))
+                var (savedSamplePath, sampleImageError) = await _images.SaveImageAsync(sampleImage, "cake_sample", ImageUploadValidator.MaxCakeImageBytes);
+                if (sampleImageError != null)
                 {
-                    ModelState.AddModelError("sampleImage", sampleImageError!);
+                    ModelState.AddModelError("sampleImage", sampleImageError);
                 }
-                else
+                else if (savedSamplePath != null)
                 {
-                    if (!string.IsNullOrEmpty(order.SampleImagePath))
-                    {
-                        var oldPath = Path.Combine(_webHostEnvironment.WebRootPath, order.SampleImagePath.TrimStart('/'));
-                        if (System.IO.File.Exists(oldPath))
-                            System.IO.File.Delete(oldPath);
-                    }
-                    order.SampleImagePath = await SaveFile(sampleImage, "cake_sample");
+                    _images.DeleteIfExists(order.SampleImagePath);
+                    order.SampleImagePath = savedSamplePath;
                 }
             }
             if (printImage != null && printImage.Length > 0)
             {
-                if (!ImageUploadValidator.IsValidImage(printImage, ImageUploadValidator.MaxCakeImageBytes, out var printImageError))
+                var (savedPrintPath, printImageError) = await _images.SaveImageAsync(printImage, "cake_print", ImageUploadValidator.MaxCakeImageBytes);
+                if (printImageError != null)
                 {
-                    ModelState.AddModelError("printImage", printImageError!);
+                    ModelState.AddModelError("printImage", printImageError);
                 }
-                else
+                else if (savedPrintPath != null)
                 {
-                    if (!string.IsNullOrEmpty(order.PrintImagePath))
-                    {
-                        var oldPath = Path.Combine(_webHostEnvironment.WebRootPath, order.PrintImagePath.TrimStart('/'));
-                        if (System.IO.File.Exists(oldPath))
-                            System.IO.File.Delete(oldPath);
-                    }
-                    order.PrintImagePath = await SaveFile(printImage, "cake_print");
+                    _images.DeleteIfExists(order.PrintImagePath);
+                    order.PrintImagePath = savedPrintPath;
                 }
             }
+
+            ViewData["CakeDeliveryAddresses"] = await _salesDb.Addresses
+                .Where(a => a.UserId == userId)
+                .OrderByDescending(a => a.IsDefault)
+                .ThenBy(a => a.CreatedAt)
+                .ToListAsync();
+            ViewData["CakeDeliveryMethod"] = (int)order.DeliveryMethod;
+            ViewData["CakeDeliveryAddressId"] = order.AddressId;
 
             if (ModelState.IsValid)
             {
@@ -536,19 +705,42 @@ namespace SugarShop.Web.Controllers
                 return RedirectToAction("CustomCakeOrderDetails", new { id });
             }
 
+            // 🔒 اگر سفارش موقتِ پرداخت‌نشده‌ای برای همین کیک وجود دارد، همان ادامه داده میشود؛
+            // در غیر این صورت هر بار کلیک/رفرش، یک سفارش موقت جدید و یک پرداخت جدید می‌ساخت
+            // (امکان پرداخت دوباره برای یک کیک واحد).
+            var cakePaymentNote = OrderNotes.ForCustomCakeOrder(cakeOrder.Id);
+            var pendingTempOrder = await _salesDb.Orders
+                .Where(o => o.UserId == userId
+                    && o.Notes == cakePaymentNote
+                    && o.PaymentStatus != PaymentStatus.Succeeded)
+                .OrderByDescending(o => o.Id)
+                .FirstOrDefaultAsync();
+
+            if (pendingTempOrder != null)
+                return RedirectToAction("RequestPayment", "Payment", new { orderId = pendingTempOrder.Id });
+
             var tempOrder = new Order
             {
                 OrderCode = "CAKE-" + Guid.NewGuid().ToString().Substring(0, 8).ToUpper(),
                 UserId = userId,
                 OrderStatus = OrderStatus.PendingPayment,
                 PaymentStatus = PaymentStatus.Unpaid,
-                TotalAmountSnapshot = cakeOrder.FinalPrice.Value,
-                FinalTotalAmount = cakeOrder.FinalPrice.Value,
-                DeliveryFeeSnapshot = 0,
-                CustomerName = User.Identity?.Name ?? "کاربر",
+                TotalAmountSnapshot = cakeOrder.FinalPrice!.Value,
+                // مبلغ نمایشی سفارش هم شامل هزینه پیک است تا با مبلغی که محاسبه و دریافت میشود یکی باشد
+                FinalTotalAmount = cakeOrder.FinalPrice!.Value
+                    + (cakeOrder.DeliveryMethod == DeliveryMethod.Delivery ? (cakeOrder.DeliveryFee ?? 0) : 0),
+                DeliveryFeeSnapshot = cakeOrder.DeliveryMethod == DeliveryMethod.Delivery ? (cakeOrder.DeliveryFee ?? 0) : 0,
+                CustomerName = !string.IsNullOrWhiteSpace(cakeOrder.ReceiverName) ? cakeOrder.ReceiverName : (User.Identity?.Name ?? "کاربر"),
+                CustomerPhone = cakeOrder.ReceiverPhone ?? "",
+                CustomerFullAddress = cakeOrder.CustomerFullAddress ?? "",
+                CustomerPostalCode = cakeOrder.CustomerPostalCode ?? "",
+                CustomerAddressId = cakeOrder.AddressId,
+                DeliveryDate = cakeOrder.DesiredDeliveryDateTime?.Date,
+                DeliveryTime = cakeOrder.DesiredDeliveryDateTime?.TimeOfDay,
+                DeliveryMethod = cakeOrder.DeliveryMethod,
                 CreatedAt = DateTime.UtcNow,
                 IsPaymentEnabled = true,
-                Notes = $"CustomCakeOrder_{cakeOrder.Id}"
+                Notes = OrderNotes.ForCustomCakeOrder(cakeOrder.Id)
             };
             _salesDb.Orders.Add(tempOrder);
             await _salesDb.SaveChangesAsync();
@@ -560,7 +752,7 @@ namespace SugarShop.Web.Controllers
             var wallet = await _salesDb.Set<Wallet>().FirstOrDefaultAsync(w => w.UserId == userId);
             if (wallet == null)
             {
-                wallet = new Wallet { UserId = userId, Balance = 0 };
+                wallet = new Wallet { UserId = userId!, Balance = 0 };
                 _salesDb.Set<Wallet>().Add(wallet);
                 await _salesDb.SaveChangesAsync();
             }
@@ -588,7 +780,7 @@ namespace SugarShop.Web.Controllers
             var userId = _userManager.GetUserId(User);
             var ticket = new Ticket
             {
-                UserId = userId,
+                UserId = userId!,
                 Subject = subject,
                 Message = message,
                 Status = TicketStatus.Open,
@@ -596,6 +788,9 @@ namespace SugarShop.Web.Controllers
             };
             _salesDb.Set<Ticket>().Add(ticket);
             await _salesDb.SaveChangesAsync();
+            // ── پیامک «تیکت شما دریافت شد» ──
+            try { await _sms.NotifyTicketReceivedAsync(userId!, ticket.Id); }
+            catch { /* پیامک نباید ثبت تیکت را متوقف کند */ }
             TempData["Success"] = "تیکت شما با موفقیت ثبت شد.";
             return RedirectToAction("Ticket");
         }

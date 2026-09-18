@@ -7,6 +7,7 @@ using SugarShop.Domain.Entities;
 using SugarShop.Domain.Entities.Sales;
 using SugarShop.Infrastructure.Persistence;
 using SugarShop.Infrastructure.Persistence.Sales;
+using SugarShop.Infrastructure.Services;
 using SugarShop.Web.SessionModels;
 using SugarShop.Web.ViewModels;
 using System.Text.Json;
@@ -21,17 +22,25 @@ namespace SugarShop.Web.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILogger<CheckoutController> _logger;
 
+        private readonly InventoryService _inventoryService;
+
         public CheckoutController(
             SugarShopCatalogDbContext catalogDb,
             SugarShopSalesDbContext salesDb,
             UserManager<ApplicationUser> userManager,
-            ILogger<CheckoutController> logger)
+            InventoryService inventoryService,
+            ILogger<CheckoutController> logger,
+            SugarShop.Web.Services.Sms.SmsService smsService)
         {
             _catalogDb = catalogDb;
             _salesDb = salesDb;
             _userManager = userManager;
+            _inventoryService = inventoryService;
             _logger = logger;
+            _sms = smsService;
         }
+
+        private readonly SugarShop.Web.Services.Sms.SmsService _sms;
 
         [HttpGet]
         public async Task<IActionResult> Index()
@@ -84,7 +93,21 @@ namespace SugarShop.Web.Controllers
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized();
 
-            Address address = null;
+            // 🔒 امنیت مالی: ردیف‌های با تعداد نامعتبر (صفر یا منفی) باعث معکوس شدن محاسبه جمع
+            // و در نتیجه بستانکار شدن اشتباه کیف پول می‌شدند؛ چنین سبدی ثبت نمی‌شود.
+            var invalidProductLines = cartState.Products.Where(p => p.Quantity < 1).ToList();
+            if (invalidProductLines.Any())
+            {
+                foreach (var invalid in invalidProductLines)
+                    cartState.RemoveProduct(invalid.ProductId);
+                HttpContext.Session.SetCartSessionState(cartState);
+                _logger.LogWarning("Cart of user {UserId} contained {Count} invalid product line(s); removed and order rejected.",
+                    userId, invalidProductLines.Count);
+                TempData["ErrorMessage"] = "سبد خرید شما تعداد نامعتبر داشت و اصلاح شد. لطفاً سبد را بررسی و دوباره ثبت کنید.";
+                return RedirectToAction("Index", "Cart");
+            }
+
+            Address? address = null;
 
             if (vm.SelectedAddressId.HasValue && vm.SelectedAddressId.Value > 0)
             {
@@ -165,7 +188,12 @@ namespace SugarShop.Web.Controllers
                 }
             }
 
-            // Calculate total from DB prices
+            // ═══ محاسبه جداگانه بخش «قیمت‌ثابت» (محصولات) و بخش «وزن‌کشی» (جعبه‌ها) ═══
+            // مدل استاندارد فروش شیرینی/کیک: محصولات قیمت‌ثابت بلافاصله قابل پرداخت‌اند؛
+            // جعبه‌های نیازمند وزن‌کشی پس از اعلام قیمت فروشگاه قابل پرداخت می‌شوند (بیعانه/پرداخت مرحله‌ای).
+            decimal productTotal = 0;   // جمع قیمت‌ثابت — قابل پرداخت همان لحظه
+            decimal boxApproxTotal = 0; // جمع تقریبی جعبه‌ها — پس از وزن‌کشی نهایی می‌شود
+
             foreach (var cartItem in cartState.Items)
             {
                 foreach (var sweetItem in cartItem.Items)
@@ -173,7 +201,7 @@ namespace SugarShop.Web.Controllers
                     if (sweetItemsDb.TryGetValue(sweetItem.SweetItemId, out var dbSweet))
                     {
                         var rowPrice = (dbSweet.PricePerKg * dbSweet.ApproxWeightGrams) / 1000m;
-                        total += rowPrice;
+                        boxApproxTotal += rowPrice;
                     }
                 }
             }
@@ -181,11 +209,16 @@ namespace SugarShop.Web.Controllers
             {
                 if (productsDb.TryGetValue(cartProduct.ProductId, out var dbProduct))
                 {
-                    total += dbProduct.Price * cartProduct.Quantity;
+                    productTotal += dbProduct.Price * cartProduct.Quantity;
                 }
             }
+            total = productTotal + boxApproxTotal;
+            // جمع «قیمت‌ثابت» پیش از تخفیف/کیف پول — مبنای تشخیص تسویه کامل در همین لحظه
+            decimal rawProductTotal = productTotal;
 
-            // Apply discount
+            // کد تخفیف روی بخش «قیمت‌ثابت» (قابل پرداخت فوری) اعمال می‌شود؛
+            // بخش وزن‌کشی هنوز قیمت واقعی ندارد و اعمال تخفیف روی آن نادرست است.
+            decimal discountApplied = 0;
             if (cartState.AppliedDiscountCodeId.HasValue)
             {
                 var discount = await _salesDb.DiscountCodes.FindAsync(cartState.AppliedDiscountCodeId.Value);
@@ -194,42 +227,79 @@ namespace SugarShop.Web.Controllers
                     && (!discount.UsageLimit.HasValue || discount.UsedCount < discount.UsageLimit))
                 {
                     decimal discountAmount = discount.DiscountType == DiscountType.Percentage
-                        ? total * discount.DiscountValue / 100
+                        ? productTotal * discount.DiscountValue / 100
                         : discount.DiscountValue;
-                    if (discountAmount > total) discountAmount = total;
-                    total -= discountAmount;
+                    if (discountAmount > productTotal) discountAmount = productTotal;
+                    discountApplied = discountAmount;
+                    productTotal -= discountAmount;
                 }
             }
 
-            // Wallet deduction
-            decimal walletUsed = 0;
-            if (vm.UseWallet)
+            // ── مصرف اعتبار کیف پول (روی بخش قابل پرداخت) ──
+            // مبلغ درخواستی از روی موجودی همین لحظه محاسبه می‌شود، اما کسر واقعی به‌صورت اتمیک
+            // و داخل تراکنش با یک UPDATE شرطی انجام می‌شود تا دو سفارش هم‌زمان نتوانند
+            // یک موجودی را دو بار خرج کنند (موجودی منفی / پرداخت مضاعف).
+            decimal requestedWalletUse = 0;
+            if (vm.UseWallet && productTotal > 0)
             {
-                var wallet = await _salesDb.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
+                var wallet = await _salesDb.Wallets.AsNoTracking().FirstOrDefaultAsync(w => w.UserId == userId);
                 if (wallet != null && wallet.Balance > 0)
                 {
-                    walletUsed = Math.Min(wallet.Balance, total);
-                    wallet.Balance -= walletUsed;
-                    wallet.UpdatedAt = DateTime.UtcNow;
-                    total -= walletUsed;
+                    requestedWalletUse = Math.Min(wallet.Balance, productTotal);
+                    if (requestedWalletUse < 0) requestedWalletUse = 0;
                 }
             }
+            productTotal -= requestedWalletUse;
 
             bool hasBoxes = cartState.Items.Any();
+            // سفارش ترکیبی/جعبه‌ای: پرداختِ بخش قیمت‌ثابت همان لحظه فعال است؛
+            // اگر هیچ مبلغ قابل پرداختی نباشد (مثلاً فقط جعبه یا پوشش کامل با کیف پول)، پرداخت غیرفعال می‌ماند
+            // تا پس از وزن‌کشی توسط فروشگاه فعال شود.
+            decimal payableNow = productTotal; // مبلغ قابل پرداخت همین حالا
+
+            // بخش «قیمت‌ثابت» همین حالا کامل تسویه شده است (با کیف پول یا تخفیف) و مبلغی برای درگاه نمی‌ماند
+            bool fixedPortionFullySettled = rawProductTotal > 0 && payableNow <= 0;
+
             OrderStatus initialStatus = hasBoxes ? OrderStatus.AwaitingReview : OrderStatus.PendingPayment;
-            bool paymentEnabled = !hasBoxes;
+            PaymentStatus initialPaymentStatus = PaymentStatus.Unpaid;
+            if (fixedPortionFullySettled && !hasBoxes)
+            {
+                // سفارش بدون جعبه که کاملاً با کیف پول/تخفیف تسویه شد → همان لحظه پرداخت‌شده است
+                initialStatus = OrderStatus.Paid;
+                initialPaymentStatus = PaymentStatus.Succeeded;
+            }
+
+            bool paymentEnabled = payableNow > 0;
 
             using var salesTx = await _salesDb.Database.BeginTransactionAsync();
             try
             {
+                // کسر اتمیک از کیف پول: فقط اگر موجودی همین لحظه کافی باشد؛ در غیر این صورت کل
+                // ثبت سفارش لغو می‌شود تا اعتبار بیش از موجودی خرج نشود.
+                decimal walletUsed = 0;
+                if (requestedWalletUse > 0)
+                {
+                    var walletDebited = await _salesDb.Wallets
+                        .Where(w => w.UserId == userId && w.Balance >= requestedWalletUse)
+                        .ExecuteUpdateAsync(s => s
+                            .SetProperty(w => w.Balance, w => w.Balance - requestedWalletUse)
+                            .SetProperty(w => w.UpdatedAt, DateTime.UtcNow));
+
+                    if (walletDebited == 0)
+                        throw new InvalidOperationException("WalletBalanceChanged");
+
+                    walletUsed = requestedWalletUse;
+                }
+
                 var order = new Order
                 {
                     OrderCode = GenerateOrderCode(),
                     UserId = userId,
                     OrderStatus = initialStatus,
-                    PaymentStatus = PaymentStatus.Unpaid,
+                    PaymentStatus = initialPaymentStatus,
+                    // برآورد کل سفارش برای گزارش‌ها (بخش جعبه تقریبی است)
                     TotalAmountSnapshot = total,
-                    DiscountAmountSnapshot = cartState.DiscountAmount ?? 0,
+                    DiscountAmountSnapshot = discountApplied,
                     DiscountCodeId = cartState.AppliedDiscountCodeId,
                     DeliveryFeeSnapshot = 0,
                     TaxAmountSnapshot = 0,
@@ -240,9 +310,10 @@ namespace SugarShop.Web.Controllers
                     CustomerAddressId = address.Id,
                     DeliveryDate = vm.DeliveryDate,
                     DeliveryTime = vm.DeliveryTime,
-                    Notes = vm.Notes ?? "",
+                    Notes = SanitizeCustomerNotes(vm.Notes),
                     IsPaymentEnabled = paymentEnabled,
-                    FinalTotalAmount = hasBoxes ? null : total,
+                    // مبلغ قابل پرداختِ فعلی: بخش قیمت‌ثابت (پس از وزن‌کشی به‌روز می‌شود)
+                    FinalTotalAmount = payableNow,
                     FinalTotalWeightGrams = hasBoxes ? null : cartState.TotalApproxWeight,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
@@ -251,6 +322,8 @@ namespace SugarShop.Web.Controllers
                 _salesDb.Orders.Add(order);
                 await _salesDb.SaveChangesAsync();
 
+                var orderItems = new List<OrderItem>();
+
                 foreach (var cartItem in cartState.Items)
                 {
                     foreach (var sweetItem in cartItem.Items)
@@ -258,7 +331,7 @@ namespace SugarShop.Web.Controllers
                         if (sweetItemsDb.TryGetValue(sweetItem.SweetItemId, out var dbSweet))
                         {
                             var rowPrice = (dbSweet.PricePerKg * dbSweet.ApproxWeightGrams) / 1000m;
-                            _salesDb.OrderItems.Add(new OrderItem
+                            var sweetOrderItem = new OrderItem
                             {
                                 OrderId = order.Id,
                                 ItemType = OrderItemType.SweetItem,
@@ -270,7 +343,9 @@ namespace SugarShop.Web.Controllers
                                 CreatedAt = DateTime.UtcNow,
                                 BoxTypeId = cartItem.BoxTypeId,
                                 BoxTitle = cartItem.BoxTitle
-                            });
+                            };
+                            _salesDb.OrderItems.Add(sweetOrderItem);
+                            orderItems.Add(sweetOrderItem);
                         }
                     }
                 }
@@ -279,7 +354,7 @@ namespace SugarShop.Web.Controllers
                 {
                     if (productsDb.TryGetValue(productItem.ProductId, out var dbProduct))
                     {
-                        _salesDb.OrderItems.Add(new OrderItem
+                        var productOrderItem = new OrderItem
                         {
                             OrderId = order.Id,
                             ItemType = OrderItemType.Product,
@@ -289,7 +364,9 @@ namespace SugarShop.Web.Controllers
                             WeightSnapshotGrams = (int?)dbProduct.WeightGrams,
                             TotalPriceSnapshot = dbProduct.Price * productItem.Quantity,
                             CreatedAt = DateTime.UtcNow
-                        });
+                        };
+                        _salesDb.OrderItems.Add(productOrderItem);
+                        orderItems.Add(productOrderItem);
                     }
                 }
 
@@ -323,6 +400,12 @@ namespace SugarShop.Web.Controllers
                         throw new InvalidOperationException("DiscountNoLongerAvailable");
                 }
 
+                // ── کسر موجودی انبار (فقط یک‌بار برای هر سفارش) ──
+                // بخش قیمت‌ثابت که همین حالا کامل تسویه شده (کیف پول/تخفیف) باید موجودی‌اش همین لحظه کم شود؛
+                // در غیر این صورت کسر هنگام پرداخت موفق در PaymentController.Callback انجام می‌شود.
+                if (fixedPortionFullySettled)
+                    await DeductInventoryOnceAsync(order, orderItems);
+
                 await _salesDb.SaveChangesAsync();
                 await salesTx.CommitAsync();
 
@@ -330,12 +413,30 @@ namespace SugarShop.Web.Controllers
                 HttpContext.Session.SetCartSessionState(new CartSessionState());
                 HttpContext.Session.SetBoxSessionState(new BoxSessionState());
 
-                if (!hasBoxes)
+                // ── اطلاع‌رسانی پیامکی ثبت سفارش (مشتری + کارکنان) — از طریق صف، بدون کندی سایت ──
+                try
                 {
+                    await _sms.NotifyNewOrderAsync(order, needsWeighing: hasBoxes);
+                }
+                catch (Exception smsEx)
+                {
+                    _logger.LogWarning(smsEx, "SMS notify for new order {OrderId} failed; order continues.", order.Id);
+                }
+
+                if (payableNow > 0)
+                {
+                    // پرداخت بخش قیمت‌ثابت همان لحظه شروع می‌شود (حتی برای سفارش ترکیبی).
+                    // در سفارش ترکیبی (محصولات + جعبه) پیش از درگاه، صفحه «تأیید و پرداخت»
+                    // با ریز مبلغ و وضعیت جعبه‌های در انتظار وزن‌کشی به مشتری نشان داده می‌شود
+                    // تا بداند همین حالا چه چیزی را می‌پردازد و چه مبلغی به مرحله دوم مانده است.
+                    if (hasBoxes)
+                        return RedirectToAction("Confirm", "Payment", new { orderId = order.Id });
+
                     return RedirectToAction("RequestPayment", "Payment", new { orderId = order.Id });
                 }
                 else
                 {
+                    // کل مبلغ ثابت با کیف پول پوشش داده شده — نیازی به درگاه نیست
                     return RedirectToAction("Success", new { orderId = order.Id, orderCode = order.OrderCode });
                 }
             }
@@ -344,6 +445,13 @@ namespace SugarShop.Web.Controllers
                 await salesTx.RollbackAsync();
                 _logger.LogWarning("Discount code no longer available during order placement (concurrent usage). Order for user {UserId} rolled back.", userId);
                 ModelState.AddModelError("", "کد تخفیف دیگر معتبر نیست یا به سقف استفاده رسیده است.");
+                return await PrepareFailedCheckoutView(vm);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "WalletBalanceChanged")
+            {
+                await salesTx.RollbackAsync();
+                _logger.LogWarning("Wallet balance of user {UserId} changed concurrently; order rolled back.", userId);
+                ModelState.AddModelError("", "موجودی کیف پول شما تغییر کرده است. لطفاً صفحه را بازخوانی کنید و دوباره ثبت کنید.");
                 return await PrepareFailedCheckoutView(vm);
             }
             catch (Exception ex)
@@ -389,6 +497,47 @@ namespace SugarShop.Web.Controllers
         {
             var d = DateTime.UtcNow;
             return $"ORD-{d:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
+        }
+
+        /// <summary>
+        /// پاک‌سازی متن آزاد «توضیحات» مشتری. ستون Notes هم‌زمان حامل نشانه‌های داخلی سیستم
+        /// (WalletRecharge / CustomCakeOrder_) است که مسیر پردازش پرداخت را تغییر می‌دهند؛
+        /// اگر مشتری بتواند آن‌ها را جعل کند، مثلاً می‌تواند سفارش کیک سفارشی دیگری را
+        /// «پرداخت‌شده» کند. بنابراین هر ورودی کاربر که با این نشانه‌ها شروع شود دور ریخته می‌شود.
+        /// </summary>
+        private static string SanitizeCustomerNotes(string? notes)
+        {
+            if (string.IsNullOrWhiteSpace(notes)) return string.Empty;
+
+            var trimmed = notes.Trim();
+            if (trimmed.StartsWith(OrderNotes.WalletRecharge, StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith(OrderNotes.CustomCakeOrderPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return string.Empty;
+            }
+
+            return trimmed;
+        }
+
+        /// <summary>
+        /// کسر موجودی انبار به‌صورت «فقط یک‌بار برای هر سفارش».
+        /// نشانه InventoryDeductedAt در همان تراکنش ذخیره می‌شود، پس در پرداخت مرحله‌ای
+        /// (پیش‌پرداخت + تسویه پس از وزن‌کشی) موجودی دو بار کم نمی‌شود.
+        /// </summary>
+        private async Task DeductInventoryOnceAsync(Order order, IEnumerable<OrderItem> items)
+        {
+            if (order.InventoryDeductedAt != null) return;
+
+            if (!ReferenceEquals(_catalogDb.Database.GetDbConnection(), _salesDb.Database.GetDbConnection()))
+                throw new InvalidOperationException("Sales and Catalog DbContexts are not sharing a connection; inventory deduction aborted.");
+
+            var tx = _salesDb.Database.CurrentTransaction
+                ?? throw new InvalidOperationException("Inventory deduction requires an active transaction.");
+            _catalogDb.Database.UseTransaction(tx.GetDbTransaction());
+
+            // ابتدا نشانه‌گذاری و سپس کسر؛ اگر کسر خطا بدهد، تراکنش جاری کل عملیات را برمی‌گرداند
+            order.InventoryDeductedAt = DateTime.UtcNow;
+            await _inventoryService.DecreaseInventoryAsync(items);
         }
     }
 }

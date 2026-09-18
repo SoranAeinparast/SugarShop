@@ -74,11 +74,56 @@
                         </div>
                         <div class="col-md-6">
                             <h5 class="mb-3">گواهینامه‌ها (نمادها)</h5>
-                            <div class="mb-3">
-                                <label class="form-label">گواهینامه‌ها (JSON)</label>
-                                <textarea asp-for="CertificationsJson" class="form-control" rows="6" placeholder='[{"Title":"نماد اعتماد","ImagePath":"/images/eNamad.png","Link":"https://...","Alt":"enamad"}]'></textarea>
-                                <small class="text-muted">فرمت: آرایه‌ای از اشیاء با Title, ImagePath, Link (اختیاری), Alt</small>
+                            <small class="text-muted d-block mb-2">
+                                بدون نیاز به کدنویسی، نماد اعتماد و گواهینامه‌های فروشگاه را اضافه کنید؛
+                                این نمادها در فوتر سایت نمایش داده می‌شوند.
+                            </small>
+                            <div id="certificationsContainer">
+                                @{ var certifications = ViewBag.Certifications as List<SugarShop.Web.Areas.Admin.ViewModels.CertificationItem> ?? new List<SugarShop.Web.Areas.Admin.ViewModels.CertificationItem>(); }
+                                @for (int i = 0; i < certifications.Count; i++)
+                                {
+                                    var cert = certifications[i];
+                                    var alt = string.IsNullOrWhiteSpace(cert.Alt) ? cert.Title : cert.Alt;
+                                    <div class="card certification-item mb-3 shadow-sm">
+                                        <div class="card-header d-flex justify-content-between align-items-center py-2">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <i class="bi bi-arrows-move drag-handle text-muted" draggable="true" title="برای تغییر ترتیب بکشید"></i>
+                                                <img class="cert-preview img-thumbnail bg-white" src="@cert.ImagePath" alt="@alt" style="width: 40px; height: 40px; object-fit: contain; display: @(string.IsNullOrWhiteSpace(cert.ImagePath) ? "none" : "")" onerror="this.style.display='none'" />
+                                                <span class="fw-bold cert-title-preview">@(string.IsNullOrWhiteSpace(cert.Title) ? "بدون عنوان" : cert.Title)</span>
+                                            </div>
+                                            <button type="button" class="btn btn-sm btn-outline-danger cert-remove" title="حذف گواهینامه"><i class="bi bi-trash"></i></button>
+                                        </div>
+                                        <div class="card-body py-3">
+                                            <div class="row g-2">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">عنوان</label>
+                                                    <input type="text" class="form-control form-control-sm cert-title-input" name="Certifications[@i].Title" value="@cert.Title" placeholder="نماد اعتماد الکترونیکی" />
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">لینک (اختیاری)</label>
+                                                    <input type="url" class="form-control form-control-sm" name="Certifications[@i].Link" value="@cert.Link" placeholder="https://trustseal.enamad.ir/..." dir="ltr" />
+                                                </div>
+                                                <div class="col-12">
+                                                    <label class="form-label">تصویر نماد</label>
+                                                    <div class="d-flex gap-2">
+                                                        <input type="text" id="certImage_@i" class="form-control form-control-sm cert-image-input" name="Certifications[@i].ImagePath" value="@cert.ImagePath" placeholder="/images/eNamad.png" dir="ltr" />
+                                                        <button type="button" class="btn btn-sm btn-outline-primary text-nowrap open-media-picker" data-target="#certImage_@i" data-preview="#certPreview_@i">
+                                                            <i class="bi bi-image"></i> انتخاب
+                                                        </button>
+                                                        <img id="certPreview_@i" class="cert-preview-lg img-thumbnail bg-white" src="@cert.ImagePath" alt="@alt" style="width: 48px; height: 48px; object-fit: contain; display: @(string.IsNullOrWhiteSpace(cert.ImagePath) ? "none" : "")" onerror="this.style.display='none'" />
+                                                    </div>
+                                                    <small class="text-muted">تصویر نماد را از کتابخانه رسانه انتخاب کنید.</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
                             </div>
+
+                            <button type="button" id="addCertificationBtn" class="btn btn-outline-primary btn-sm mt-1">
+                                <i class="bi bi-plus-circle"></i> افزودن گواهینامه جدید
+                            </button>
+                            <small class="text-muted d-block mt-2">ترتیب نمایش را با کشیدن آیکون کنار هر کارت تغییر دهید.</small>
                         </div>
                     </div>
                 </div>
@@ -185,7 +230,7 @@
                 <label class="form-label fw-bold">لینک‌های سریع (فوتر)</label>
                 <div class="border rounded p-3 bg-light">
                     <div class="row">
-                        @foreach (var link in ViewBag.AvailableLinks as List<KeyValuePair<string, string>>)
+                        @foreach (var link in (ViewBag.AvailableLinks as List<KeyValuePair<string, string>>)!)
                         {
                             var isChecked = (ViewBag.CurrentQuickLinks as List<string>)?.Contains(link.Value) ?? false;
                             <div class="col-md-6 col-lg-4 mb-2">
@@ -206,11 +251,6 @@
                 </div>
                 <small class="text-muted">صفحاتی که می‌خواهید در فوتر به عنوان لینک سریع نمایش داده شوند را تیک بزنید. (بدون نیاز به کدنویسی)</small>
             </div>
-
-            <div class="mb-3">
-                <label class="form-label">متن کپی‌رایت فوتر</label>
-                <input asp-for="FooterCopyrightText" class="form-control" />
-            </div>
         </div>
     </div>
 </div>            </div>
@@ -224,6 +264,142 @@
 
 @section Scripts {
 <script>
+// ══════════════════════════════════════════════════════════
+// ✅ ویرایشگر بصری گواهینامه‌ها (بدون نیاز به کدنویسی)
+// ══════════════════════════════════════════════════════════
+(function () {
+    const container = document.getElementById('certificationsContainer');
+    const addBtn = document.getElementById('addCertificationBtn');
+    if (!container || !addBtn) return;
+
+    let counter = container.querySelectorAll('.certification-item').length;
+
+    // همگام‌سازی پیش‌نمایش کارت با مقادیر فعلی فیلدها
+    function syncCard(card) {
+        const titleInput = card.querySelector('.cert-title-input');
+        const imgInput = card.querySelector('.cert-image-input');
+        const preview = card.querySelector('.cert-title-preview');
+        const thumb = card.querySelector('.cert-preview');
+        if (preview) preview.textContent = (titleInput?.value.trim()) || 'بدون عنوان';
+        if (thumb && imgInput) {
+            const path = imgInput.value.trim();
+            thumb.src = path;
+            thumb.style.display = path ? '' : 'none';
+        }
+    }
+
+    // بازنویسی ایندکس فیلدها پس از حذف/جابه‌جایی تا در سرور درست خوانده شوند
+    // (شناسه‌ها و دکمه‌های انتخاب تصویر در هر کارت یکتا می‌مانند و نیازی به تغییر ندارند)
+    function reindex() {
+        container.querySelectorAll('.certification-item').forEach((item, i) => {
+            item.querySelectorAll('input').forEach(input => {
+                input.name = input.name.replace(/Certifications\[\d+\]\./, `Certifications[${i}].`);
+            });
+        });
+    }
+
+    function createItem() {
+        const idx = counter++;
+        const div = document.createElement('div');
+        div.className = 'card certification-item mb-3 shadow-sm';
+        div.innerHTML = `
+            <div class="card-header d-flex justify-content-between align-items-center py-2">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-arrows-move drag-handle text-muted" draggable="true" title="برای تغییر ترتیب بکشید"></i>
+                    <img class="cert-preview img-thumbnail bg-white" src="" alt="" style="width: 40px; height: 40px; object-fit: contain; display: none;" onerror="this.style.display='none'" />
+                    <span class="fw-bold cert-title-preview">بدون عنوان</span>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-danger cert-remove" title="حذف گواهینامه"><i class="bi bi-trash"></i></button>
+            </div>
+            <div class="card-body py-3">
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label">عنوان</label>
+                        <input type="text" class="form-control form-control-sm cert-title-input" name="Certifications[${idx}].Title" value="" placeholder="نماد اعتماد الکترونیکی" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">لینک (اختیاری)</label>
+                        <input type="url" class="form-control form-control-sm" name="Certifications[${idx}].Link" value="" placeholder="https://trustseal.enamad.ir/..." dir="ltr" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">تصویر نماد</label>
+                        <div class="d-flex gap-2">
+                            <input type="text" id="certImage_${idx}" class="form-control form-control-sm cert-image-input" name="Certifications[${idx}].ImagePath" value="" placeholder="/images/eNamad.png یا آدرس تصویر" dir="ltr" />
+                            <button type="button" class="btn btn-sm btn-outline-primary text-nowrap open-media-picker" data-target="#certImage_${idx}" data-preview="#certPreview_${idx}">
+                                <i class="bi bi-image"></i> انتخاب
+                            </button>
+                            <img id="certPreview_${idx}" class="cert-preview-lg img-thumbnail bg-white" src="" alt="" style="width: 48px; height: 48px; object-fit: contain; display: none;" onerror="this.style.display='none'" />
+                        </div>
+                        <small class="text-muted">از کتابخانه رسانه انتخاب کنید یا آدرس تصویر نماد (مثلاً enamad) را وارد کنید.</small>
+                    </div>
+                </div>
+            </div>
+        `;
+        return div;
+    }
+
+    addBtn.addEventListener('click', () => {
+        container.appendChild(createItem());
+        const newItem = container.lastElementChild;
+        newItem?.querySelector('.cert-title-input')?.focus();
+    });
+
+    container.addEventListener('input', (e) => {
+        const card = e.target.closest('.certification-item');
+        if (card) syncCard(card);
+    });
+
+    container.addEventListener('click', (e) => {
+        const removeBtn = e.target.closest('.cert-remove');
+        if (removeBtn) {
+            removeBtn.closest('.certification-item')?.remove();
+            reindex();
+        }
+    });
+
+    // پس از انتخاب تصویر از مودال کتابخانه رسانه، پیش‌نمایش‌ها را همگام کن
+    const modalEl = document.getElementById('mediaPickerModal');
+    if (modalEl) {
+        modalEl.addEventListener('hidden.bs.modal', () => {
+            container.querySelectorAll('.certification-item').forEach(syncCard);
+        });
+    }
+
+    // مرتب‌سازی با کشیدن (HTML5 drag & drop)
+    let dragging = null;
+    container.addEventListener('dragstart', (e) => {
+        const handle = e.target.closest('.drag-handle');
+        if (!handle) return;
+        dragging = handle.closest('.certification-item');
+        dragging.classList.add('opacity-50');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', ''); // برای عملکرد درگ در فایرفاکس
+    });
+    container.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const target = e.target.closest('.certification-item');
+        if (!target || !dragging || target === dragging) return;
+        const rect = target.getBoundingClientRect();
+        const before = e.clientY < rect.top + rect.height / 2;
+        container.insertBefore(dragging, before ? target : target.nextSibling);
+    });
+    container.addEventListener('dragend', () => {
+        if (dragging) { dragging.classList.remove('opacity-50'); dragging = null; }
+        reindex();
+    });
+})();
+
+// ══════════════════════════════════════════════════════════
+// باز شدن خودکار تب متناظر با hash آدرس (مثلاً /SiteSettings#social)
+// ══════════════════════════════════════════════════════════
+if (window.location.hash) {
+    const tabBtn = document.querySelector(`[data-bs-target="${window.location.hash}"]`);
+    if (tabBtn) bootstrap.Tab.getOrCreateInstance(tabBtn).show();
+}
+
+// ══════════════════════════════════════════════════════════
+// اسلایدر پرومو (کد قبلی)
+// ══════════════════════════════════════════════════════════
 document.querySelectorAll('.delete-slide-btn').forEach(btn => {
     btn.addEventListener('click', function() {
         const idx = this.dataset.index;

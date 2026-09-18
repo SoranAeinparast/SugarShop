@@ -1,0 +1,257 @@
+@using SugarShop.Domain.Entities.Sms
+@model SmsSystemSetting
+@{
+    ViewData["Title"] = "تنظیمات پیشرفته پیامک";
+    Layout = "_AdminLayout";
+    var alertRoles = ViewBag.AlertRoles as MultiSelectList;
+}
+
+<a href="/SmsSettings" class="btn btn-outline-secondary btn-sm mb-3"><i class="bi bi-arrow-right"></i> بازگشت به داشبورد سامانه پیامکی</a>
+<partial name="_SmsCreditBar" model="Model" />
+<h2 class="mb-1">⚙️ تنظیمات پیشرفته</h2>
+<p class="text-muted">همه گزینه‌ها مقادیر پیشنهادی و مطمئن دارند؛ هر تغییری بلافاصله ذخیره و اعمال می‌شود.</p>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success">@TempData["Success"]</div>
+}
+
+<form asp-action="Advanced" method="post">
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">🕐 ساعات مجاز ارسال پیامک</div>
+                <div class="card-body">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" asp-for="RespectQuietHours" />
+                        <label class="form-check-label fw-bold" asp-for="RespectQuietHours">جلوگیری از ارسال تبلیغاتی در شب</label>
+                        <small class="d-block text-muted">پیامک‌های تراکنشی (کد ورود، تأیید پرداخت و...) همیشه ارسال می‌شوند و مشمول این محدودیت نیستند.</small>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label">شروع سکوت (ساعت)</label>
+                            <input type="number" min="0" max="23" asp-for="QuietStartHour" class="form-control" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">پایان سکوت (ساعت)</label>
+                            <input type="number" min="0" max="23" asp-for="QuietEndHour" class="form-control" />
+                        </div>
+                    </div>
+                    <small class="text-muted">پیش‌فرض: از ۲۲ شب تا ۸ صبح — پیامک تبلیغاتی در این بازه ارسال نمی‌شود.</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">🛡️ حفاظت از هزینه (ضد سوءاستفاده)</div>
+                <div class="card-body">
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label">سقف کد ورود برای هر شماره در ساعت</label>
+                            <input type="number" min="1" max="20" asp-for="OtpPerPhonePerHour" class="form-control" />
+                            <small class="text-muted">ضد ارسال انبوه کد توسط یک نفر</small>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">سقف کد ورود برای هر IP در ساعت</label>
+                            <input type="number" min="1" max="100" asp-for="OtpPerIpPerHour" class="form-control" />
+                            <small class="text-muted">ضد سوءاستفاده خودکار (بات)</small>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">سقف پیامک تبلیغاتی روزانه هر مشتری</label>
+                            <input type="number" min="0" max="20" asp-for="MaxSmsPerPhonePerDay" class="form-control" />
+                            <small class="text-muted">صفر = بدون سقف</small>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">سقف بودجه ماهانه (تومان)</label>
+                            <input type="number" min="0" step="10000" asp-for="MonthlyBudgetToman" class="form-control" />
+                            <small class="text-muted">صفر = بدون سقف. بعد از رسیدن به سقف، پیامک تبلیغاتی متوقف می‌شود.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">🧑‍🍳 اطلاع‌رسانی سفارش جدید به کارکنان</div>
+                <div class="card-body">
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" asp-for="StaffAlertsEnabled" />
+                        <label class="form-check-label fw-bold" asp-for="StaffAlertsEnabled">وقتی مشتری سفارش ثبت کرد، پیامک اطلاع‌رسانی شود</label>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">ارسال به کدام کاربران؟</label>
+                        <select class="form-select" name="alertRoles" multiple size="4" asp-items="alertRoles"></select>
+                        <small class="text-muted">با Ctrl (یا لمس در موبایل) چند گزینه را انتخاب کنید. شماره موبایل از پروفایل همان کاربر خوانده می‌شود.</small>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" asp-for="NewOrderAlertOnlyWeighing" id="w1" />
+                        <label class="form-check-label" for="w1">فقط درخواست‌های کیک سفارشی برای سرآشپز مهم است (توصیه می‌شود)</label>
+                        <small class="d-block text-muted">
+                            وقتی فعال باشد، سرآشپز فقط برای سفارش‌های کیک سفارشی پیامک می‌گیرد و برای سفارش‌های عادی مزاحم نمی‌شود.
+                        </small>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">شماره‌های اضافی (اختیاری — با کاما جدا کنید)</label>
+                        <input asp-for="NewOrderAlertPhones" class="form-control" placeholder="09120000000,09130000000" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">🎂 کیک سفارشی و موجودی</div>
+                <div class="card-body">
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" asp-for="CustomCakeAlertsEnabled" />
+                        <label class="form-check-label fw-bold" asp-for="CustomCakeAlertsEnabled">سفارش کیک سفارشی جدید به مدیر اعلام شود</label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">شماره‌های دریافت‌کننده (با کاما)</label>
+                        <input asp-for="CustomCakeAlertPhones" class="form-control" placeholder="09120000000" />
+                    </div>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" asp-for="RestockAlertsEnabled" />
+                        <label class="form-check-label fw-bold" asp-for="RestockAlertsEnabled">«خبرم کن وقتی موجود شد» فعال باشد</label>
+                    </div>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" asp-for="LowStockAlertsEnabled" />
+                        <label class="form-check-label fw-bold" asp-for="LowStockAlertsEnabled">هشدار موجودی کم به مدیر ارسال شود</label>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label">آستانه موجودی کم</label>
+                            <input type="number" min="0" asp-for="LowStockThreshold" class="form-control" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">شماره‌های هشدار موجودی</label>
+                            <input asp-for="LowStockAlertPhones" class="form-control" placeholder="09120000000" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">🎂 یادآوری تولد</div>
+                <div class="card-body">
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" asp-for="BirthdaySmsEnabled" />
+                        <label class="form-check-label fw-bold" asp-for="BirthdaySmsEnabled">یادآوری تولد فعال باشد</label>
+                        <small class="d-block text-muted">
+                            هر روز صبح بررسی می‌شود؛ برای هر شخص در صفحه «تولدها» می‌توانید تعیین کنید چند روز قبل پیامک برود
+                            (پیش‌فرض سراسری: چند روز مانده به تولد).
+                        </small>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">پیش‌فرض: چند روز مانده به تولد پیامک برود؟</label>
+                        <input type="number" min="0" max="30" asp-for="BirthdayDaysBefore" class="form-control" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">🧾 یادآوری پرداخت سفارش وزن‌کشی‌شده</div>
+                <div class="card-body">
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" asp-for="PaymentReminderEnabled" />
+                        <label class="form-check-label fw-bold" asp-for="PaymentReminderEnabled">یادآوری پرداخت فعال باشد</label>
+                        <small class="d-block text-muted">
+                            سفارشی که پیامک «آماده پرداخت» گرفته ولی هنوز پرداخت نشده، یک‌بار و فقط یک‌بار
+                            یادآوری می‌گیرد (با همان لینک پرداخت). هر ساعت بررسی می‌شود و در ساعات سکوت چیزی ارسال نمی‌شود.
+                        </small>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">چند ساعت بعد از پیامک آماده‌پرداخت؟</label>
+                        <input type="number" min="1" max="336" asp-for="PaymentReminderDelayHours" class="form-control" />
+                        <small class="text-muted">پیش‌فرض ۲۴ ساعت.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">💛 بازگشت مشتری با کد تخفیف خودکار</div>
+                <div class="card-body">
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" asp-for="WinBackEnabled" />
+                        <label class="form-check-label fw-bold" asp-for="WinBackEnabled">مشتری‌ای که مدتی خرید نکرده، کد تخفیف بگیرد</label>
+                        <small class="d-block text-muted">
+                            پیامک «دلمان برایتان تنگ شده!» + کد تخفیف اختصاصی یک‌بارمصرف (به‌صورت خودکار ساخته می‌شود).
+                        </small>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <label class="form-label">چند روز بی‌خریدی؟</label>
+                            <input type="number" min="7" asp-for="WinBackDays" class="form-control" />
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">درصد تخفیف</label>
+                            <input type="number" min="1" max="90" asp-for="WinBackDiscountPercent" class="form-control" />
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">اعتبار کد (روز)</label>
+                            <input type="number" min="1" max="90" asp-for="WinBackDiscountValidityDays" class="form-control" />
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <label class="form-label">حداقل مبلغ سفارش برای استفاده از کد (تومان — صفر = بدون حد)</label>
+                        <input type="number" min="0" step="10000" asp-for="WinBackMinOrderAmount" class="form-control" />
+                    </div>
+                    <div class="row g-2 mt-1">
+                        <div class="col-6">
+                            <label class="form-label">عنوان کد در گزارش کدهای تخفیف</label>
+                            <input asp-for="WinBackCodeTitle" class="form-control" placeholder="مثال: کد بازگشت مشتری (خودکار)" />
+                            <small class="text-muted">همین عنوان در صفحه «کدهای تخفیف» نمایش داده می‌شود.</small>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">پیشوند کد تخفیف</label>
+                            <input asp-for="WinBackCodePrefix" class="form-control" dir="ltr" placeholder="BACK" />
+                            <small class="text-muted">کد نهایی مثل BACK834512 ساخته می‌شود (فقط حروف/اعداد انگلیسی).</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">⭐ مشتریان VIP و صف ارسال</div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <label class="form-label">مرز لقب VIP (مجموع خرید به تومان)</label>
+                        <input type="number" min="0" step="100000" asp-for="VipPurchaseThresholdToman" class="form-control" />
+                        <small class="text-muted">در ارسال انبوه، این گروه به‌صورت جداگانه قابل انتخاب است.</small>
+                    </div>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" asp-for="VipAutoSpecialOffers" />
+                        <label class="form-check-label" asp-for="VipAutoSpecialOffers">پیشنهادهای ویژه برای VIP ارسال شود</label>
+                    </div>
+                    <hr />
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label">اندازه دسته ارسال صف</label>
+                            <input type="number" min="1" max="100" asp-for="QueueBatchSize" class="form-control" />
+                            <small class="text-muted">تعداد پیامک در هر دور پردازش</small>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">فاصله ارسال (ثانیه)</label>
+                            <input type="number" min="0" max="60" asp-for="QueueDelaySeconds" class="form-control" />
+                            <small class="text-muted">فاصله بین پیامک‌های انبوه (جلوگیری از بلاک شدن خط)</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <button type="submit" class="btn btn-primary btn-lg">💾 ذخیره تنظیمات</button>
+    </div>
+</form>

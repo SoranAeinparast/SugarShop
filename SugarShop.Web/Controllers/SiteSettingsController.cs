@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SugarShop.Domain.Entities;
 using SugarShop.Infrastructure.Persistence.Sales;
+using SugarShop.Web.Areas.Admin.ViewModels;
 using System.Text.Json;
 
 namespace SugarShop.Web.Controllers
@@ -37,13 +38,16 @@ namespace SugarShop.Web.Controllers
                 try
                 {
                     var parsed = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(settings.QuickLinksJson);
-                    currentQuickLinks = parsed.Select(x => x["Url"]).ToList();
+                    currentQuickLinks = parsed?.Select(x => x["Url"]).ToList() ?? new List<string>();
                 }
                 catch { /* اگر JSON خراب بود، لیست خالی برمی‌گرداند */ }
             }
 
             ViewBag.AvailableLinks = GetAvailablePages();
             ViewBag.CurrentQuickLinks = currentQuickLinks;
+
+            // ✅ ساخت لیست بصری گواهینامه‌ها از روی JSON (ادمین هرگز با JSON سروکار ندارد)
+            ViewBag.Certifications = ParseCertifications(settings.CertificationsJson);
 
             return View(settings);
         }
@@ -79,7 +83,7 @@ namespace SugarShop.Web.Controllers
                 settings.rubikaUrl = model.rubikaUrl;
                 settings.eitaaUrl = model.eitaaUrl;
                 settings.soroushUrl = model.soroushUrl;
-                settings.CertificationsJson = model.CertificationsJson;
+                settings.CertificationsJson = SerializeCertifications();
                 settings.AboutShortText = model.AboutShortText;
                 settings.FooterCopyrightText = model.FooterCopyrightText;
                 settings.IsGalleryEnabled = model.IsGalleryEnabled;
@@ -151,24 +155,72 @@ namespace SugarShop.Web.Controllers
             // در صورت خطای Validation، دوباره لیست‌ها را پر کن
             ViewBag.AvailableLinks = GetAvailablePages();
             ViewBag.CurrentQuickLinks = new List<string>();
+            ViewBag.Certifications = ParseCertifications(model.CertificationsJson);
 
             return View(model);
         }
 
         // ══════════════════════════════════════════════════════════
-        // ✅ لیست صفحات قابل انتخاب (به راحتی قابل گسترش است)
+        // ✅ گواهینامه‌ها: خواندن/نوشتن JSON به‌جای ادمین (ویرایشگر بصری)
         // ══════════════════════════════════════════════════════════
+        private static List<CertificationItem> ParseCertifications(string? json)
+        {
+            var result = new List<CertificationItem>();
+            if (string.IsNullOrWhiteSpace(json)) return result;
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<List<CertificationItem>>(json,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (parsed != null) result.AddRange(parsed);
+            }
+            catch
+            {
+                // JSON خراب از نسخه‌های قبلی: با لیست خالی شروع می‌کنیم تا صفحه کرش نکند
+            }
+            return result;
+        }
+
+        private string SerializeCertifications()
+        {
+            // فیلدهای Certifications[n].Title / ImagePath / Link / Alt از فرم خوانده می‌شوند
+            var items = new List<CertificationItem>();
+            var maxIndex = -1;
+            foreach (var kv in Request.Form)
+            {
+                var m = System.Text.RegularExpressions.Regex.Match(kv.Key, @"^Certifications\[(\d+)\]\.(Title|ImagePath|Link|Alt)$");
+                if (m.Success)
+                {
+                    var idx = int.Parse(m.Groups[1].Value);
+                    if (idx > maxIndex) maxIndex = idx;
+                }
+            }
+
+            for (int i = 0; i <= maxIndex; i++)
+            {
+                var title = Request.Form[$"Certifications[{i}].Title"].ToString().Trim();
+                var imagePath = Request.Form[$"Certifications[{i}].ImagePath"].ToString().Trim();
+                var link = Request.Form[$"Certifications[{i}].Link"].ToString().Trim();
+                var alt = Request.Form[$"Certifications[{i}].Alt"].ToString().Trim();
+                if (string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(imagePath)) continue; // ردیف خالی
+                items.Add(new CertificationItem
+                {
+                    Title = title,
+                    ImagePath = imagePath,
+                    Link = link,
+                    Alt = string.IsNullOrWhiteSpace(alt) ? title : alt
+                });
+            }
+            return JsonSerializer.Serialize(items);
+        }
         private List<KeyValuePair<string, string>> GetAvailablePages()
         {
             return new List<KeyValuePair<string, string>>
             {
                 new KeyValuePair<string, string>("🏠 خانه", "/"),
                 new KeyValuePair<string, string>("🍰 محصولات", "/Products"),
-                new KeyValuePair<string, string>("🍪 شیرینی‌ها", "/SweetItem"),
+                new KeyValuePair<string, string>("📦 آموزش شیرینی پزی", "/Educational"),
                 new KeyValuePair<string, string>("📖 درباره ما", "/Home/AboutUs"),
                 new KeyValuePair<string, string>("📞 تماس با ما", "/Home/Contact"),
-                new KeyValuePair<string, string>("🎂 سفارش کیک سفارشی", "/CustomCake"),
-                new KeyValuePair<string, string>("📦 ساخت جعبه", "/Box")
                 // برای اضافه کردن صفحه جدید، فقط یک خط به این لیست اضافه کنید:
                 // new KeyValuePair<string, string>("عنوان صفحه", "/آدرس-صفحه")
             };

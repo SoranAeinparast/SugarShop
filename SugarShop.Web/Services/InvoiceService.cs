@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using SugarShop.Domain.Entities.Sales;
 using SugarShop.Infrastructure.Persistence;
 using SugarShop.Infrastructure.Persistence.Sales;
+using SugarShop.Web.Extensions;
 
 namespace SugarShop.Web.Services
 {
@@ -109,8 +110,19 @@ namespace SugarShop.Web.Services
                 var totalPrice = boxFinal?.FinalPrice
                     ?? members.Sum(m => m.TotalPriceSnapshot);
 
-                var details = string.Join("، ", members.Select(m =>
-                    $"{(m.SweetItemId.HasValue && sweetNames.ContainsKey(m.SweetItemId.Value) ? sweetNames[m.SweetItemId.Value] : "شیرینی")} ({m.Quantity})"));
+                // هر ردیف جعبه با وزن واقعی همان ردیف در شرح کالا می‌آید تا وزن‌کشی فروشگاه
+                // روی فاکتور قابل ردیابی باشد (قبلاً فقط تعداد ردیف‌ها چاپ می‌شد).
+                var details = string.Join("\n", members.Select(m =>
+                {
+                    var rowName = m.SweetItemId.HasValue && sweetNames.ContainsKey(m.SweetItemId.Value)
+                        ? sweetNames[m.SweetItemId.Value]
+                        : "شیرینی";
+                    var rowWeight = m.WeightSnapshotGrams ?? 0;
+                    var quantityPart = m.Quantity > 1 ? $" ({m.Quantity.ToPersianNumber()} عدد)" : "";
+                    return rowWeight > 0
+                        ? $"{rowName}{quantityPart} — {rowWeight.ToPersianNumber()} گرم"
+                        : $"{rowName}{quantityPart}";
+                }));
 
                 invoice.Items.Add(new InvoiceItem
                 {

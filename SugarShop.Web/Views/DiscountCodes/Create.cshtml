@@ -44,35 +44,13 @@
                 </div>
                 <div class="col-md-6">
                     <div class="mb-3">
-                        <label class="form-label">تاریخ شروع</label>
-                        <div class="input-group">
-                            <input type="text" 
-                                   id="StartDatePicker" 
-                                   name="StartDate" 
-                                   class="form-control persian-date-input" 
-                                   placeholder="تاریخ شروع را انتخاب کنید"
-                                   autocomplete="off"
-                                   required />
-                            <span class="input-group-text">
-                                <i class="bi bi-calendar-event"></i>
-                            </span>
-                        </div>
+                        <label class="form-label">تاریخ شروع (شمسی)</label>
+                        <persian-date asp-for="StartDate" required></persian-date>
                         <span asp-validation-for="StartDate" class="text-danger small"></span>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">تاریخ پایان</label>
-                        <div class="input-group">
-                            <input type="text" 
-                                   id="EndDatePicker" 
-                                   name="EndDate" 
-                                   class="form-control persian-date-input" 
-                                   placeholder="تاریخ پایان را انتخاب کنید"
-                                   autocomplete="off"
-                                   required />
-                            <span class="input-group-text">
-                                <i class="bi bi-calendar-event"></i>
-                            </span>
-                        </div>
+                        <label class="form-label">تاریخ پایان (شمسی)</label>
+                        <persian-date asp-for="EndDate" required></persian-date>
                         <span asp-validation-for="EndDate" class="text-danger small"></span>
                     </div>
                     <div class="mb-3">
@@ -98,37 +76,25 @@
 </div>
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
-    <script src="~/lib/persian-date/persian-date.js"></script>
-    <script src="~/lib/persian-datepicker/js/persian-datepicker.js"></script>
     <script>
-        $(document).ready(function () {
-            $("#StartDatePicker").pDatepicker({
+        $(function () {
+            $("#StartDate").persianDatepicker({
                 format: 'YYYY/MM/DD',
                 autoClose: true,
                 initialValue: false,
-                calendar: {
-                    persian: {
-                        locale: 'fa'
-                    }
-                }
+                observer: true,
+                calendar: { persian: { locale: 'fa' } }
             });
-            $("#EndDatePicker").pDatepicker({
+            $("#EndDate").persianDatepicker({
                 format: 'YYYY/MM/DD',
                 autoClose: true,
                 initialValue: false,
-                calendar: {
-                    persian: {
-                        locale: 'fa'
-                    }
-                }
+                observer: true,
+                calendar: { persian: { locale: 'fa' } }
             });
             $('#DiscountType').on('change', function () {
                 var label = $('#DiscountValueLabel');
-                if ($(this).val() == '1') {
-                    label.text('مقدار تخفیف (درصد)');
-                } else {
-                    label.text('مقدار تخفیف (تومان)');
-                }
+                label.text($(this).val() == '1' ? 'مقدار تخفیف (درصد)' : 'مقدار تخفیف (تومان)');
             }).trigger('change');
         });
     </script>

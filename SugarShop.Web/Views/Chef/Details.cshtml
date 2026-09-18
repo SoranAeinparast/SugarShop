@@ -250,12 +250,20 @@
                     <form asp-action="Approve" method="post" class="row g-3">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="id" value="@Model.Id" />
-                        <div class="col-md-4">
-                            <label class="form-label fw-semibold">قیمت پیشنهادی (تومان)</label>
-                            <input type="number" name="finalPrice" class="form-control" step="1000" min="0" placeholder="مثلاً 1500000" />
-                            <div class="form-text">پس از تأیید، مشتری می‌تواند پرداخت کند.</div>
+                        <div class="col-md-@(Model.DeliveryMethod == DeliveryMethod.Delivery ? "4" : "6")">
+                            <label class="form-label fw-semibold">قیمت نهایی (تومان) <span class="text-danger">*</span></label>
+                            <input type="number" name="finalPrice" class="form-control" step="1000" min="1000" required placeholder="مثلاً 1500000" />
+                            <div class="form-text">ثبت قیمت الزامی است؛ پس از تأیید، مشتری می‌تواند پرداخت کند.</div>
                         </div>
-                        <div class="col-md-8">
+                        @if (Model.DeliveryMethod == DeliveryMethod.Delivery)
+                        {
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">هزینه پیک (تومان)</label>
+                                <input type="number" name="deliveryFee" class="form-control" step="1000" min="0" placeholder="مثلاً 80000" />
+                                <div class="form-text">فقط برای سفارش‌های ارسال با پیک.</div>
+                            </div>
+                        }
+                        <div class="col-md-@(Model.DeliveryMethod == DeliveryMethod.Delivery ? "4" : "6")">
                             <label class="form-label fw-semibold">یادداشت تأیید (نمایش به مشتری)</label>
                             <textarea name="chefNotes" class="form-control" rows="2" placeholder="مثلاً: طبق توضیحات شما آماده پخت است…"></textarea>
                         </div>
@@ -290,6 +298,51 @@
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="id" value="@Model.Id" />
                         <button type="submit" class="btn btn-info px-4">🔥 شروع پخت</button>
+                    </form>
+                </div>
+            </div>
+
+            @* ثبت / ویرایش قیمت نهایی — تا قبل از پرداخت مشتری امکان‌پذیر است *@
+            <div class="card chef-detail-card mb-4 border-warning">
+                <div class="card-header bg-warning text-dark rounded-top-4">
+                    <h5 class="mb-0">💰 قیمت نهایی سفارش</h5>
+                </div>
+                <div class="card-body">
+                    @if (Model.FinalPrice.HasValue)
+                    {
+                        <p class="mb-2">قیمت ثبت‌شده:
+                            <span class="fw-bold text-success fs-5">@Model.FinalPrice.Value.ToString("N0").ToPersianNumber() تومان</span>
+                        </p>
+                        <p class="text-muted small mb-3">برای تغییر قیمت تا قبل از پرداخت مشتری، مبلغ جدید را وارد کنید.</p>
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning py-2 mb-3">
+                            ⚠️ برای این سفارش قیمت نهایی ثبت نشده است؛ تا زمان ثبت قیمت، مشتری نمی‌تواند پرداخت کند.
+                        </div>
+                    }
+                    <form asp-action="UpdatePrice" method="post" class="row g-2 align-items-end">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <div class="col-md-@(Model.DeliveryMethod == DeliveryMethod.Delivery ? "5" : "6")">
+                            <label class="form-label fw-semibold">قیمت نهایی (تومان)</label>
+                            <input type="number" name="finalPrice" class="form-control" step="1000" min="1000" required
+                                   value="@(Model.FinalPrice?.ToString("0") ?? "")" />
+                        </div>
+                        @if (Model.DeliveryMethod == DeliveryMethod.Delivery)
+                        {
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">هزینه پیک (تومان)</label>
+                                <input type="number" name="deliveryFee" class="form-control" step="1000" min="0" required
+                                       value="@(Model.DeliveryFee?.ToString("0") ?? "")" />
+                                <div class="form-text">مبلغ پیک به قیمت نهایی اضافه و از مشتری دریافت می‌شود.</div>
+                            </div>
+                        }
+                        <div class="col-md-3">
+                            <button type="submit" class="btn btn-warning px-4">
+                                @(Model.FinalPrice.HasValue ? "✏️ ویرایش قیمت" : "💾 ثبت قیمت و فعال‌سازی پرداخت")
+                            </button>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -355,6 +408,27 @@
                 <div class="info-value mb-2">@(customer?.Email ?? "—")</div>
                 <div class="info-label">شناسه کاربر:</div>
                 <div class="info-value small text-muted">@Model.UserId</div>
+                <hr />
+                <div class="info-label">روش تحویل:</div>
+                <div class="info-value mb-2">
+                    @if (Model.DeliveryMethod == DeliveryMethod.Delivery)
+                    {
+                        <span>🛵 ارسال با پیک</span>
+                    }
+                    else
+                    {
+                        <span>🏪 دریافت در محل</span>
+                    }
+                </div>
+                @if (Model.DeliveryMethod == DeliveryMethod.Delivery)
+                {
+                    <div class="info-label">آدرس تحویل:</div>
+                    <div class="info-value mb-2">@(Model.CustomerFullAddress ?? "—")</div>
+                    <div class="info-label">گیرنده:</div>
+                    <div class="info-value mb-2">@(Model.ReceiverName ?? "—") | تلفن: @(Model.ReceiverPhone ?? "—")</div>
+                    <div class="info-label">هزینه پیک:</div>
+                    <div class="info-value mb-2">@(Model.DeliveryFee?.ToString("N0").ToPersianNumber() ?? "تعیین نشده") تومان</div>
+                }
             </div>
         </div>
 

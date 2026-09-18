@@ -46,7 +46,7 @@ namespace SugarShop.Web.Areas.Admin.Controllers
                 query = query.Where(c =>
                     c.Title.Contains(search) ||
                     c.BodyHtml.Contains(search) ||
-                    c.Tags.Contains(search) ||
+                    (c.Tags != null && c.Tags.Contains(search)) ||
                     (c.AdminNotes != null && c.AdminNotes.Contains(search)));
             }
             if (!string.IsNullOrEmpty(category))
@@ -93,6 +93,12 @@ namespace SugarShop.Web.Areas.Admin.Controllers
             ViewBag.TotalCount = totalCount;
             ViewBag.TotalPages = (int)Math.Ceiling((double)totalCount / pageSize);
 
+            // آمار کلی برای کارت‌های بالای صفحه
+            ViewBag.TotalAll = await _context.EducationalContents.CountAsync();
+            ViewBag.TotalPublished = await _context.EducationalContents.CountAsync(c => c.IsPublished);
+            ViewBag.TotalPendingApproval = await _context.EducationalContents.CountAsync(c => !c.IsApproved);
+            ViewBag.TotalDrafts = await _context.EducationalContents.CountAsync(c => !c.IsPublished && !c.IsApproved);
+
             return View(items);
         }
         [HttpGet("Details/{id}")]
@@ -104,6 +110,9 @@ namespace SugarShop.Web.Areas.Admin.Controllers
                 .FirstOrDefaultAsync(c => c.Id == id);
 
             if (content == null) return NotFound();
+
+            // پاک‌سازی سمت خروج برای نمایش امن در پیش‌نمایش ادمین
+            content.BodyHtml = HtmlSanitizerHelper.Sanitize(content.BodyHtml);
 
             return View(content);
         }
@@ -144,6 +153,8 @@ namespace SugarShop.Web.Areas.Admin.Controllers
             var content = await _context.EducationalContents.FindAsync(id);
             if (content == null) return NotFound();
 
+            var wasPublished = content.IsPublished;
+
             content.Title = model.Title;
             content.BodyHtml = HtmlSanitizerHelper.Sanitize(model.BodyHtml);
             content.FeaturedImageUrl = model.FeaturedImageUrl;
@@ -153,19 +164,27 @@ namespace SugarShop.Web.Areas.Admin.Controllers
             content.TopicId = model.TopicId;
             content.AdminNotes = model.AdminNotes;
             content.MetaDescription = model.MetaDescription;
-            content.IsPublished = model.IsPublished;
-            if (model.IsPublished && !content.IsPublished)
+
+            // قفل انتشار: فقط محتوای تاییدشده می‌تواند منتشر شود (هماهنگ با TogglePublish)
+            var shouldPublish = model.IsPublished && content.IsApproved;
+            if (model.IsPublished && !content.IsApproved)
+            {
+                TempData["Warning"] = "⚠️ این محتوا هنوز تایید نشده است؛ ابتدا از لیست/صفحه جزئیات آن را تایید کنید، سپس انتشار فعال می‌شود.";
+            }
+            content.IsPublished = shouldPublish;
+            if (shouldPublish && !wasPublished)
             {
                 content.PublishedAt = DateTime.UtcNow;
             }
-            else if (!model.IsPublished)
+            else if (!shouldPublish)
             {
                 content.PublishedAt = null;
             }
 
             await _context.SaveChangesAsync();
-            TempData["Success"] = "✅ محتوا با موفقیت ویرایش شد.";
-            return RedirectToAction(nameof(Index));
+            if (TempData["Warning"] == null)
+                TempData["Success"] = "✅ محتوا با موفقیت ویرایش شد.";
+            return RedirectToAction(nameof(Details), new { id = content.Id });
         }
         [HttpPost("Approve/{id}")]
         [ValidateAntiForgeryToken]
@@ -200,7 +219,8 @@ namespace SugarShop.Web.Areas.Admin.Controllers
                 TempData["Warning"] = "⚠️ این محتوا قبلاً تایید شده است.";
             }
 
-            return RedirectToAction(nameof(Index));
+            // رفتن به صفحه جزئیات تا اگر «انتشار خودکار» خاموش است، دکمه انتشار را همان‌جا ببیند
+            return RedirectToAction(nameof(Details), new { id = content.Id });
         }
         [HttpPost("Unapprove/{id}")]
         [ValidateAntiForgeryToken]
@@ -217,6 +237,7 @@ namespace SugarShop.Web.Areas.Admin.Controllers
             {
                 content.IsApproved = false;
                 content.ApprovedAt = null;
+                // با لغو تایید، محتوای منتشرنشده همچنان پیش‌نویس می‌ماند
                 await _context.SaveChangesAsync();
                 TempData["Success"] = "✅ تایید محتوا لغو شد.";
             }
@@ -225,7 +246,7 @@ namespace SugarShop.Web.Areas.Admin.Controllers
                 TempData["Warning"] = "⚠️ این محتوا قبلاً تایید نشده است.";
             }
 
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(nameof(Details), new { id = content.Id });
         }
         [HttpPost("TogglePublish/{id}")]
         [ValidateAntiForgeryToken]
@@ -251,7 +272,7 @@ namespace SugarShop.Web.Areas.Admin.Controllers
                 ? "✅ محتوا با موفقیت منتشر شد."
                 : "✅ انتشار محتوا لغو شد.";
 
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(nameof(Details), new { id = content.Id });
         }
         [HttpPost("Delete/{id}")]
         [ValidateAntiForgeryToken]
@@ -274,7 +295,7 @@ namespace SugarShop.Web.Areas.Admin.Controllers
         [HttpGet("Create")]
         public IActionResult Create()
         {
-            return View();
+            return View(new EducationalContent());
         }
 
         [HttpPost("Create")]
@@ -300,14 +321,22 @@ namespace SugarShop.Web.Areas.Admin.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> GenerateAI(string title, string content)
         {
-            if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(content))
-                return Json(new { success = false, message = "عنوان و متن الزامی است." });
+            if (string.IsNullOrWhiteSpace(title))
+                return Json(new { success = false, message = "عنوان الزامی است." });
 
             try
             {
-                var rewritten = await _aiContentService.RewriteContentAsync(title, content);
-                var featuredImage = await _aiContentService.GenerateFeaturedImageAsync(title,
-                    content.Length > 100 ? content.Substring(0, 100) : content);
+                title = title.Trim();
+                var isAiConfigured = await _aiContentService.IsTextAiConfiguredAsync();
+                var seedText = string.IsNullOrWhiteSpace(content)
+                    ? $"یک مقاله کامل و جامع درباره {title} بنویس: مقدمه، مواد لازم با مقدار دقیق، طرز تهیه مرحله‌به‌مرحله و نکات طلایی برای نتیجه بهتر."
+                    : content.Trim();
+
+                var rewritten = await _aiContentService.RewriteContentAsync(title, seedText);
+                var descriptionForImage = string.IsNullOrWhiteSpace(content)
+                    ? $"delicious homemade {title} pastry dessert"
+                    : (content.Length > 100 ? content.Substring(0, 100) : content);
+                var featuredImage = await _aiContentService.GenerateFeaturedImageAsync(title, descriptionForImage);
 
                 var newContent = new EducationalContent
                 {
@@ -324,7 +353,11 @@ namespace SugarShop.Web.Areas.Admin.Controllers
                 _context.EducationalContents.Add(newContent);
                 await _context.SaveChangesAsync();
 
-                return Json(new { success = true, message = "محتوا با AI تولید و ذخیره شد." });
+                var message = isAiConfigured
+                    ? "✅ محتوا با هوش مصنوعی تولید و به‌صورت پیش‌نویس ذخیره شد."
+                    : "📝 پیش‌نویس ساختاریافته تولید شد (بدون کلید AI). برای بازنویسی هوشمند، در «تنظیمات تولید محتوای هوشمند» یک کلید رایگان Gemini یا OpenRouter وارد کنید.";
+
+                return Json(new { success = true, message, id = newContent.Id });
             }
             catch (Exception ex)
             {

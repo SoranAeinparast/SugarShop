@@ -1,0 +1,115 @@
+@model List<SugarShop.Domain.Entities.Category>
+@{
+    ViewData["Title"] = "دسته‌بندی محصولات";
+}
+
+<style>
+    /* ==================== صفحه‌ی دسته‌بندی‌ها (موبایل) ==================== */
+    .catall-hero {
+        text-align: center;
+        padding: 1.4rem 1rem 1.1rem;
+        color: #fff;
+        background: linear-gradient(135deg, #3a2110 0%, #6b3d1f 55%, #b8860b 100%);
+        border-radius: 0 0 1.6rem 1.6rem;
+        margin-bottom: 1.2rem;
+        position: relative;
+        overflow: hidden;
+    }
+    .catall-hero::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background-image: radial-gradient(rgba(255,255,255,.16) 1px, transparent 1px);
+        background-size: 14px 14px;
+        opacity: .4;
+    }
+    .catall-hero i { font-size: 2.2rem; filter: drop-shadow(0 4px 8px rgba(0,0,0,.3)); }
+    .catall-hero h1 { font-size: 1.3rem; font-weight: 800; margin: .45rem 0 .2rem; }
+    .catall-hero p { font-size: .82rem; opacity: .88; margin: 0; }
+
+    .catall-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: .8rem;
+        padding: 0 .8rem 2rem;
+    }
+    .catall-card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        background: #fff;
+        border: 2px solid #f0e0c8;
+        border-radius: 1.2rem;
+        overflow: hidden;
+        text-decoration: none;
+        transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+        box-shadow: 0 4px 14px rgba(58,33,16,.06);
+    }
+    .catall-card:active { transform: scale(.97); }
+    .catall-card:hover {
+        border-color: #d4a056;
+        transform: translateY(-4px);
+        box-shadow: 0 12px 26px rgba(184,134,11,.2);
+    }
+    .catall-img {
+        width: 100%;
+        aspect-ratio: 4/3;
+        object-fit: cover;
+        background: #f5e9d2;
+    }
+    .catall-img-ph {
+        width: 100%;
+        aspect-ratio: 4/3;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(135deg, #fdf6ec, #f0e0c8);
+        font-size: 2.2rem;
+        color: #d4a056;
+    }
+    .catall-name {
+        font-weight: 800;
+        font-size: .92rem;
+        color: #3b2414;
+        padding: .55rem .5rem .15rem;
+        line-height: 1.5;
+    }
+    .catall-go {
+        font-size: .68rem;
+        color: #b8860b;
+        font-weight: 700;
+        padding: 0 .5rem .6rem;
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+    }
+    @@media (min-width: 576px) {
+        .catall-grid { grid-template-columns: repeat(3, 1fr); max-width: 720px; margin: 0 auto; }
+    }
+</style>
+
+<div class="catall-hero">
+    <i class="bi bi-grid-3x3-gap-fill"></i>
+    <h1>دسته‌بندی محصولات</h1>
+    <p>هر دسته را انتخاب کنید و وارد دنیای شیرینی‌های آن شوید</p>
+</div>
+
+<div class="catall-grid">
+    @foreach (var c in Model)
+    {
+        <a href="/Category/@c.Slug" class="catall-card">
+            @if (!string.IsNullOrWhiteSpace(c.ImagePath))
+            {
+                <img src="@c.ImagePath" alt="@c.TitleFa" class="catall-img" loading="lazy" />
+            }
+            else
+            {
+                <div class="catall-img-ph"><i class="bi bi-basket2-fill"></i></div>
+            }
+            <span class="catall-name">@c.TitleFa</span>
+            <span class="catall-go">مشاهده محصولات <i class="bi bi-arrow-left"></i></span>
+        </a>
+    }
+</div>

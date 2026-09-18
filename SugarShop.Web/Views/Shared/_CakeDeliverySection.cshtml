@@ -1,0 +1,99 @@
+@using SugarShop.Domain.Entities.Sales
+@using System.Collections.Generic
+@{
+    // ورودی‌ها (از طریق ViewData در کنترلر تنظیم می‌شوند):
+    //   CakeDeliveryAddresses  → List<Address>  (آدرس‌های کاربر)
+    //   CakeDeliveryMethod     → int            (1 = در محل، 2 = پیک) — پیش‌فرض ۱
+    //   CakeDeliveryAddressId  → int?           (آدرس انتخاب‌شده)
+    var addresses = ViewData["CakeDeliveryAddresses"] as List<Address> ?? new List<Address>();
+    int currentMethod = ViewData["CakeDeliveryMethod"] is int m ? m : 1;
+    int? currentAddressId = ViewData["CakeDeliveryAddressId"] as int?;
+}
+<div class="col-12">
+    <hr class="my-3" />
+    <h5 class="fw-bold mb-2">🚚 روش دریافت کیک</h5>
+    <div class="row">
+        <div class="col-md-6">
+            <div class="form-check border rounded p-3 mb-2 cake-dm-card @(currentMethod == 1 ? "bg-light border-primary" : "")">
+                <input class="form-check-input" type="radio" name="DeliveryMethod" value="1" id="dmPickup" @(currentMethod == 1 ? "checked" : "")>
+                <label class="form-check-label w-100" for="dmPickup">
+                    <strong>🏪 تحویل در محل شیرینی‌سرا</strong><br />
+                    <small class="text-muted">بدون نیاز به آدرس و هزینه ارسال</small>
+                </label>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-check border rounded p-3 mb-2 cake-dm-card @(currentMethod == 2 ? "bg-light border-primary" : "")">
+                <input class="form-check-input" type="radio" name="DeliveryMethod" value="2" id="dmCourier" @(currentMethod == 2 ? "checked" : "")>
+                <label class="form-check-label w-100" for="dmCourier">
+                    <strong>🛵 ارسال با پیک</strong><br />
+                    <small class="text-muted">هزینه پیک پس از تأیید سفارش اعلام می‌شود</small>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <div id="cakeAddressSection" class="mt-2 @(currentMethod == 2 ? "" : "d-none")">
+        <div class="border rounded-3 p-3 bg-white">
+            <label class="form-label fw-bold">📍 آدرس تحویل</label>
+            @if (addresses.Any())
+            {
+                <div class="mb-2">
+                    @foreach (var addr in addresses)
+                    {
+                        var isChecked = currentAddressId == addr.Id || (!currentAddressId.HasValue && addr.IsDefault);
+                        <div class="form-check mb-2">
+                            <input class="form-check-input cake-addr-radio" type="radio" name="AddressId" value="@addr.Id" id="cakeAddr_@addr.Id" @(isChecked ? "checked" : "")>
+                            <label class="form-check-label" for="cakeAddr_@addr.Id">
+                                <strong>@addr.Title</strong><br />
+                                <span>@addr.FullAddress</span><br />
+                                <small>گیرنده: @(addr.ReceiverName ?? "—") | تلفن: @(addr.ReceiverPhone ?? "—")</small>
+                            </label>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-warning py-2 mb-2">
+                    هنوز آدرسی ثبت نکرده‌اید.
+                    <a href="/Address/Create?returnUrl=@(Context.Request.Path)" class="alert-link">برای افزودن آدرس اینجا کلیک کنید</a>
+                </div>
+            }
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="cakeUseNewAddress" name="useNewAddress" value="true">
+                <label class="form-check-label" for="cakeUseNewAddress">➕ افزودن آدرس جدید</label>
+            </div>
+            <div id="cakeNewAddressFields" class="d-none">
+                <div class="alert alert-info py-2 small">
+                    آدرس جدید پس از ثبت سفارش به لیست آدرس‌های شما اضافه می‌شود.
+                </div>
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label small mb-1">عنوان (خانه، محل کار)</label>
+                        <input type="text" name="newAddressTitle" class="form-control" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small mb-1">نام گیرنده</label>
+                        <input type="text" name="newReceiverName" class="form-control" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small mb-1">شماره تماس</label>
+                        <input type="text" name="newReceiverPhone" class="form-control" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small mb-1">کد پستی (اختیاری)</label>
+                        <input type="text" name="newPostalCode" class="form-control" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small mb-1">آدرس کامل</label>
+                        <textarea name="newFullAddress" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-2">
+                <a href="/Address/Index" class="btn btn-sm btn-outline-secondary">📍 مدیریت آدرس‌های من</a>
+            </div>
+        </div>
+    </div>
+</div>

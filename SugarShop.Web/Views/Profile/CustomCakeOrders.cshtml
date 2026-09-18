@@ -68,11 +68,19 @@
                                     }
                                     @if (order.Status == CustomCakeOrderStatus.Accepted && !order.IsPaid)
                                     {
-                                        <form asp-action="PayCustomCakeOrder" method="post" class="m-0">
-                                            @Html.AntiForgeryToken()
-                                            <input type="hidden" name="id" value="@order.Id" />
-                                            <button type="submit" class="btn btn-sm btn-primary" style="width: 85px;">پرداخت 💳</button>
-                                        </form>
+                                        if (order.FinalPrice.HasValue)
+                                        {
+                                            <form asp-action="PayCustomCakeOrder" method="post" class="m-0">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@order.Id" />
+                                                <button type="submit" class="btn btn-sm btn-primary" style="width: 85px;">پرداخت 💳</button>
+                                            </form>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark align-self-center" style="width: 85px; display:inline-flex; justify-content:center; align-items:center; height: 31px;"
+                                                  title="فروشگاه هنوز قیمت نهایی این سفارش را اعلام نکرده است">⏳ در انتظار قیمت</span>
+                                        }
                                     }
                                     <a asp-action="CustomCakeOrderDetails" asp-route-id="@order.Id" 
                                        class="btn btn-sm btn-info" style="width: 85px;">جزئیات</a>

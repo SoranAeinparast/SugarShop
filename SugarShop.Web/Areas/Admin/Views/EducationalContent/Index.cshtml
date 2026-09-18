@@ -4,57 +4,363 @@
 @{
     ViewData["Title"] = "مدیریت محتوای آموزشی";
     Layout = "_AdminLayout";
+    var search = ViewBag.Search as string;
+    var category = ViewBag.Category as string;
+    var isPublished = ViewBag.IsPublished as bool?;
+    var isApproved = ViewBag.IsApproved as bool?;
+    var sortBy = (ViewBag.SortBy as string) ?? "createdAt_desc";
+    var currentPage = (int)ViewBag.CurrentPage;
+    var totalPages = (int)ViewBag.TotalPages;
+    var totalCount = (int)ViewBag.TotalCount;
+    var categories = ViewBag.Categories as List<string> ?? new List<string>();
 }
-<div class="card">
-    <div class="card-header">
-        <h4>📚 مدیریت محتوای آموزشی</h4>
+
+<div class="container-fluid px-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h4 class="mb-0">📚 مدیریت محتوای آموزشی</h4>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#aiGenerateModal">
+                <i class="bi bi-magic"></i> تولید با هوش مصنوعی
+            </button>
+            <a asp-action="Create" class="btn btn-outline-secondary"><i class="bi bi-plus-lg"></i> ایجاد دستی</a>
+        </div>
     </div>
-    <div class="card-body">
-        @if (TempData["Success"] != null)
-        {
-            <div class="alert alert-success">@TempData["Success"]</div>
-        }
-        <div class="table-responsive">
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>عنوان</th>
-                        <th>دسته‌بندی</th>
-                        <th>وضعیت</th>
-                        <th>تاریخ</th>
-                        <th>عملیات</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var item in Model)
-                    {
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @TempData["Success"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (TempData["Warning"] != null)
+    {
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            @TempData["Warning"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @TempData["Error"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <!-- آمار کلی -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body d-flex align-items-center gap-3 py-3">
+                    <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center" style="width:46px;height:46px;"><i class="bi bi-collection-fill text-primary fs-5"></i></div>
+                    <div>
+                        <div class="fs-5 fw-bold">@(((int)ViewBag.TotalAll).ToPersianNumber())</div>
+                        <div class="text-muted small">کل محتوا</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body d-flex align-items-center gap-3 py-3">
+                    <div class="rounded-circle bg-success bg-opacity-10 d-flex align-items-center justify-content-center" style="width:46px;height:46px;"><i class="bi bi-check-circle-fill text-success fs-5"></i></div>
+                    <div>
+                        <div class="fs-5 fw-bold">@(((int)ViewBag.TotalPublished).ToPersianNumber())</div>
+                        <div class="text-muted small">منتشر شده</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body d-flex align-items-center gap-3 py-3">
+                    <div class="rounded-circle bg-warning bg-opacity-10 d-flex align-items-center justify-content-center" style="width:46px;height:46px;"><i class="bi bi-hourglass-split text-warning fs-5"></i></div>
+                    <div>
+                        <div class="fs-5 fw-bold">@(((int)ViewBag.TotalPendingApproval).ToPersianNumber())</div>
+                        <div class="text-muted small">در انتظار تایید</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body d-flex align-items-center gap-3 py-3">
+                    <div class="rounded-circle bg-secondary bg-opacity-10 d-flex align-items-center justify-content-center" style="width:46px;height:46px;"><i class="bi bi-file-earmark-text text-secondary fs-5"></i></div>
+                    <div>
+                        <div class="fs-5 fw-bold">@(((int)ViewBag.TotalDrafts).ToPersianNumber())</div>
+                        <div class="text-muted small">پیش‌نویس</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- فیلترها -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small mb-1">جستجو</label>
+                    <input type="text" name="search" value="@search" class="form-control" placeholder="عنوان، متن، برچسب…" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1">دسته‌بندی</label>
+                    <select name="category" class="form-select">
+                        <option value="">همه</option>
+                        @foreach (var c in categories)
+                        {
+                            <option value="@c" selected="@(c == category ? "selected" : null)">@c</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1">وضعیت انتشار</label>
+                    <select name="isPublished" class="form-select">
+                        <option value="">همه</option>
+                        <option value="true" selected="@(isPublished == true ? "selected" : null)">منتشر شده</option>
+                        <option value="false" selected="@(isPublished == false ? "selected" : null)">منتشر نشده</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1">تایید</label>
+                    <select name="isApproved" class="form-select">
+                        <option value="">همه</option>
+                        <option value="true" selected="@(isApproved == true ? "selected" : null)">تایید شده</option>
+                        <option value="false" selected="@(isApproved == false ? "selected" : null)">تایید نشده</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1">مرتب‌سازی</label>
+                    <select name="sortBy" class="form-select">
+                        <option value="createdAt_desc" selected="@(sortBy == "createdAt_desc" ? "selected" : null)">جدیدترین</option>
+                        <option value="createdAt_asc" selected="@(sortBy == "createdAt_asc" ? "selected" : null)">قدیمی‌ترین</option>
+                        <option value="title_asc" selected="@(sortBy == "title_asc" ? "selected" : null)">عنوان (الف تا ی)</option>
+                        <option value="title_desc" selected="@(sortBy == "title_desc" ? "selected" : null)">عنوان (ی تا الف)</option>
+                    </select>
+                </div>
+                <div class="col-md-1 d-grid">
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i></button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- لیست محتوا -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
                         <tr>
-                            <td>@item.Id</td>
-                            <td>@item.Title</td>
-                            <td>@item.Category</td>
-                            <td>
-                                @if (item.IsPublished)
-                                {
-                                    <span class="badge bg-success">منتشر شده</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-warning">پیش‌نویس</span>
-                                }
-                            </td>
-                            <td>@(new PersianDateTime(item.CreatedAt).ToString("yyyy/MM/dd").ToPersianNumber())</td>
-                            <td>
-                                <a href="/Admin/EducationalContent/Edit/@item.Id" class="btn btn-sm btn-primary">✏️ ویرایش</a>
-                                <form asp-action="Delete" method="post" style="display:inline;">
-                                    <input type="hidden" name="id" value="@item.Id" />
-                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('حذف شود؟')">🗑️</button>
-                                </form>
-                            </td>
+                            <th style="width:70px;">تصویر</th>
+                            <th>عنوان</th>
+                            <th style="width:110px;">دسته‌بندی</th>
+                            <th style="width:170px;">وضعیت</th>
+                            <th style="width:110px;">تاریخ</th>
+                            <th style="width:200px;" class="text-center">عملیات</th>
                         </tr>
-                    }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model)
+                        {
+                            <tr>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(item.FeaturedImageUrl) && !item.FeaturedImageUrl.Contains("placeholder"))
+                                    {
+                                        <img src="@item.FeaturedImageUrl" alt="@item.Title" style="width:56px;height:42px;object-fit:cover;border-radius:6px;" />
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex align-items-center justify-content-center text-muted" style="width:56px;height:42px;background:#f4f4f5;border-radius:6px;"><i class="bi bi-card-image"></i></div>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="fw-semibold">@item.Title</div>
+                                    @if (!string.IsNullOrEmpty(item.SourceUrl))
+                                    {
+                                        <small class="text-muted"><i class="bi bi-link-45deg"></i> <a href="@item.SourceUrl" target="_blank" rel="noopener">منبع</a></small>
+                                    }
+                                </td>
+                                <td><span class="badge bg-light text-dark border">@(item.Category ?? "-")</span></td>
+                                <td>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        @if (item.IsPublished)
+                                        {
+                                            <span class="badge bg-success"><i class="bi bi-check-circle"></i> منتشر شده</span>
+                                        }
+                                        else if (item.IsApproved)
+                                        {
+                                            <span class="badge bg-info text-dark"><i class="bi bi-hourglass-split"></i> تایید شده / در انتظار انتشار</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary"><i class="bi bi-file-earmark"></i> پیش‌نویس</span>
+                                            <span class="badge bg-warning text-dark"><i class="bi bi-hourglass"></i> تایید نشده</span>
+                                        }
+                                    </div>
+                                </td>
+                                <td class="small text-muted">@(new PersianDateTime(item.CreatedAt).ToString("yyyy/MM/dd").ToPersianNumber())</td>
+                                <td class="text-center">
+                                    <div class="d-flex justify-content-center align-items-center flex-wrap gap-1">
+                                        <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary" title="مشاهده و انتشار"><i class="bi bi-eye"></i> جزئیات</a>
+                                        <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-warning" title="ویرایش"><i class="bi bi-pencil"></i></a>
+
+                                        @if (!item.IsApproved)
+                                        {
+                                            <form asp-action="Approve" asp-route-id="@item.Id" method="post" style="display:inline;">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-sm btn-outline-success" title="تایید محتوا"><i class="bi bi-patch-check"></i> تایید</button>
+                                            </form>
+                                        }
+                                        else if (!item.IsPublished)
+                                        {
+                                            <form asp-action="TogglePublish" asp-route-id="@item.Id" method="post" style="display:inline;">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-sm btn-success" title="انتشار در سایت"><i class="bi bi-cloud-arrow-up"></i> انتشار</button>
+                                            </form>
+                                            <form asp-action="Unapprove" asp-route-id="@item.Id" method="post" style="display:inline;">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-sm btn-outline-secondary" title="لغو تایید"><i class="bi bi-x-circle"></i></button>
+                                            </form>
+                                        }
+
+                                        @if (item.IsPublished)
+                                        {
+                                            <form asp-action="TogglePublish" asp-route-id="@item.Id" method="post" style="display:inline;">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="لغو انتشار"><i class="bi bi-cloud-arrow-down"></i></button>
+                                            </form>
+                                        }
+
+                                        <form asp-action="Delete" asp-route-id="@item.Id" method="post" style="display:inline;" onsubmit="return confirm('«@item.Title» حذف شود؟ این عمل قابل بازگشت نیست.');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="حذف"><i class="bi bi-trash"></i></button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        @if (!Model.Any())
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-5">
+                                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                    موردی یافت نشد. با «تولید با هوش مصنوعی» اولین مقاله را بسازید.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (totalPages > 1)
+            {
+                <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
+                    <small class="text-muted">
+                        نمایش @((((currentPage - 1) * (int)ViewBag.PageSize) + 1).ToPersianNumber()) تا
+                        @((Math.Min(currentPage * (int)ViewBag.PageSize, totalCount)).ToPersianNumber()) از @totalCount.ToPersianNumber() مورد
+                    </small>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            @for (var p = 1; p <= totalPages; p++)
+                            {
+                                <li class="page-item @(p == currentPage ? "active" : null)">
+                                    <a class="page-link" asp-action="Index"
+                                       asp-route-search="@search" asp-route-category="@category"
+                                       asp-route-isPublished="@isPublished" asp-route-isApproved="@isApproved"
+                                       asp-route-sortBy="@sortBy" asp-route-page="@p">@p.ToPersianNumber()</a>
+                                </li>
+                            }
+                        </ul>
+                    </nav>
+                </div>
+            }
         </div>
     </div>
 </div>
+
+<!-- مودال تولید با هوش مصنوعی -->
+<div class="modal fade" id="aiGenerateModal" tabindex="-1" aria-labelledby="aiGenerateModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="aiGenerateModalLabel"><i class="bi bi-magic text-primary"></i> تولید محتوا با هوش مصنوعی</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">عنوان مقاله <span class="text-danger">*</span></label>
+                    <input type="text" id="aiTitle" class="form-control" placeholder="مثلاً: طرز تهیه کیک شکلاتی فوری" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">متن راهنما (اختیاری)</label>
+                    <textarea id="aiContent" class="form-control" rows="5" placeholder="می‌توانید متن اولیه، مواد اولیه یا توضیحات خود را بنویسید — یا خالی بگذارید تا هوش مصنوعی مقاله کامل را از عنوان بسازد."></textarea>
+                </div>
+                <div class="alert alert-light border small mb-0" id="aiModeHint">
+                    <i class="bi bi-info-circle text-primary"></i>
+                    <span id="aiModeHintText">با هوش مصنوعی بازنویسی و تکمیل می‌شود.</span>
+                </div>
+                <div id="aiResult" class="mt-3"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">بستن</button>
+                <button type="button" class="btn btn-primary" id="btnGenerateAi">
+                    <span id="aiSpinner" class="spinner-border spinner-border-sm d-none"></span>
+                    <i class="bi bi-stars"></i> تولید و ذخیره پیش‌نویس
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .badge { font-weight: 500; }
+    .modal-content { direction: rtl; }
+</style>
+
+@section Scripts {
+    <script>
+        $(function () {
+            var token = document.querySelector('input[name="__RequestVerificationToken"]');
+            if (!token) token = null;
+
+            $('#btnGenerateAi').on('click', function () {
+                var $btn = $(this), $spinner = $('#aiSpinner'), $result = $('#aiResult');
+                var title = $.trim($('#aiTitle').val());
+                var content = $.trim($('#aiContent').val());
+                $result.empty();
+                if (!title) {
+                    $result.html('<div class="alert alert-danger py-2 mb-0">عنوان مقاله الزامی است.</div>');
+                    return;
+                }
+                $btn.prop('disabled', true);
+                $spinner.removeClass('d-none');
+                $.ajax({
+                    url: '/Admin/EducationalContent/GenerateAI',
+                    type: 'POST',
+                    headers: token ? { 'RequestVerificationToken': token.value } : {},
+                    data: { title: title, content: content },
+                    success: function (res) {
+                        if (res.success) {
+                            $result.html(
+                                '<div class="alert alert-success py-2 mb-0"><i class="bi bi-check-circle"></i> ' + res.message +
+                                ' <a class="alert-link" href="/Admin/EducationalContent/Edit/' + res.id + '">ویرایش و انتشار</a></div>'
+                            );
+                            $('#aiTitle').val(''); $('#aiContent').val('');
+                            setTimeout(function () { location.reload(); }, 2500);
+                        } else {
+                            $result.html('<div class="alert alert-danger py-2 mb-0"><i class="bi bi-x-circle"></i> ' + res.message + '</div>');
+                        }
+                    },
+                    error: function (xhr) {
+                        $result.html('<div class="alert alert-danger py-2 mb-0">خطا در برقراری ارتباط: ' + xhr.status + '</div>');
+                    },
+                    complete: function () {
+                        $btn.prop('disabled', false);
+                        $spinner.addClass('d-none');
+                    }
+                });
+            });
+        });
+    </script>
+}

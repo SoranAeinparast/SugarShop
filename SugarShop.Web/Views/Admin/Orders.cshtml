@@ -8,54 +8,93 @@
     ViewData["Title"] = "مدیریت سفارشات";
     var currentStatus = ViewBag.CurrentStatus as string ?? "all";
     var userNames = ViewBag.UserNames as Dictionary<string, string> ?? new Dictionary<string, string>();
+    var statusCounts = ViewBag.StatusCounts as Dictionary<OrderStatus, int> ?? new Dictionary<OrderStatus, int>();
     int totalOrders = ViewBag.TotalOrders ?? 0;
     decimal totalPayments = ViewBag.TotalPayments ?? 0;
+    var search = ViewBag.Search as string ?? "";
+    int currentPage = ViewBag.CurrentPage is int cp ? cp : 1;
+    int totalPages = ViewBag.TotalPages is int tp ? tp : 1;
+    int pageSize = ViewBag.PageSize is int ps ? ps : 20;
+
+    // شمارنده‌های تب‌ها از سرور می‌آیند و روی «همه سفارش‌های منطبق با جست‌وجو» حساب شده‌اند (نه فقط صفحه جاری)
+    int CountOf(params OrderStatus[] statuses) => statuses.Sum(s => statusCounts.TryGetValue(s, out var c) ? c : 0);
+
+    string TabUrl(string status) => Url.Action("Orders", new { status, search }) ?? "#";
+    string PageUrl(int page) => Url.Action("Orders", new { status = currentStatus, search, page }) ?? "#";
+
+    int firstRow = totalOrders == 0 ? 0 : ((currentPage - 1) * pageSize) + 1;
+    int lastRow = Math.Min(currentPage * pageSize, totalOrders);
+    var allCount = statusCounts.Values.Sum();
 }
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2>📋 مدیریت سفارشات</h2>
-        <a href="@Url.Action("ExportOrdersToExcel", "Admin", new { status = currentStatus })" class="btn btn-success">
-            📥 دانلود اکسل (CSV)
+        <a href="@Url.Action("ExportOrdersToExcel", "Admin", new { status = currentStatus, search = search })" class="btn btn-success">
+            📥 دانلود اکسل (XLSX)
         </a>
     </div>
     @if (TempData["SuccessMessage"] != null)
     {
         <div class="alert alert-success">@TempData["SuccessMessage"]</div>
     }
-    @{
-        var allCount = Model.Count;
-        var awaitingCount = Model.Count(o => o.OrderStatus == OrderStatus.AwaitingReview);
-        var pendingCount = Model.Count(o => o.OrderStatus == OrderStatus.PendingPayment);
-        var preparingCount = Model.Count(o => o.OrderStatus == OrderStatus.Preparing);
-        var paidCount = Model.Count(o => o.OrderStatus == OrderStatus.Paid);
-        var deliveredCount = Model.Count(o => o.OrderStatus == OrderStatus.Delivered);
-    }
+
+    @* 🔍 جست‌وجوی سمت سرور: روی کد سفارش، نام/تلفن گیرنده و نام کاربری مشتری *@
+    <form method="get" asp-action="Orders" class="card card-body mb-3">
+        <input type="hidden" name="status" value="@currentStatus" />
+        <div class="row g-2 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label">🔍 جست‌وجو</label>
+                <input type="text" name="search" value="@search" class="form-control"
+                       placeholder="کد سفارش، نام گیرنده، شماره تلفن یا نام کاربری مشتری..." />
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary">جست‌وجو</button>
+                @if (!string.IsNullOrEmpty(search))
+                {
+                    <a href="@TabUrl(currentStatus)" class="btn btn-outline-secondary">پاک کردن</a>
+                }
+            </div>
+        </div>
+    </form>
+
     <ul class="nav nav-tabs mb-3">
         <li class="nav-item">
-            <a class="nav-link @(currentStatus == "all" ? "active" : "")" href="@Url.Action("Orders", new { status = "all" })">همه
+            <a class="nav-link @(currentStatus == "all" ? "active" : "")" href="@TabUrl("all")">همه
             <span class="badge bg-secondary">@allCount</span></a>
         </li>
         <li class="nav-item">
-            <a class="nav-link @(currentStatus == "awaiting" ? "active" : "")" href="@Url.Action("Orders", new { status = "awaiting" })">در انتظار بررسی
-            <span class="badge bg-secondary">@awaitingCount</span></a>
+            <a class="nav-link @(currentStatus == "awaiting" ? "active" : "")" href="@TabUrl("awaiting")">در انتظار بررسی
+            <span class="badge bg-secondary">@CountOf(OrderStatus.AwaitingReview)</span></a>
         </li>
         <li class="nav-item">
-            <a class="nav-link @(currentStatus == "preparing" ? "active" : "")" href="@Url.Action("Orders", new { status = "preparing" })">در حال آماده‌سازی
-            <span class="badge bg-primary">@preparingCount</span></a>
+            <a class="nav-link @(currentStatus == "preparing" ? "active" : "")" href="@TabUrl("preparing")">در حال آماده‌سازی
+            <span class="badge bg-primary">@CountOf(OrderStatus.Preparing)</span></a>
         </li>
         <li class="nav-item">
-            <a class="nav-link @(currentStatus == "pending" ? "active" : "")" href="@Url.Action("Orders", new { status = "pending" })">در انتظار پرداخت
-            <span class="badge bg-warning">@pendingCount</span></a>
+            <a class="nav-link @(currentStatus == "pending" ? "active" : "")" href="@TabUrl("pending")">در انتظار پرداخت
+            <span class="badge bg-warning">@CountOf(OrderStatus.PendingPayment)</span></a>
         </li>
         <li class="nav-item">
-            <a class="nav-link @(currentStatus == "paid" ? "active" : "")" href="@Url.Action("Orders", new { status = "paid" })">پرداخت شده
-            <span class="badge bg-info">@paidCount</span></a>
+            <a class="nav-link @(currentStatus == "paid" ? "active" : "")" href="@TabUrl("paid")">پرداخت شده
+            <span class="badge bg-info">@CountOf(OrderStatus.Paid)</span></a>
         </li>
         <li class="nav-item">
-            <a class="nav-link @(currentStatus == "delivered" ? "active" : "")" href="@Url.Action("Orders", new { status = "delivered" })">تحویل شده
-            <span class="badge bg-success">@deliveredCount</span></a>
+            <a class="nav-link @(currentStatus == "delivered" ? "active" : "")" href="@TabUrl("delivered")">تحویل شده
+            <span class="badge bg-success">@CountOf(OrderStatus.Delivered)</span></a>
         </li>
     </ul>
+
+    @if (totalOrders > 0)
+    {
+        <div class="text-muted small mb-2">
+            نمایش @firstRow.ToPersianNumber() تا @lastRow.ToPersianNumber() از @totalOrders.ToPersianNumber() سفارش
+            @if (!string.IsNullOrEmpty(search))
+            {
+                <span>— نتیجه جست‌وجوی «@search»</span>
+            }
+        </div>
+    }
+
     <div class="table-responsive">
         <table class="table table-striped table-bordered">
             <thead class="table-dark">
@@ -71,6 +110,12 @@
                 </tr>
             </thead>
             <tbody>
+                @if (Model.Count == 0)
+                {
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">هیچ سفارشی با این فیلترها یافت نشد.</td>
+                    </tr>
+                }
                 @foreach (var order in Model)
                 {
                     string userName = order.UserId != null && userNames.ContainsKey(order.UserId) ? userNames[order.UserId] : "نامشخص";
@@ -134,4 +179,31 @@
             </tfoot>
         </table>
     </div>
+
+    @if (totalPages > 1)
+    {
+        <nav>
+            <ul class="pagination justify-content-center">
+                <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                    <a class="page-link" href="@PageUrl(currentPage - 1)">قبلی</a>
+                </li>
+                @for (int i = 1; i <= totalPages; i++)
+                {
+                    if (i == 1 || i == totalPages || Math.Abs(i - currentPage) <= 2)
+                    {
+                        <li class="page-item @(i == currentPage ? "active" : "")">
+                            <a class="page-link" href="@PageUrl(i)">@i.ToPersianNumber()</a>
+                        </li>
+                    }
+                    else if (Math.Abs(i - currentPage) == 3)
+                    {
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                    }
+                }
+                <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                    <a class="page-link" href="@PageUrl(currentPage + 1)">بعدی</a>
+                </li>
+            </ul>
+        </nav>
+    }
 </div>

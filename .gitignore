@@ -27,3 +27,11 @@ obj/
 
 # Unused publish profile
 SugarShop.Web/Properties/PublishProfiles/FolderProfile3.pubxml
+
+# TWA build artifacts + signing key (never commit)
+twa/build/
+twa/keystore.jks
+twa/app-release-signed.apk
+
+# Local/dev log files (never commit)
+*.log

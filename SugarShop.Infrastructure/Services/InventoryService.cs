@@ -19,12 +19,21 @@ namespace SugarShop.Infrastructure.Services
         /// هر ردیف با یک UPDATE شرطی در سطح دیتابیس کسر می‌شود تا دو درخواست هم‌زمان
         /// نتوانند از یک موجودی واحد دو بار کسر کنند؛ در صورت کمبود موجودی، مقدار به صفر می‌رسد (منفی نمی‌شود).
         /// </summary>
-        public async Task DecreaseInventoryAsync(Order order)
-        {
-            if (order.Items == null || !order.Items.Any())
-                return;
+        public Task DecreaseInventoryAsync(Order order)
+            => DecreaseInventoryAsync(order?.Items);
 
-            foreach (var item in order.Items.Where(i => i.ProductId.HasValue && i.Quantity > 0))
+        /// <summary>
+        /// همان عملیات، ولی روی مجموعه‌ای از ردیف‌های سفارش. برای مواردی لازم است که ردیف‌ها
+        /// در همان تراکنش ساخته شده‌اند و ناوبری Order.Items هنوز پر نشده است.
+        /// </summary>
+        public async Task DecreaseInventoryAsync(IEnumerable<OrderItem>? items)
+        {
+            if (items == null) return;
+
+            var rows = items.Where(i => i.Quantity > 0).ToList();
+            if (rows.Count == 0) return;
+
+            foreach (var item in rows.Where(i => i.ProductId.HasValue))
             {
                 var quantity = item.Quantity;
                 await _catalogDb.Products
@@ -34,7 +43,7 @@ namespace SugarShop.Infrastructure.Services
                         p => p.Inventory >= quantity ? p.Inventory - quantity : 0));
             }
 
-            foreach (var item in order.Items.Where(i => i.SweetItemId.HasValue && i.Quantity > 0))
+            foreach (var item in rows.Where(i => i.SweetItemId.HasValue))
             {
                 var quantity = item.Quantity;
                 await _catalogDb.SweetItems

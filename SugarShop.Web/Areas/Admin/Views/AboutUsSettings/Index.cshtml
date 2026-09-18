@@ -147,16 +147,59 @@
             </div>
 
             @* ============================================================
-               ۴. ارزش‌های بنیادین (JSON)
+               ۴. ارزش‌های بنیادین
                ============================================================ *@
-            <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">۴. ارزش‌های بنیادین (JSON)</h6>
-            <div class="mb-4">
-                <label class="form-label">آرایه JSON ارزش‌ها</label>
-                <textarea name="ValuesJson" class="form-control font-monospace" rows="6" dir="ltr">@Model.ValuesJson</textarea>
-                <small class="text-muted">
-                    فرمت نمونه:
-                    <code>[{"Icon":"bi-heart", "Title":"عشق", "Desc":"توضیح"}]</code>
+            <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">۴. ارزش‌های بنیادین</h6>
+
+            <div class="mb-2">
+                <label class="form-label">کارت‌های ارزش</label>
+                <small class="text-muted d-block mb-2">
+                    بدون نیاز به کدنویسی، کارت اضافه کنید؛ هر کارت شامل آیکون (اختیاری)، عنوان و توضیح است.
                 </small>
+                <div id="valuesAccordion">
+                    @for (int i = 0; i < Model.Values.Count; i++)
+                    {
+                        var idx = i;
+                        <div class="card value-item mb-3 shadow-sm">
+                            <div class="card-header d-flex justify-content-between align-items-center" role="button" data-bs-toggle="collapse" data-bs-target="#valueCollapse@(idx)" aria-expanded="@(i == 0 ? "true" : "false")">
+                                <div class="d-flex align-items-center gap-3">
+                                    <i class="bi @Model.Values[i].Icon drag-handle fs-4" draggable="true" title="برای تغییر ترتیب بکشید"></i>
+                                    <span class="fw-bold value-title-preview">@(string.IsNullOrWhiteSpace(Model.Values[i].Title) ? "بدون عنوان" : Model.Values[i].Title)</span>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <button type="button" class="btn btn-sm btn-outline-danger value-remove" title="حذف کارت"><i class="bi bi-trash"></i></button>
+                                </div>
+                            </div>
+                            <div id="valueCollapse@(idx)" class="collapse @(i == 0 ? "show" : "")" data-bs-parent="#valuesAccordion">
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label">آیکون (اختیاری)</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="bi @Model.Values[i].Icon"></i></span>
+                                                <input type="text" class="form-control value-icon-input" name="Values[@(idx)].Icon" value="@Model.Values[i].Icon" placeholder="bi-heart" dir="ltr" />
+                                            </div>
+                                            <small class="text-muted">مثلاً: bi-heart ، bi-award ، bi-cup-hot</small>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">عنوان</label>
+                                            <input type="text" class="form-control value-title-input" name="Values[@(idx)].Title" value="@Model.Values[i].Title" />
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">توضیح</label>
+                                            <input type="text" class="form-control value-desc-input" name="Values[@(idx)].Desc" value="@Model.Values[i].Desc" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <button type="button" id="addValueBtn" class="btn btn-outline-primary btn-sm mt-1">
+                    <i class="bi bi-plus-circle"></i> افزودن ارزش جدید
+                </button>
+                <small class="text-muted d-block mt-2">ترتیب کارت‌ها را با کشیدن دسته‌ی کنار هر کارت تغییر دهید.</small>
             </div>
 
             @* ============================================================
@@ -170,3 +213,132 @@
         </form>
     </div>
 </div>
+
+@section Scripts {
+<script>
+    (function () {
+        const container = document.getElementById('valuesAccordion');
+        const addBtn = document.getElementById('addValueBtn');
+        if (!container || !addBtn) return;
+
+        let counter = container.querySelectorAll('.value-item').length;
+
+        function createValueItem(icon, title, desc, needOpen) {
+            const idx = counter++;
+            const div = document.createElement('div');
+            div.className = 'card value-item mb-3 shadow-sm';
+            div.innerHTML = `
+                <div class="card-header d-flex justify-content-between align-items-center" role="button" data-bs-toggle="collapse" data-bs-target="#valueCollapse${idx}" aria-expanded="${needOpen ? 'true' : 'false'}">
+                    <div class="d-flex align-items-center gap-3">
+                        <i class="bi ${icon || 'bi-star'} drag-handle fs-4" draggable="true" title="برای تغییر ترتیب بکشید"></i>
+                        <span class="fw-bold value-title-preview">${title || 'بدون عنوان'}</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-danger value-remove" title="حذف کارت"><i class="bi bi-trash"></i></button>
+                    </div>
+                </div>
+                <div id="valueCollapse${idx}" class="collapse ${needOpen ? 'show' : ''}" data-bs-parent="#valuesAccordion">
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">آیکون (اختیاری)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi ${icon || 'bi-star'}"></i></span>
+                                    <input type="text" class="form-control value-icon-input" name="Values[${idx}].Icon" value="${icon || ''}" placeholder="bi-heart" dir="ltr" />
+                                </div>
+                                <small class="text-muted">مثلاً: bi-heart ، bi-award ، bi-cup-hot</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">عنوان</label>
+                                <input type="text" class="form-control value-title-input" name="Values[${idx}].Title" value="${title || ''}" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">توضیح</label>
+                                <input type="text" class="form-control value-desc-input" name="Values[${idx}].Desc" value="${desc || ''}" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return div;
+        }
+
+        addBtn.addEventListener('click', () => {
+            const item = createValueItem('bi-star', '', '', true);
+            container.appendChild(item);
+            // بستن بقیه
+            container.querySelectorAll('.collapse.show').forEach(c => bootstrap.Collapse.getInstance(c)?.hide());
+            // باز کردن کارت جدید (با فاصله زمانی تا DOM آماده شود)
+            setTimeout(() => {
+                const collapse = item.querySelector('.collapse');
+                if (collapse) bootstrap.Collapse.getOrCreateInstance(collapse).show();
+            }, 50);
+        });
+
+        // نمایش پیش‌نمایش عنوان هنگام تایپ + آیکون لایو
+        container.addEventListener('input', (e) => {
+            const input = e.target;
+            const card = input.closest('.value-item');
+            if (!card) return;
+            if (input.classList.contains('value-title-input')) {
+                const preview = card.querySelector('.value-title-preview');
+                preview.textContent = input.value.trim() || 'بدون عنوان';
+            }
+            if (input.classList.contains('value-icon-input')) {
+                const iconEls = card.querySelectorAll('.input-group-text i, .drag-handle');
+                iconEls.forEach(ic => {
+                    // حفظ کلاس‌های غیر آیکونی (مثل drag-handle و fs-4)
+                    const extra = Array.from(ic.classList).filter(c => c !== 'bi' && !c.startsWith('bi-')).join(' ');
+                    ic.className = 'bi ' + (input.value.trim() || 'bi-star') + (extra ? ' ' + extra : '');
+                });
+            }
+        });
+
+        container.addEventListener('click', (e) => {
+            const removeBtn = e.target.closest('.value-remove');
+            if (removeBtn) {
+                // جلوگیری از باز/بسته شدن آکاردئون هنگام حذف کارت
+                e.stopPropagation();
+                e.preventDefault();
+                const card = removeBtn.closest('.value-item');
+                if (card) card.remove();
+                reindex();
+            }
+        });
+
+        // پس از حذف و مرتب‌سازی، ایندکس فیلدها را بازنویسی کن تا ModelBinder درست کار کند
+        function reindex() {
+            const items = container.querySelectorAll('.value-item');
+            items.forEach((item, i) => {
+                item.querySelectorAll('input').forEach(input => {
+                    const name = input.name.replace(/Values\[\d+\]\./, `Values[${i}].`);
+                    input.name = name;
+                });
+            });
+        }
+
+        // مرتب‌سازی با کشیدن (HTML5 drag & drop)
+        let dragging = null;
+        container.addEventListener('dragstart', (e) => {
+            const handle = e.target.closest('.drag-handle');
+            if (!handle) return;
+            dragging = handle.closest('.value-item');
+            dragging.classList.add('opacity-50');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', ''); // برای عملکرد درگ در فایرفاکس
+        });
+        container.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const target = e.target.closest('.value-item');
+            if (!target || !dragging || target === dragging) return;
+            const rect = target.getBoundingClientRect();
+            const before = e.clientY < rect.top + rect.height / 2;
+            container.insertBefore(dragging, before ? target : target.nextSibling);
+        });
+        container.addEventListener('dragend', () => {
+            if (dragging) { dragging.classList.remove('opacity-50'); dragging = null; }
+            reindex();
+        });
+    })();
+</script>
+}

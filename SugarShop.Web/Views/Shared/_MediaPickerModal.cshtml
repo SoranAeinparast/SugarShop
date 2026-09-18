@@ -18,8 +18,10 @@
                         <select id="mediaPickerFileType" class="form-select">
                             <option value="">همه انواع</option>
                             <option value="image">تصاویر</option>
+                            <option value="icon">آیکون‌ها (ico)</option>
                             <option value="video">ویدئو</option>
                             <option value="document">اسناد</option>
+                            <option value="audio">صوتی</option>
                         </select>
                     </div>
                 </div>
@@ -29,17 +31,17 @@
                         @Html.AntiForgeryToken()
                         <div class="row g-2 mb-2">
                             <div class="col-md-6">
-                                <input type="file" id="mediaPickerFileInput" name="file" class="form-control" accept="image/*,video/*,.pdf,.doc,.docx" />
+                                <input type="file" id="mediaPickerFileInput" name="file" class="form-control" accept="image/*,video/*,audio/*,.ico,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip" />
                             </div>
                             <div class="col-md-4">
                                 <select id="mediaPickerCategory" name="category" class="form-select">
-                                    <option value="General">General</option>
-                                    <option value="Products">Products</option>
-                                    <option value="Banners">Banners</option>
-                                    <option value="Sliders">Sliders</option>
-                                    <option value="AboutUs">AboutUs</option>
-                                    <option value="Blog">Blog</option>
-                                    <option value="Gallery">Gallery</option>
+                                    <option value="General">عمومی</option>
+                                    <option value="Products">محصولات</option>
+                                    <option value="Banners">بنرها</option>
+                                    <option value="Sliders">اسلایدرها</option>
+                                    <option value="AboutUs">درباره ما</option>
+                                    <option value="Blog">وبلاگ</option>
+                                    <option value="Gallery">گالری</option>
                                 </select>
                             </div>
                             <div class="col-md-2">
@@ -156,15 +158,17 @@
                 const thumb = asset.thumbnailUrl || fileUrl;
                 const fileTypeValue = (asset.fileType || 'general').toLowerCase();
                 const fileName = asset.fileName || asset.originalName || 'فایل';
+                const typeLabel = asset.fileTypeLabel || fileTypeValue;
+                const isImageLike = fileTypeValue === 'image' || fileTypeValue === 'icon';
                 
-                const icon = fileTypeValue === 'image' ? `<img src="${thumb}" alt="${fileName}" loading="lazy"/>` :
+                const icon = isImageLike ? `<img src="${thumb}" alt="${fileName}" loading="lazy"/>` :
                              fileTypeValue === 'video' ? `<video src="${fileUrl}" muted></video>` :
                              `<div class="d-flex align-items-center justify-content-center" style="height:120px;font-size:3rem;"><i class="bi bi-file-earmark"></i></div>`;
                 
                 return `<div class="col-3">
                     <div class="media-item" data-asset-id="${asset.id}" data-asset-url="${fileUrl}" data-asset-name="${fileName}">
                         ${icon}
-                        <div class="media-info">${fileName}</div>
+                        <div class="media-info"><span class="badge bg-secondary mb-1">${typeLabel}</span><br>${fileName}</div>
                     </div>
                 </div>`;
             }).join('');

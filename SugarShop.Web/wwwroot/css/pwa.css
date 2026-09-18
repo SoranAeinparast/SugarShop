@@ -1,0 +1,553 @@
+/* ═══════════════════════════════════════════════════════════
+   SugarShop PWA — پوسته موبایل
+   فقط روی صفحه‌نمایش‌های موبایلی فعال می‌شود؛ دسکتاپ دست‌نخورده می‌ماند.
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+    --pwa-nav-h: 62px;
+    --pwa-accent: #8B4513;
+    --pwa-accent-2: #B8860B;
+    --pwa-cream: #FFF8F0;
+    --pwa-ink: #4E342E;
+}
+
+/* ── حالت standalone (اپ نصب‌شده روی گوشی) ── */
+@media all and (display-mode: standalone) {
+    /* نوار آدرس مرورگر وجود ندارد؛ لبه‌های ناامن دستگاه رعایت شود */
+    body {
+        padding-top: env(safe-area-inset-top) !important;
+    }
+    /* در حالت اپ، فوتر سایت برای فضای بیشتر جمع می‌شود (ناوبری اصلی پایین است) */
+    footer.site-footer {
+        padding-bottom: calc(var(--pwa-nav-h) + env(safe-area-inset-bottom) + 12px) !important;
+    }
+}
+
+/* ═══════════════ حالت داخل اپلیکیشن ═══════════════
+   صفت data-app-mode را wwwroot/js/app-mode.js روی <html> می‌گذارد.
+   داخل اپ، سایت هدر و فوتر خودش را جمع می‌کند تا شبیه یک اپ بومی باشد و
+   نوار پایین، ناوبری اصلی است (همان اجزای نوار PWA، ولی با آیتم‌های اپ‌محور). */
+html[data-app-mode="inapp"] header.site-header,
+html[data-app-mode="inapp"] footer.site-footer,
+html[data-app-mode="inapp"] .app-download-chip,
+html[data-app-mode="inapp"] .pwa-install-banner {
+    display: none !important;
+}
+
+/* داخل اپ، نوار پایین در همه‌ی عرض‌ها (حتی تبلت) ناوبری اصلی است */
+html[data-app-mode="inapp"] .pwa-bottom-nav {
+    display: block !important;
+}
+
+/* فاصله‌ی انتهای صفحه پیش از اجرای اسکریپت چیدمان (adjustLayout مقدار دقیق را ست می‌کند) */
+html[data-app-mode="inapp"] body {
+    padding-bottom: calc(var(--pwa-nav-h) + env(safe-area-inset-bottom));
+}
+
+/* نوار اپ چهار ستون است: خانه، سفارش‌ها، سبد، پروفایل */
+html[data-app-mode="inapp"] .pwa-bottom-nav .pwa-nav-inner {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+/* آیتم‌هایی که فقط در اپ یا فقط در وب دیده می‌شوند */
+.nav-app-only { display: none !important; }
+html[data-app-mode="inapp"] .pwa-nav-item.nav-app-only { display: flex !important; }
+html[data-app-mode="inapp"] .pwa-nav-item.nav-web-only { display: none !important; }
+
+/* ── ناوبری پایین موبایل ── */
+.pwa-bottom-nav {
+    display: none; /* دسکتاپ */
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1060;
+    background: rgba(255, 255, 255, .96);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-top: 1px solid rgba(139, 69, 19, .12);
+    box-shadow: 0 -4px 20px rgba(78, 52, 46, .08);
+    padding-bottom: env(safe-area-inset-bottom);
+    direction: rtl;
+}
+
+.pwa-bottom-nav .pwa-nav-inner {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    height: var(--pwa-nav-h);
+    max-width: 560px;
+    margin: 0 auto;
+}
+
+.pwa-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    text-decoration: none !important;
+    color: #A1887F;
+    font-size: 10.5px;
+    font-weight: 500;
+    position: relative;
+    transition: color .2s, transform .2s;
+}
+
+.pwa-nav-item i {
+    font-size: 20px;
+    line-height: 1;
+    transition: transform .2s;
+}
+
+.pwa-nav-item.active {
+    color: var(--pwa-accent);
+}
+.pwa-nav-item.active i {
+    transform: translateY(-2px) scale(1.12);
+}
+
+.pwa-nav-item.active::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    width: 26px;
+    height: 3px;
+    border-radius: 0 0 4px 4px;
+    background: linear-gradient(90deg, var(--pwa-accent), var(--pwa-accent-2));
+}
+
+/* نشان تعداد سبد */
+.pwa-badge {
+    position: absolute;
+    top: 7px;
+    right: calc(50% - 18px);
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #E53935;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(229, 57, 53, .4);
+}
+
+/* ── بنر نصب اپ — چشم‌نواز با گرادیان کاراملی و درخشش ملایم ── */
+.pwa-install-banner {
+    position: fixed;
+    bottom: calc(var(--pwa-nav-h) + env(safe-area-inset-bottom) + 10px);
+    left: 12px;
+    right: 12px;
+    z-index: 1055;
+    color: #fff;
+    background: linear-gradient(135deg, #6D3410 0%, #8B4513 45%, #B8860B 100%);
+    border: 1px solid rgba(255, 215, 150, .45);
+    border-radius: 18px;
+    box-shadow: 0 12px 34px rgba(93, 52, 16, .45), inset 0 1px 0 rgba(255, 255, 255, .18);
+    padding: 14px;
+    display: none;
+    align-items: center;
+    gap: 12px;
+    animation: pwa-slide-up .45s ease;
+    overflow: hidden;
+    isolation: isolate;
+}
+
+/* درخشش متحرک ملایم روی پس‌زمینه — جلب توجه بدون آزار */
+.pwa-install-banner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(115deg,
+        transparent 30%,
+        rgba(255, 255, 255, .14) 48%,
+        rgba(255, 236, 190, .22) 52%,
+        transparent 70%);
+    background-size: 250% 100%;
+    animation: pwa-shimmer 3.2s ease-in-out infinite;
+}
+
+@keyframes pwa-shimmer {
+    0%   { background-position: 120% 0; }
+    60%  { background-position: -40% 0; }
+    100% { background-position: -40% 0; }
+}
+
+.pwa-install-banner .pwa-app-logo {
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    flex: 0 0 46px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, .35);
+    border: 1px solid rgba(255, 255, 255, .35);
+}
+
+.pwa-install-banner .pwa-banner-text {
+    flex: 1;
+    min-width: 0;
+}
+.pwa-install-banner .pwa-banner-title {
+    font-weight: 800;
+    font-size: 14.5px;
+    color: #FFF3D6;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .25);
+}
+.pwa-install-banner .pwa-banner-sub {
+    font-size: 12px;
+    color: rgba(255, 243, 214, .82);
+    margin-top: 3px;
+}
+
+.pwa-install-banner .pwa-install-btn {
+    border: none;
+    background: #FFD98E;
+    color: #5D3410;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 800;
+    padding: 9px 22px;
+    border-radius: 999px;
+    cursor: pointer;
+    flex: 0 0 auto;
+    box-shadow: 0 3px 12px rgba(255, 217, 142, .45);
+    animation: pwa-pulse 2.2s ease-in-out infinite;
+    transition: transform .15s;
+}
+.pwa-install-banner .pwa-install-btn:hover { transform: scale(1.05); }
+
+@keyframes pwa-pulse {
+    0%, 100% { box-shadow: 0 3px 12px rgba(255, 217, 142, .35); }
+    50%      { box-shadow: 0 3px 22px rgba(255, 217, 142, .75); }
+}
+
+.pwa-install-banner .pwa-dismiss-btn {
+    border: none;
+    background: none;
+    color: rgba(255, 243, 214, .7);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px;
+    flex: 0 0 auto;
+}
+.pwa-install-banner .pwa-dismiss-btn:hover { color: #fff; }
+
+/* ── نوار وضعیت آفلاین ── */
+.pwa-offline-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2000;
+    background: #5D4037;
+    color: #FFECB3;
+    text-align: center;
+    font-size: 13px;
+    padding: 8px 12px;
+    display: none;
+}
+
+/* قاعده جهانی: حالت مخفی — در همه عرض‌ها معتبر است (بستن/نصب‌شده) */
+.pwa-install-banner.pwa-hidden {
+    display: none !important;
+}
+
+/* ── فعال‌سازی فقط در موبایل ── */
+@media (max-width: 767.98px) {
+    .pwa-bottom-nav { display: block; }
+    /* فاصله انتهای صفحه تا ناوبری پایین */
+    body {
+        padding-bottom: calc(var(--pwa-nav-h) + env(safe-area-inset-bottom));
+    }
+    .pwa-install-banner { display: flex; }
+
+    /* ── 📱 فوتر موبایلی: جمع‌وجور، ستونی، دور از نوار پایین ──
+       (فقط در موبایل؛ دسکتاپ همان چیدمان وب را دارد) */
+    footer.site-footer .container {
+        padding-top: 1.25rem !important;
+        padding-bottom: 0.5rem !important;
+    }
+    footer.site-footer .row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    footer.site-footer [class*="col-"] {
+        width: 100%;
+        max-width: 100%;
+    }
+    footer.site-footer h5 {
+        font-size: .9rem !important;
+        margin-bottom: .35rem !important;
+        padding-bottom: .3rem !important;
+    }
+    footer.site-footer p {
+        font-size: .8rem;
+        margin-bottom: .5rem;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    footer.site-footer ul {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px 14px;
+        margin-bottom: .25rem;
+    }
+    footer.site-footer ul li {
+        margin-bottom: 0 !important;
+        font-size: .8rem;
+    }
+    /* خبرنامه در موبایل: فشرده اما قابل استفاده — تکست‌باکس و دکمه زیر هم */
+    footer.site-footer form {
+        display: flex;
+        flex-direction: column;
+        gap: .4rem;
+        max-width: 340px;
+    }
+    footer.site-footer form input {
+        font-size: .85rem;
+        padding: .45rem .8rem;
+        border-radius: .6rem;
+    }
+    footer.site-footer form button {
+        font-size: .8rem;
+        padding: .4rem .8rem;
+        border-radius: .6rem;
+    }
+    footer.site-footer form + p, footer.site-footer form ~ * {
+        font-size: .8rem;
+    }
+    /* نوار پایین (کپی‌رایت + Powered by) افقی و باریک */
+    footer.site-footer .footer-bottom {
+        padding-top: .35rem;
+        padding-bottom: .35rem;
+    }
+    footer.site-footer .footer-bottom .row {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 2px 10px;
+    }
+    footer.site-footer .footer-bottom [class*="col-"] {
+        width: auto;
+        max-width: 100%;
+        flex: 0 0 auto;
+    }
+    footer.site-footer .footer-bottom p,
+    footer.site-footer .footer-bottom .powered-by span {
+        font-size: .72rem !important;
+    }
+    footer.site-footer .powered-logo { height: 18px !important; }
+    /* فضای امن انتهایی: فوتر هرگز زیر نوار ناوبری نرود */
+    footer.site-footer {
+        padding-bottom: calc(var(--pwa-nav-h) + env(safe-area-inset-bottom) + 10px) !important;
+    }
+
+    /* ═══════════ پنل شناور جعبه — بالای نوار ناوبری ═══════════ */
+    .bx-panel {
+        bottom: calc(var(--pwa-nav-h) + env(safe-area-inset-bottom) + 10px) !important;
+        left: 10px !important;
+        width: calc(100vw - 20px) !important;
+    }
+    /* پنل جمع‌شده: دایره‌ی کوچک کنار صفحه — مزاحم دید نیست */
+    .bx-panel .bx-panel-card.bx-mini {
+        width: 54px;
+        height: 54px;
+    }
+    .bx-panel .bx-panel-card.bx-mini .bx-panel-header {
+        width: 54px;
+        height: 54px;
+    }
+
+    /* ═══════════ مودال انتخاب جعبه — ورقِ پایین (bottom sheet) ═══════════ */
+    .bx-select-modal .modal-dialog {
+        margin: 0;
+        max-width: 100%;
+        width: 100%;
+        position: fixed;
+        bottom: 0;
+        right: 0;
+        left: 0;
+    }
+    .bx-select-modal .modal-content {
+        border-radius: 1.4rem 1.4rem 0 0;
+        max-height: 78vh;
+        overflow-y: auto;
+        padding-bottom: calc(var(--pwa-nav-h) + env(safe-area-inset-bottom));
+        animation: pwa-sheet-up .28s ease;
+    }
+    @keyframes pwa-sheet-up {
+        from { transform: translateY(100%); }
+        to { transform: translateY(0); }
+    }
+    .bx-select-modal .bx-head {
+        padding: 1rem 1.1rem 0.9rem;
+    }
+    .bx-select-modal .bx-head-title { font-size: 1.1rem; }
+    .bx-select-modal .bx-head-sub { font-size: .74rem; }
+}
+
+/* تبلت و دسکتاپ: ناوبری پایین پنهان، ولی بنر نصب در همه عرض‌ها دیده می‌شود */
+@media (min-width: 768px) {
+    .pwa-bottom-nav { display: none !important; }
+    .pwa-install-banner {
+        display: flex;
+        max-width: 460px;
+        left: auto;
+        right: 20px;
+        bottom: 20px;
+    }
+}
+
+/* پاپ‌آپ راهنمای نصب */
+.pwa-guide-popup {
+    border-radius: 18px !important;
+    font-family: inherit;
+}
+
+/* ═══════════════ صفحه اصلی اپلیکیشن (بلوک‌های بالای صفحه) ═══════════════
+   این بلوک فقط با میان‌برهای اپ روی صفحه اصلی رندر می‌شود (AppHome ViewComponent)
+   و هدفش این است که صفحه اصلی داخل اپ حس یک اپ بومی بدهد: ردیف افقی، کارت‌های گرد،
+   بدون جدول و متن ریز. */
+.app-home { padding: 2px 0 6px; }
+
+.app-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    border-radius: 18px;
+    color: #fff;
+    background: linear-gradient(135deg, var(--pwa-accent), var(--pwa-accent-2));
+    box-shadow: 0 6px 18px rgba(139, 69, 19, .18);
+}
+
+.app-hero__hello { font-weight: 800; font-size: 1.02rem; }
+.app-hero__sub { font-size: .78rem; opacity: .92; margin-top: 3px; }
+.app-hero__cta {
+    flex: 0 0 auto;
+    padding: 8px 13px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .94);
+    color: var(--pwa-accent) !important;
+    text-decoration: none !important;
+    font-size: .78rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.app-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 16px 2px 8px;
+    color: var(--pwa-ink);
+    font-weight: 700;
+    font-size: .92rem;
+}
+
+.app-section-head a { font-size: .74rem; font-weight: 600; color: var(--pwa-accent); text-decoration: none; }
+
+/* ردیف‌های افقی با اسکرول نرم و بدون نوار اسکرول */
+.app-row {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 2px 2px 8px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.app-row::-webkit-scrollbar { display: none; }
+
+/* میان‌بر دسته‌بندی‌ها */
+.app-chip { flex: 0 0 auto; width: 76px; text-align: center; text-decoration: none !important; color: inherit; scroll-snap-align: start; }
+.app-chip__media {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 66px;
+    height: 66px;
+    margin: 0 auto 6px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #F6E7D6;
+    box-shadow: 0 3px 10px rgba(78, 52, 46, .12);
+}
+.app-chip__media img { width: 100%; height: 100%; object-fit: cover; }
+.app-chip__fallback { font-size: 26px; }
+.app-chip__title { display: block; font-size: .72rem; line-height: 1.5; color: var(--pwa-ink); }
+
+/* کارت سفارش‌های اخیر */
+.app-stack { display: flex; flex-direction: column; gap: 8px; }
+.app-order {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid rgba(139, 69, 19, .10);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(78, 52, 46, .05);
+}
+.app-order--hint { background: #FFFDF7; }
+.app-order__code { font-weight: 700; font-size: .85rem; color: var(--pwa-ink); }
+.app-order__meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: .72rem; color: #8D6E63; }
+
+.app-badge { padding: 2px 8px; border-radius: 999px; font-size: .68rem; font-weight: 700; }
+.app-badge--ok { background: #E8F5E9; color: #2E7D32; }
+.app-badge--warn { background: #FFF8E1; color: #EF6C00; }
+.app-badge--bad { background: #FDECEA; color: #C62828; }
+.app-badge--info { background: #E3F2FD; color: #1565C0; }
+
+.app-order__action {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: #F3E7DC;
+    color: var(--pwa-accent) !important;
+    text-decoration: none !important;
+    font-size: .78rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.app-order__action--pay { background: linear-gradient(135deg, var(--pwa-accent), var(--pwa-accent-2)); color: #fff !important; }
+
+/* کارت پیشنهاد شیرینی */
+.app-sweet {
+    flex: 0 0 auto;
+    width: 136px;
+    border: 1px solid rgba(139, 69, 19, .10);
+    border-radius: 16px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 2px 10px rgba(78, 52, 46, .06);
+    text-decoration: none !important;
+    color: inherit;
+    scroll-snap-align: start;
+}
+.app-sweet__media { position: relative; display: block; width: 100%; height: 104px; background: #F6E7D6; }
+.app-sweet__media img { width: 100%; height: 100%; object-fit: cover; }
+.app-sweet__fallback { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 32px; }
+.app-sweet__soldout {
+    position: absolute;
+    top: 6px;
+    inset-inline-start: 6px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, .6);
+    color: #fff;
+    font-size: .62rem;
+}
+.app-sweet__title { display: block; padding: 8px 8px 2px; font-size: .78rem; font-weight: 600; line-height: 1.6; color: var(--pwa-ink); }
+.app-sweet__price { display: block; padding: 0 8px 10px; font-size: .72rem; font-weight: 700; color: var(--pwa-accent); }

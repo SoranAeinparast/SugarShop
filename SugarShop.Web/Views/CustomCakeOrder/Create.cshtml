@@ -1,4 +1,4 @@
-﻿@model SugarShop.Domain.Entities.Sales.CustomCakeOrder
+@model SugarShop.Domain.Entities.Sales.CustomCakeOrder
 @{
     ViewData["Title"] = "سفارش کیک سفارشی";
     Layout = "_Layout";
@@ -9,132 +9,115 @@
             <h4 class="mb-0">🎂 سفارش کیک سفارشی</h4>
         </div>
         <div class="card-body p-4">
-            <form asp-action="Create" method="post" enctype="multipart/form-data" id="orderForm">
-                @Html.AntiForgeryToken()
-                <div asp-validation-summary="All" class="alert alert-danger"></div>
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">وزن تقریبی (گرم)</label>
-                        <input asp-for="WeightGrams" class="form-control" type="number" min="500"/>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">تعداد نفرات</label>
-                        <input asp-for="Servings" class="form-control" type="number" min="1" max="200" />
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">طعم کیک</label>
-                        <input asp-for="Flavor" class="form-control" placeholder="مثال: شکلاتی، وانیلی، میوه‌ای" />
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">شکل کیک</label>
-                        <input asp-for="Shape" class="form-control" placeholder="مثال: گرد، مربع، قلب" />
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label">مواد به کار رفته (اختیاری)</label>
-                        <textarea asp-for="Ingredients" class="form-control" rows="2" placeholder="مثلاً: پسته، گردو، خامه، شکلات"></textarea>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">نوع مراسم</label>
-                        <select asp-for="Occasion" class="form-select">
-                            <option value="">انتخاب کنید</option>
-                            <option>تولد</option>
-                            <option>سالگرد ازدواج</option>
-                            <option>عروسی</option>
-                            <option>نامزدی</option>
-                            <option>جشن تولد کودک</option>
-                            <option>سایر</option>
-                        </select>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">تاریخ تحویل دلخواه (شمسی)</label>
-                        <input type="text" id="deliveryDatePersian" class="form-control persian-date" placeholder="مثال: ۱۴۰۴/۰۳/۱۵" />
-                        <input type="hidden" name="desiredDeliveryDatePersian" id="deliveryDatePersianHidden" />
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">ساعت تحویل</label>
-                        <input type="time" name="desiredDeliveryTime" class="form-control" />
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label">توضیحات اضافی</label>
-                        <textarea asp-for="SpecialRequests" class="form-control" rows="3" placeholder="هر نکته دیگری که باید بدانیم..."></textarea>
-                    </div>
-                        <div class="col-md-6">
-                            <label class="form-label">تصویر نمونه کیک (اختیاری)</label>
-                            <input type="file" id="sampleImageInput" name="sampleImage" class="form-control" accept="image/*" />
-                            <img id="sampleImagePreview" src="" class="img-fluid mt-2 rounded" style="max-height: 150px; display: none;" />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">تصویر برای چاپ روی کیک (اختیاری)</label>
-                            <input type="file" id="printImageInput" name="printImage" class="form-control" accept="image/*" />
-                            <img id="printImagePreview" src="" class="img-fluid mt-2 rounded" style="max-height: 150px; display: none;" />
-                        </div>
-                </div>
-                <div class="mt-4 d-flex justify-content-between">
-                    <button type="submit" class="btn btn-success px-4 rounded-pill">✅ ثبت سفارش</button>
-                    <a asp-controller="Profile" asp-action="Index" class="btn btn-secondary rounded-pill">🔙 بازگشت</a>
-                </div>
-            </form>
+            @await Html.PartialAsync("_CreateForm", Model)
         </div>
     </div>
 </div>
 @section Scripts {
 <partial name="_ValidationScriptsPartial" />
 <script>
-$(function() {
-    $('#deliveryDatePersian').persianDatepicker({
-        format: 'YYYY/MM/DD',
-        autoClose: true,
-        observer: true,
-        onSelect: function() {
-            $('#deliveryDatePersianHidden').val($('#deliveryDatePersian').val());
-        }
-    });
+    // راه‌اندازی بخش روش دریافت کیک (در محل / پیک + آدرس)
+    function initCakeDeliverySection() {
+        var pickup = document.getElementById('dmPickup');
+        var courier = document.getElementById('dmCourier');
+        if (!pickup || !courier) return;
 
-    // ✅ اسکریپت پیش‌نمایش تصاویر
-    function setupImagePreview(inputId, previewId) {
-        const input = document.getElementById(inputId);
-        const preview = document.getElementById(previewId);
-        if (input && preview) {
-            input.addEventListener('change', function() {
-                const file = this.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        preview.src = e.target.result;
-                        preview.style.display = 'block';
-                    }
-                    reader.readAsDataURL(file);
-                } else {
-                    preview.style.display = 'none';
+        function refresh() {
+            var section = document.getElementById('cakeAddressSection');
+            if (section) section.classList.toggle('d-none', !courier.checked);
+            document.querySelectorAll('.cake-dm-card').forEach(function(c) { c.classList.remove('bg-light', 'border-primary'); });
+            var active = (pickup.checked ? pickup : courier).closest('.cake-dm-card');
+            if (active) active.classList.add('bg-light', 'border-primary');
+        }
+
+        [pickup, courier].forEach(function(r) { r.addEventListener('change', refresh); });
+
+        var useNew = document.getElementById('cakeUseNewAddress');
+        if (useNew) {
+            useNew.addEventListener('change', function() {
+                var fields = document.getElementById('cakeNewAddressFields');
+                if (fields) fields.classList.toggle('d-none', !this.checked);
+                if (this.checked) {
+                    document.querySelectorAll('.cake-addr-radio').forEach(function(r) { r.checked = false; });
                 }
             });
         }
+        refresh();
     }
-    setupImagePreview('sampleImageInput', 'sampleImagePreview');
-    setupImagePreview('printImageInput', 'printImagePreview');
-});
 
-$('#orderForm').on('submit', function(e) {
-    e.preventDefault();
-    var formData = new FormData(this);
-    $.ajax({
-        url: $(this).attr('action'),
-        type: 'POST',
-        data: formData,
-        processData: false,
-        contentType: false,
-        success: function(response) {
-            if (response.includes('orderSuccessModal')) {
-                $('body').append(response);
-                $('#orderSuccessModal').modal('show');
-            } else {
-                $('#orderForm').html(response);
-            }
-        },
-        error: function(xhr) {
-            alert('خطایی رخ داد. لطفاً دوباره تلاش کنید.');
+    // راه‌اندازی فیلدهای فرم سفارش کیک (پیکر تاریخ شمسی + پیش‌نمایش تصاویر)
+    function initCakeOrderForm() {
+        initCakeDeliverySection();
+        var $dateInput = $('#deliveryDatePersian');
+        if ($dateInput.length && !$dateInput.data('datepicker')) {
+            $dateInput.persianDatepicker({
+                format: 'YYYY/MM/DD',
+                autoClose: true,
+                observer: true,
+                onSelect: function() {
+                    $('#deliveryDatePersianHidden').val($('#deliveryDatePersian').val());
+                }
+            });
         }
+
+        function setupImagePreview(inputId, previewId) {
+            const input = document.getElementById(inputId);
+            const preview = document.getElementById(previewId);
+            if (input && preview) {
+                input.addEventListener('change', function() {
+                    const file = this.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            preview.src = e.target.result;
+                            preview.style.display = 'block';
+                        }
+                        reader.readAsDataURL(file);
+                    } else {
+                        preview.style.display = 'none';
+                    }
+                });
+            }
+        }
+        setupImagePreview('sampleImageInput', 'sampleImagePreview');
+        setupImagePreview('printImageInput', 'printImagePreview');
+    }
+
+    // ارسال فرم با AJAX — با event delegation تا پس از جایگزینی فرم (خطای اعتبارسنجی) نیز کار کند
+    $(document).on('submit', '#orderForm', function(e) {
+        e.preventDefault();
+        var $form = $(this);
+        var $btn = $form.find('button[type="submit"]');
+        $btn.prop('disabled', true).html('⏳ در حال ثبت...');
+        var formData = new FormData(this);
+        $.ajax({
+            url: $form.attr('action'),
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                if (response && typeof response === 'string' && response.indexOf('orderSuccessModal') !== -1) {
+                    $('body').append(response);
+                    $('#orderSuccessModal').modal('show');
+                } else if (response && typeof response === 'string'
+                        && response.indexOf('<html') === -1 && response.indexOf('<body') === -1) {
+                    // پاسخ اعتبارسنجی: فقط فرم جایگزین می‌شود (بدون layout و بدون تکرار اسکریپت‌ها)
+                    $('#orderForm').replaceWith(response);
+                    initCakeOrderForm();
+                } else {
+                    // پاسخ غیرمنتظره (مثلاً ریدایرکت به صفحه ورود): صفحه تازه‌سازی می‌شود
+                    window.location.reload();
+                }
+            },
+            error: function(xhr) {
+                alert('خطایی رخ داد. لطفاً دوباره تلاش کنید.');
+            }
+        });
     });
-});
+
+    $(function() {
+        initCakeOrderForm();
+    });
 </script>
-}
+}

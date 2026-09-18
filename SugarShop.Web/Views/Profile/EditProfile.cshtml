@@ -23,14 +23,16 @@ var defaultAvatars = ViewBag.DefaultAvatars as List<string> ?? new List<string>(
 </h5>
 
 <div class="mb-3">
-<label class="form-label fw-semibold">نام کاربری</label>
-<input asp-for="UserName" class="form-control bg-light" disabled />
-<small class="text-muted">نام کاربری قابل تغییر نیست.</small>
+<label asp-for="UserName" class="form-label fw-semibold">نام کاربری</label>
+<input asp-for="UserName" class="form-control custom-input" placeholder="نام کاربری دلخواه (انگلیسی)" />
+<small class="text-muted">با این نام می‌توانید وارد شوید؛ فقط حروف و اعداد انگلیسی.</small>
+<span asp-validation-for="UserName" class="text-danger small"></span>
 </div>
 
 <div class="mb-3">
 <label asp-for="Email" class="form-label fw-semibold">ایمیل</label>
-<input asp-for="Email" class="form-control bg-light" disabled />
+<input asp-for="Email" type="email" class="form-control custom-input" placeholder="example@email.com" />
+<span asp-validation-for="Email" class="text-danger small"></span>
 </div>
 
 <div class="mb-3">

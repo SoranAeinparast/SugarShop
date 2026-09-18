@@ -57,6 +57,13 @@ namespace SugarShop.Web.Areas.Admin.Controllers
             ViewBag.SoroushUrl = siteSetting?.soroushUrl ?? "";
             ViewBag.CertificationsJson = siteSetting?.CertificationsJson ?? "[]";
 
+            // تنظیمات اپلیکیشن (از ThemeSetting)
+            ViewBag.AppEnabled = setting.AppEnabled;
+            ViewBag.AppDisplayName = setting.AppDisplayName ?? "";
+            ViewBag.AppBaseUrl = setting.AppBaseUrl ?? "";
+            ViewBag.AppAndroidEnabled = setting.AppAndroidEnabled;
+            ViewBag.AppIosEnabled = setting.AppIosEnabled;
+
             return View(setting);
         }
 
@@ -79,7 +86,12 @@ namespace SugarShop.Web.Areas.Admin.Controllers
             string? RubikaUrl,
             string? EitaaUrl,
             string? SoroushUrl,
-            string? CertificationsJson)
+            string? CertificationsJson,
+            bool AppEnabled,
+            string? AppDisplayName,
+            string? AppBaseUrl,
+            bool AppAndroidEnabled,
+            bool AppIosEnabled)
         {
             if (model == null)
                 return BadRequest(new { success = false, message = "داده ارسال نشده است" });
@@ -87,7 +99,10 @@ namespace SugarShop.Web.Areas.Admin.Controllers
             try
             {
                 // ۱. به‌روزرسانی تنظیمات ظاهری
-                var setting = await _context.ThemeSettings.FirstOrDefaultAsync();
+                // ✅ دقیقاً همان ردیفی که در صفحه ویرایش نشان داده می‌شود (جدیدترین رکورد)
+                var setting = await _context.ThemeSettings
+                    .OrderByDescending(t => t.Id)
+                    .FirstOrDefaultAsync();
                 if (setting == null)
                 {
                     setting = new ThemeSetting();
@@ -107,6 +122,16 @@ namespace SugarShop.Web.Areas.Admin.Controllers
                 setting.FooterType = model.FooterType;
                 setting.BodyDotPatternEnabled = model.BodyDotPatternEnabled;
                 setting.UpdatedAt = DateTime.UtcNow;
+
+                // ۱.۵ به‌روزرسانی تنظیمات اپلیکیشن
+                setting.AppEnabled = AppEnabled;
+                setting.AppDisplayName = string.IsNullOrWhiteSpace(AppDisplayName) ? null : AppDisplayName.Trim();
+                setting.AppBaseUrl = string.IsNullOrWhiteSpace(AppBaseUrl) ? null : AppBaseUrl.Trim();
+                if (setting.AppBaseUrl != null && !setting.AppBaseUrl.StartsWith("http"))
+                    setting.AppBaseUrl = "https://" + setting.AppBaseUrl; // ورودی بدون اسکیما هم قبول است
+                setting.AppBaseUrl = setting.AppBaseUrl?.TrimEnd('/');
+                setting.AppAndroidEnabled = AppAndroidEnabled;
+                setting.AppIosEnabled = AppIosEnabled;
 
                 // ۲. به‌روزرسانی تنظیمات پایه
                 var siteSetting = await _context.SiteSettings.FirstOrDefaultAsync() ?? new SiteSetting();

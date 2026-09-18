@@ -23,7 +23,7 @@
             <div class="col-md-4 text-end">
                 @if (!string.IsNullOrEmpty(Model.FeaturedImageUrl) && !Model.FeaturedImageUrl.Contains("placeholder"))
                 {
-                    <img src="@Model.FeaturedImageUrl" class="img-fluid rounded shadow" style="max-height: 200px; object-fit: cover;" alt="@Model.Title">
+                    <img src="@Model.FeaturedImageUrl" class="img-fluid rounded shadow" loading="lazy" style="max-height: 200px; object-fit: cover;" alt="@Model.Title">
                 }
                 else
                 {

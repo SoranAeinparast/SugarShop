@@ -48,7 +48,7 @@ namespace SugarShop.Web.Controllers
             if (ModelState.IsValid)
             {
                 var userId = _userManager.GetUserId(User);
-                model.UserId = userId;
+                model.UserId = userId!;
                 model.CreatedAt = DateTime.UtcNow;
                 model.UpdatedAt = DateTime.UtcNow;
 

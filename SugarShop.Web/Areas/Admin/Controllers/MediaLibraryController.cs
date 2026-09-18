@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SugarShop.Domain.Entities;
 using SugarShop.Infrastructure.Persistence.Sales;
+using SugarShop.Web.Helpers;
 using System;
 using System.IO;
 using System.Linq;
@@ -26,7 +27,11 @@ namespace SugarShop.Web.Areas.Admin.Controllers
         private const long MaxDocumentSize = 10 * 1024 * 1024;
         private const long MaxAudioSize = 20 * 1024 * 1024;
 
-        private static readonly string[] AllowedImageExts = { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg" };
+        // ⚠️ فرمت SVG حذف شده است: فایل SVG میتواند اسکریپت درون خود داشته باشد و چون با
+        // Content-Type خودش (/media/....svg) سرو میشود، تبدیل به XSS ذخیرهشده برای بازدیدکنندگان میشد.
+        private static readonly string[] AllowedImageExts = { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+        // آیکون (فاوآیکون سایت): تصویر رستری است و برخلاف SVG امکان اجرای اسکریپت ندارد.
+        private static readonly string[] AllowedIconExts = { ".ico" };
         private static readonly string[] AllowedVideoExts = { ".mp4", ".webm", ".mov" };
         private static readonly string[] AllowedDocumentExts = { ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".zip" };
         private static readonly string[] AllowedAudioExts = { ".mp3", ".wav", ".ogg", ".m4a" };
@@ -65,14 +70,16 @@ namespace SugarShop.Web.Areas.Admin.Controllers
             ViewBag.TotalItems = totalItems;
             ViewBag.CurrentPage = page;
             ViewBag.TotalPages = (int)Math.Ceiling(totalItems / 20.0);
-            ViewBag.Categories = new[] { "All", "General", "Products", "Banners", "Sliders", "AboutUs", "Blog", "Gallery" };
-            ViewBag.FileTypes = new[] { "All", "Image", "Video", "Document", "Audio" };
+            // مقادیر انگلیسی ذخیره/فیلتر می‌شوند و ویو آن‌ها را با نام فارسی نمایش می‌دهد (MediaLabels)
+            ViewBag.Categories = MediaLabels.CategoryValues(includeAll: true);
+            ViewBag.FileTypes = MediaLabels.FileTypeValues(includeAll: true);
 
             return View(assets);
         }
 
         [HttpPost]
         [Route("Upload")] // دقیقاً منطبق بر /Admin/MediaLibrary/Upload
+        [ValidateAntiForgeryToken]
         [RequestSizeLimit(120 * 1024 * 1024)]
         public async Task<IActionResult> Upload(IFormFile file, string category = "General", string tags = "", string altText = "", string description = "")
         {
@@ -197,6 +204,7 @@ namespace SugarShop.Web.Areas.Admin.Controllers
         private string GetFileType(string ext)
         {
             if (AllowedImageExts.Contains(ext)) return "Image";
+            if (AllowedIconExts.Contains(ext)) return "Icon";
             if (AllowedVideoExts.Contains(ext)) return "Video";
             if (AllowedDocumentExts.Contains(ext)) return "Document";
             if (AllowedAudioExts.Contains(ext)) return "Audio";
@@ -206,6 +214,7 @@ namespace SugarShop.Web.Areas.Admin.Controllers
         private long GetMaxSize(string fileType) => fileType switch
         {
             "Image" => MaxImageSize,
+            "Icon" => MaxImageSize,
             "Video" => MaxVideoSize,
             "Document" => MaxDocumentSize,
             "Audio" => MaxAudioSize,
@@ -215,6 +224,7 @@ namespace SugarShop.Web.Areas.Admin.Controllers
         private bool IsExtensionAllowed(string ext, string fileType) => fileType switch
         {
             "Image" => AllowedImageExts.Contains(ext),
+            "Icon" => AllowedIconExts.Contains(ext),
             "Video" => AllowedVideoExts.Contains(ext),
             "Document" => AllowedDocumentExts.Contains(ext),
             "Audio" => AllowedAudioExts.Contains(ext),
@@ -246,6 +256,7 @@ namespace SugarShop.Web.Areas.Admin.Controllers
             if (!string.IsNullOrWhiteSpace(typeFilter) && typeFilter != "All")
             {
                 var normalized = typeFilter.Equals("image", StringComparison.OrdinalIgnoreCase) ? "Image"
+                    : typeFilter.Equals("icon", StringComparison.OrdinalIgnoreCase) ? "Icon"
                     : typeFilter.Equals("video", StringComparison.OrdinalIgnoreCase) ? "Video"
                     : typeFilter.Equals("document", StringComparison.OrdinalIgnoreCase) ? "Document"
                     : typeFilter.Equals("audio", StringComparison.OrdinalIgnoreCase) ? "Audio"
@@ -270,8 +281,10 @@ namespace SugarShop.Web.Areas.Admin.Controllers
                 originalName = m.OriginalName,
                 fileUrl = m.FilePath,
                 filePath = m.FilePath,
-                thumbnailUrl = m.FileType == "Image" ? (string.IsNullOrWhiteSpace(m.ThumbnailPath) ? m.FilePath : m.ThumbnailPath) : m.FilePath,
+                thumbnailUrl = (m.FileType == "Image" || m.FileType == "Icon") ? (string.IsNullOrWhiteSpace(m.ThumbnailPath) ? m.FilePath : m.ThumbnailPath) : m.FilePath,
+                isImage = m.FileType == "Image" || m.FileType == "Icon",
                 fileType = (m.FileType ?? "General").ToLowerInvariant(),
+                fileTypeLabel = MediaLabels.FileTypeLabel(m.FileType),
                 altText = m.AltText
             });
 

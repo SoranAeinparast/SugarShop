@@ -77,6 +77,14 @@
                     <a asp-action="CustomCakeOrders" class="btn btn-sm btn-light rounded-pill">← بازگشت به لیست</a>
                 </div>
                 <div class="card-body p-4">
+                    @if (TempData["Success"] != null)
+                    {
+                        <div class="alert alert-success">@TempData["Success"]</div>
+                    }
+                    @if (TempData["Error"] != null)
+                    {
+                        <div class="alert alert-danger">@TempData["Error"]</div>
+                    }
                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-2 border-bottom">
                         <div>
                             <partial name="_CakeStatusBadge" model="Model.Status" />
@@ -117,6 +125,30 @@
                                 <div class="info-value">@deliveryStr.ToPersianNumber()</div>
                             </div>
                         }
+                        <div class="col-12 mb-3">
+                            <div class="info-label">روش تحویل:</div>
+                            <div class="info-value">
+                                @if (Model.DeliveryMethod == DeliveryMethod.Delivery)
+                                {
+                                    <span class="badge bg-warning text-dark">🛵 ارسال با پیک</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-success">🏪 دریافت در محل</span>
+                                }
+                            </div>
+                        </div>
+                        @if (Model.DeliveryMethod == DeliveryMethod.Delivery)
+                        {
+                            <div class="col-12 mb-3">
+                                <div class="info-label">گیرنده:</div>
+                                <div class="info-value">@(Model.ReceiverName ?? "—") | تلفن: @(Model.ReceiverPhone ?? "—")</div>
+                            </div>
+                            <div class="col-12 mb-3">
+                                <div class="info-label">آدرس تحویل:</div>
+                                <div class="info-value">@(Model.CustomerFullAddress ?? "—")</div>
+                            </div>
+                        }
                     </div>
                     @if (!string.IsNullOrEmpty(Model.SpecialRequests))
                     {
@@ -134,13 +166,23 @@
                     }
                     @if (Model.FinalPrice.HasValue)
                     {
+                        var cakeFee = Model.DeliveryMethod == DeliveryMethod.Delivery ? (Model.DeliveryFee ?? 0) : 0;
+                        var cakeTotal = Model.FinalPrice.Value + cakeFee;
                         <div class="mb-4">
                             <div class="section-title">💰 هزینه نهایی</div>
+                            @if (cakeFee > 0)
+                            {
+                                <div class="mb-2">
+                                    <span>قیمت کیک: <strong>@Model.FinalPrice.Value.ToString("N0").ToPersianNumber()</strong> تومان</span><br />
+                                    <span>🛵 هزینه پیک: <strong>@cakeFee.ToString("N0").ToPersianNumber()</strong> تومان</span>
+                                </div>
+                            }
                             <div class="d-flex align-items-center justify-content-between flex-wrap">
-                                <span class="fs-2 fw-bold text-success">@Model.FinalPrice.Value.ToString("N0").ToPersianNumber() تومان</span>
+                                <span class="fs-2 fw-bold text-success">@cakeTotal.ToString("N0").ToPersianNumber() تومان</span>
                                 @if (Model.Status == CustomCakeOrderStatus.Accepted && !Model.IsPaid)
                                 {
                                     <form asp-action="PayCustomCakeOrder" method="post">
+                                        @Html.AntiForgeryToken()
                                         <input type="hidden" name="id" value="@Model.Id" />
                                         <button type="submit" class="btn btn-primary rounded-pill px-4 py-2">💳 پرداخت سفارش</button>
                                     </form>
@@ -149,6 +191,19 @@
                                 {
                                     <span class="badge bg-success fs-6 p-2">✅ پرداخت شده</span>
                                 }
+                            </div>
+                        </div>
+                    }
+                    else if (Model.Status == CustomCakeOrderStatus.Accepted && !Model.IsPaid)
+                    {
+                        <div class="mb-4">
+                            <div class="section-title">💰 هزینه نهایی</div>
+                            <div class="alert alert-warning d-flex align-items-start gap-2 mb-0">
+                                <span class="fs-4">⏳</span>
+                                <div>
+                                    <strong>قیمت نهایی هنوز توسط فروشگاه اعلام نشده است.</strong><br />
+                                    سفارش شما تأیید شده است؛ به محض ثبت قیمت، دکمه «پرداخت سفارش» در همین بخش فعال می‌شود.
+                                </div>
                             </div>
                         </div>
                     }
@@ -190,6 +245,7 @@
                     @if (Model.Status == CustomCakeOrderStatus.Pending)
                     {
                         <form asp-action="DeleteCustomCakeOrder" method="post" class="d-inline" onsubmit="return confirm('آیا از حذف این سفارش اطمینان دارید؟');">
+                            @Html.AntiForgeryToken()
                             <input type="hidden" name="id" value="@Model.Id" />
                             <button type="submit" class="btn btn-danger rounded-pill px-4">🗑️ حذف سفارش</button>
                         </form>

@@ -20,6 +20,6 @@ namespace SugarShop.Domain.Entities.Sales
         public string? RawResponse { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public Order? Order { get; set; }
-        public string TransactionCode { get; set; }
+        public string TransactionCode { get; set; } = null!;
     }
 }

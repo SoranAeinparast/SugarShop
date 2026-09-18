@@ -23,6 +23,23 @@
                     var deliveryStr = deliveryDate.ToString("yyyy/MM/dd HH:mm");
                     <p><strong>تاریخ تحویل دلخواه:</strong> @deliveryStr.ToPersianNumber()</p>
                 }
+                <p><strong>روش تحویل:</strong>
+                    @if (Model.DeliveryMethod == DeliveryMethod.Delivery)
+                    {
+                        <span class="badge bg-warning text-dark">🛵 ارسال با پیک</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-success">🏪 دریافت در محل</span>
+                    }
+                </p>
+                @if (Model.DeliveryMethod == DeliveryMethod.Delivery)
+                {
+                    <p><strong>گیرنده:</strong> @(Model.ReceiverName ?? "—") | @(Model.ReceiverPhone ?? "—")</p>
+                    <p><strong>آدرس:</strong> @(Model.CustomerFullAddress ?? "—")</p>
+                    <p><strong>کد پستی:</strong> @(Model.CustomerPostalCode ?? "—")</p>
+                    <p><strong>هزینه پیک:</strong> @(Model.DeliveryFee?.ToString("N0").ToPersianNumber() ?? "تعیین نشده") تومان</p>
+                }
                 <p><strong>وضعیت فعلی:</strong> <partial name="_CakeStatusBadge" model="Model.Status" /></p>
             </div>
             <div class="col-md-6">
@@ -64,8 +81,8 @@
         <h5>تنظیم وضعیت سفارش</h5>
         <form asp-action="UpdateCustomCakeOrder" method="post">
             <input type="hidden" name="id" value="@Model.Id" />
-            <div class="row">
-                <div class="col-md-4">
+            <div class="row g-3">
+                <div class="col-md-3">
                     <label>وضعیت</label>
                     <select name="status" class="form-select">
                         <option value="Pending" selected="@(Model.Status == CustomCakeOrderStatus.Pending)">⏳ در انتظار بررسی</option>
@@ -76,17 +93,28 @@
                         <option value="Rejected" selected="@(Model.Status == CustomCakeOrderStatus.Rejected)">❌ رد شده</option>
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label>قیمت نهایی (تومان)</label>
                     <input type="number" name="finalPrice" class="form-control" value="@Model.FinalPrice" step="1000" />
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label>توضیحات مدیر</label>
                     <textarea name="adminNotes" class="form-control" rows="2">@Model.AdminNotes</textarea>
                 </div>
+                <div class="col-md-3">
+                    <label>&nbsp;</label>
+                    <button type="submit" class="btn btn-success w-100">💾 ذخیره تغییرات</button>
+                </div>
+                @if (Model.DeliveryMethod == DeliveryMethod.Delivery)
+                {
+                    <div class="col-12">
+                        <label>🛵 هزینه پیک (تومان)</label>
+                        <input type="number" name="deliveryFee" class="form-control" value="@Model.DeliveryFee" step="1000" min="0" style="max-width: 260px;" />
+                        <small class="form-text text-muted">مبلغ پیک به قیمت نهایی اضافه شده و هنگام پرداخت از مشتری دریافت می‌شود.</small>
+                    </div>
+                }
             </div>
-            <div class="mt-3">
-                <button type="submit" class="btn btn-success">💾 ذخیره تغییرات</button>
+            <div class="mt-3 d-flex gap-2">
                 <a asp-action="CustomCakeOrders" class="btn btn-secondary">🔙 بازگشت به لیست</a>
             </div>
         </form>

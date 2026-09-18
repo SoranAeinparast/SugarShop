@@ -70,7 +70,7 @@ namespace SugarShop.Web.Controllers
         /// <summary>تأیید سفارش (در انتظار بررسی ← تأیید شده) + ثبت قیمت پیشنهادی و یادداشت</summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Approve(int id, decimal? finalPrice, string? chefNotes)
+        public async Task<IActionResult> Approve(int id, decimal? finalPrice, decimal? deliveryFee, string? chefNotes)
         {
             var order = await _db.CustomCakeOrders.FindAsync(id);
             if (order == null) return NotFound();
@@ -81,6 +81,19 @@ namespace SugarShop.Web.Controllers
                 return RedirectToAction(nameof(Details), new { id });
             }
 
+            // قیمت نهایی شرط لازم برای تأیید است؛ بدون آن مشتری هرگز قادر به پرداخت نخواهد بود
+            if (!finalPrice.HasValue || finalPrice.Value <= 0)
+            {
+                TempData["Error"] = "برای تأیید سفارش، باید قیمت نهایی را وارد کنید.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
+            // هزینه پیک فقط برای سفارش‌های «ارسال با پیک» ثبت می‌شود
+            if (order.DeliveryMethod == DeliveryMethod.Delivery)
+                order.DeliveryFee = deliveryFee.HasValue && deliveryFee.Value >= 0 ? deliveryFee : null;
+            else
+                order.DeliveryFee = null;
+
             order.Status = CustomCakeOrderStatus.Accepted;
             order.FinalPrice = finalPrice;
             order.AdminNotes = string.IsNullOrWhiteSpace(chefNotes) ? null : chefNotes.Trim();
@@ -88,6 +101,42 @@ namespace SugarShop.Web.Controllers
 
             await _db.SaveChangesAsync();
             TempData["Success"] = "سفارش تأیید شد و وارد دستور کار پخت گردید.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        /// <summary>
+        /// ثبت/ویرایش قیمت نهایی سفارشِ تأییدشده و پرداخت‌نشده.
+        /// مسیر بازیابی برای سفارش‌هایی که بدون قیمت تأیید شده‌اند؛ پس از پرداخت، قیمت قفل می‌شود.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdatePrice(int id, decimal? finalPrice, decimal? deliveryFee)
+        {
+            var order = await _db.CustomCakeOrders.FindAsync(id);
+            if (order == null) return NotFound();
+
+            if (order.Status != CustomCakeOrderStatus.Accepted || order.IsPaid)
+            {
+                TempData["Error"] = "قیمت فقط برای سفارش‌های تأییدشده و پرداخت‌نشده قابل ثبت یا ویرایش است.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
+            if (!finalPrice.HasValue || finalPrice.Value <= 0)
+            {
+                TempData["Error"] = "قیمت نهایی نامعتبر است.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
+            if (order.DeliveryMethod == DeliveryMethod.Delivery)
+                order.DeliveryFee = deliveryFee.HasValue && deliveryFee.Value >= 0 ? deliveryFee : null;
+            else
+                order.DeliveryFee = null;
+
+            order.FinalPrice = finalPrice;
+            order.UpdatedAt = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync();
+            TempData["Success"] = "قیمت نهایی ثبت شد؛ مشتری اکنون می‌تواند پرداخت را انجام دهد.";
             return RedirectToAction(nameof(Details), new { id });
         }
 
@@ -125,6 +174,13 @@ namespace SugarShop.Web.Controllers
             if (order.Status != CustomCakeOrderStatus.Accepted)
             {
                 TempData["Error"] = "برای شروع پخت، ابتدا سفارش باید تأیید شده باشد.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
+            // بدون قیمت نهایی، مشتری هرگز نمی‌تواند پرداخت کند؛ پس ابتدا باید قیمت ثبت شود
+            if (!order.FinalPrice.HasValue || order.FinalPrice.Value <= 0)
+            {
+                TempData["Error"] = "قبل از شروع پخت، ابتدا قیمت نهایی سفارش را ثبت کنید تا مشتری بتواند پرداخت کند.";
                 return RedirectToAction(nameof(Details), new { id });
             }
 

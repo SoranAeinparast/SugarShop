@@ -7,6 +7,8 @@
     var deliveryDatePersian = Model.DesiredDeliveryDateTime.HasValue 
         ? new PersianDateTime(Model.DesiredDeliveryDateTime.Value).ToString("yyyy/MM/dd") 
         : "";
+    ViewData["DeliveryTimeFieldName"] = "desiredDeliveryTime";
+    ViewData["DeliveryTimeValue"] = Model.DesiredDeliveryDateTime?.ToString("HH:mm") ?? "";
 }
 <div class="container mt-4">
     <div class="card shadow-sm border-0 rounded-4">
@@ -58,12 +60,13 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">ساعت تحویل</label>
-                        <input type="time" name="desiredDeliveryTime" class="form-control" value="@(Model.DesiredDeliveryDateTime?.ToString("HH:mm"))" />
+                        <partial name="_DeliveryTimeSelect" />
                     </div>
                     <div class="col-12">
                         <label class="form-label">توضیحات اضافی</label>
                         <textarea asp-for="SpecialRequests" class="form-control" rows="3"></textarea>
                     </div>
+                    <partial name="_CakeDeliverySection" />
                         <div class="col-md-6">
                             <label class="form-label">تصویر نمونه کیک (اختیاری)</label>
                             @if (!string.IsNullOrEmpty(Model.SampleImagePath))
@@ -100,7 +103,35 @@
 @section Scripts {
 <partial name="_ValidationScriptsPartial" />
 <script>
+function initCakeDeliverySection() {
+    var pickup = document.getElementById('dmPickup');
+    var courier = document.getElementById('dmCourier');
+    if (!pickup || !courier) return;
+
+    function refresh() {
+        var section = document.getElementById('cakeAddressSection');
+        if (section) section.classList.toggle('d-none', !courier.checked);
+        document.querySelectorAll('.cake-dm-card').forEach(function(c) { c.classList.remove('bg-light', 'border-primary'); });
+        var active = (pickup.checked ? pickup : courier).closest('.cake-dm-card');
+        if (active) active.classList.add('bg-light', 'border-primary');
+    }
+
+    [pickup, courier].forEach(function(r) { r.addEventListener('change', refresh); });
+
+    var useNew = document.getElementById('cakeUseNewAddress');
+    if (useNew) {
+        useNew.addEventListener('change', function() {
+            var fields = document.getElementById('cakeNewAddressFields');
+            if (fields) fields.classList.toggle('d-none', !this.checked);
+            if (this.checked) {
+                document.querySelectorAll('.cake-addr-radio').forEach(function(r) { r.checked = false; });
+            }
+        });
+    }
+    refresh();
+}
 $(function() {
+    initCakeDeliverySection();
     $('#deliveryDatePersian').persianDatepicker({
         format: 'YYYY/MM/DD',
         autoClose: true,

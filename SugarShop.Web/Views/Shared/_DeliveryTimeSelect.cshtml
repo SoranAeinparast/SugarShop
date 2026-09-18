@@ -1,0 +1,38 @@
+@* ═══════════════════════════════════════════════════════════════
+   انتخاب ساعت تحویل — کامبوباکس از ۸ صبح تا ۱۱ شب
+   نحوه استفاده:
+   قبل از فراخوانی، این دو مقدار را تنظیم کنید (اختیاری):
+   ViewData["DeliveryTimeFieldName"] → نام فیلد (پیش‌فرض: desiredDeliveryTime)
+   ViewData["DeliveryTimeValue"]     → مقدار فعلی با فرمت "HH:mm" (پیش‌فرض: "")
+   سپس: <partial name="_DeliveryTimeSelect" />
+   ═══════════════════════════════════════════════════════════════ *@
+@{
+    var fieldName = ViewData["DeliveryTimeFieldName"] as string ?? "desiredDeliveryTime";
+    var currentValue = ViewData["DeliveryTimeValue"] as string ?? "";
+    var options = new (string Value, string Label)[]
+    {
+        ("08:00", "۸ صبح"),
+        ("09:00", "۹ صبح"),
+        ("10:00", "۱۰ صبح"),
+        ("11:00", "۱۱ صبح"),
+        ("12:00", "۱۲ ظهر"),
+        ("13:00", "۱ بعد از ظهر"),
+        ("14:00", "۲ بعد از ظهر"),
+        ("15:00", "۳ بعد از ظهر"),
+        ("16:00", "۴ بعد از ظهر"),
+        ("17:00", "۵ بعد از ظهر"),
+        ("18:00", "۶ عصر"),
+        ("19:00", "۷ شب"),
+        ("20:00", "۸ شب"),
+        ("21:00", "۹ شب"),
+        ("22:00", "۱۰ شب"),
+        ("23:00", "۱۱ شب")
+    };
+}
+<select name="@fieldName" class="form-select" id="deliveryTimeSelect">
+    <option value="">انتخاب ساعت تحویل</option>
+    @foreach (var opt in options)
+    {
+        <option value="@opt.Value" selected="@(opt.Value == currentValue)">@opt.Label</option>
+    }
+</select>

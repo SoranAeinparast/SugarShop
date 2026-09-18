@@ -19,6 +19,9 @@
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic" type="button" role="tab">⚙️ تنظیمات پایه</button>
             </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="app-tab" data-bs-toggle="tab" data-bs-target="#app" type="button" role="tab">📱 تنظیمات اپلیکیشن</button>
+            </li>
         </ul>
         
         <div class="tab-content">
@@ -43,12 +46,15 @@
                             <input type="color" id="HeaderTextColor" class="form-control form-control-color" value="@Model.HeaderTextColor" />
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">نوع هدر</label>
+                            <label class="form-label fw-bold">نوع هدر</label>
                             <select id="HeaderType" class="form-select">
-                                <option value="0" @(Model.HeaderType == HeaderType.Normal ? "selected" : "")>Normal (معمولی)</option>
-                                <option value="1" @(Model.HeaderType == HeaderType.Sticky ? "selected" : "")>Sticky (چسبنده)</option>
-                                <option value="2" @(Model.HeaderType == HeaderType.Fixed ? "selected" : "")>Fixed (ثابت)</option>
+                                <option value="0" selected="@(Model.HeaderType == HeaderType.Normal ? "selected" : null)">Normal — معمولی (همراه صفحه اسکرول می‌شود)</option>
+                                <option value="1" selected="@(Model.HeaderType == HeaderType.Sticky ? "selected" : null)">Sticky — چسبنده (هنگام اسکرول بالای صفحه می‌ماند)</option>
+                                <option value="2" selected="@(Model.HeaderType == HeaderType.Fixed ? "selected" : null)">Fixed — ثابت (همیشه روی صفحه شناور است)</option>
                             </select>
+                            <small class="text-muted d-block mt-1">
+                                نکته: حالت شفافیت هدر در صفحه اصلی فقط با نوع «معمولی» به‌صورت شناور روی اسلایدر اعمال می‌شود؛ در حالت‌های Sticky و Fixed هدر همیشه بالای صفحه می‌ماند.
+                            </small>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">شفافیت هدر (درصد)</label>
@@ -66,12 +72,15 @@
                             <input type="color" id="FooterTextColor" class="form-control form-control-color" value="@Model.FooterTextColor" />
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">نوع فوتر</label>
+                            <label class="form-label fw-bold">نوع فوتر</label>
                             <select id="FooterType" class="form-select">
-                                <option value="0" @(Model.FooterType == FooterType.Normal ? "selected" : "")>Normal (معمولی)</option>
-                                <option value="1" @(Model.FooterType == FooterType.Sticky ? "selected" : "")>Sticky (چسبنده)</option>
-                                <option value="2" @(Model.FooterType == FooterType.Fixed ? "selected" : "")>Fixed (ثابت)</option>
+                                <option value="0" selected="@(Model.FooterType == FooterType.Normal ? "selected" : null)">Normal — معمولی (در انتهای صفحه)</option>
+                                <option value="1" selected="@(Model.FooterType == FooterType.Sticky ? "selected" : null)">Sticky — چسبنده (موقع اسکرول پایین صفحه دیده می‌شود)</option>
+                                <option value="2" selected="@(Model.FooterType == FooterType.Fixed ? "selected" : null)">Fixed — ثابت (همیشه پایین صفحه شناور است)</option>
                             </select>
+                            <small class="text-muted d-block mt-1">
+                                نکته: در حالت Fixed، فوتر روی محتوای صفحه شناور می‌ماند و فضای لازم به‌صورت خودکار رزرو می‌شود.
+                            </small>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">شفافیت فوتر (درصد)</label>
@@ -168,9 +177,67 @@
                         </div>
                         <hr />
                         <div class="mb-3">
-                            <label class="form-label">گواهینامه‌ها (JSON)</label>
-                            <textarea id="CertificationsJsonInput" class="form-control" rows="4" dir="ltr">@ViewBag.CertificationsJson</textarea>
-                            <small class="text-muted">فرمت: [{"Title":"نماد اعتماد","ImagePath":"/images/eNamad.png","Link":"https://..."}]</small>
+                            <div class="alert alert-light border d-flex align-items-center justify-content-between mb-0">
+                                <div>
+                                    <i class="bi bi-award text-primary me-2"></i>
+                                    <span class="fw-bold">گواهینامه‌ها (نمادها)</span>
+                                    <small class="d-block text-muted">مدیریت نمادها با ویرایشگر بصری و بدون کدنویسی انجام می‌شود.</small>
+                                </div>
+                                <a href="/SiteSettings#social" class="btn btn-sm btn-outline-primary text-nowrap">
+                                    <i class="bi bi-gear"></i> مدیریت گواهینامه‌ها
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 📱 تب تنظیمات اپلیکیشن -->
+            <div class="tab-pane fade" id="app" role="tabpanel">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    فعال بودن «اپلیکیشن» یعنی: بنر نصب در سایت، لینک‌های دانلود، و صفحه <b>/App/Download</b> نمایش داده می‌شوند.
+                    با غیرفعال کردن، همه‌ی این‌ها به‌صورت خودکار از سایت حذف می‌شوند — بدون نیاز به انتشار مجدد.
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3 form-check form-switch">
+                            <input type="checkbox" class="form-check-input" role="switch" id="AppEnabled" @(ViewBag.AppEnabled ? "checked" : "") />
+                            <label class="form-check-label fw-bold" for="AppEnabled">ارائه‌ی اپلیکیشن در سایت فعال باشد</label>
+                        </div>
+                        <div class="mb-3 form-check form-switch">
+                            <input type="checkbox" class="form-check-input" role="switch" id="AppAndroidEnabled" @(ViewBag.AppAndroidEnabled ? "checked" : "") />
+                            <label class="form-check-label" for="AppAndroidEnabled">نسخه‌ی اندروید (APK) فعال باشد</label>
+                        </div>
+                        <div class="mb-3 form-check form-switch">
+                            <input type="checkbox" class="form-check-input" role="switch" id="AppIosEnabled" @(ViewBag.AppIosEnabled ? "checked" : "") />
+                            <label class="form-check-label" for="AppIosEnabled">راهنمای نصب روی iPhone (PWA) فعال باشد</label>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">نام اپلیکیشن</label>
+                            <input type="text" id="AppDisplayName" class="form-control" value="@ViewBag.AppDisplayName" placeholder="خالی = همان نام سایت" />
+                            <small class="text-muted d-block mt-1">اگر خالی باشد، اپلیکیشن با نام فعلی سایت (و لوگوی فعلی) شناسایی می‌شود.</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">آدرس پایه‌ی اپلیکیشن</label>
+                            <input type="url" id="AppBaseUrl" class="form-control" value="@ViewBag.AppBaseUrl" placeholder="خالی = همان دامنه‌ی فعلی سایت" />
+                            <small class="text-muted d-block mt-1">
+                                مثال: <code>https://sweets.soransoftpro.ir</code> — صفحه‌ی دانلود، QR کد و لینک‌های اپ همیشه از
+                                همین مقدار (یا دامنه‌ی جاری) ساخته می‌شوند؛ پس با تغییر دامنه چیزی از کار نمی‌افتد.
+                            </small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">پیش‌نمایش لینک دانلود</label>
+                            <div class="form-control bg-light text-dark" id="appUrlPreview" style="font-size:.85rem"></div>
+                        </div>
+                        <div class="alert alert-light border">
+                            <small>
+                                <i class="bi bi-shield-check text-success"></i>
+                                <b>نکته‌ی فنی:</b> لوگو، نام و آیکون اپ همیشه از «تنظیمات پایه» همین صفحه پیروی می‌کنند.
+                                پس از تغییر لوگو، شورت‌کات‌های جدید روی گوشی به‌طور خودکار با لوگوی جدید ساخته می‌شوند.
+                            </small>
                         </div>
                     </div>
                 </div>
@@ -189,6 +256,17 @@ const headerSpan = document.getElementById('headerTransparencyValue');
 const footerSpan = document.getElementById('footerTransparencyValue');
 if (headerRange) headerRange.addEventListener('input', () => headerSpan.innerText = headerRange.value);
 if (footerRange) footerRange.addEventListener('input', () => footerSpan.innerText = footerRange.value);
+
+// پیش‌نمایش زنده‌ی لینک دانلود اپ
+const appBase = document.getElementById('AppBaseUrl');
+const appUrlPreview = document.getElementById('appUrlPreview');
+function updateAppUrlPreview() {
+    if (!appBase || !appUrlPreview) return;
+    let b = appBase.value.trim().replace(/\/+$/, '');
+    if (b && !b.startsWith('http')) b = 'https://' + b;
+    appUrlPreview.textContent = (b || window.location.origin) + '/App/Download';
+}
+if (appBase) { appBase.addEventListener('input', updateAppUrlPreview); updateAppUrlPreview(); }
 
 const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ||
     document.querySelector('[name="__RequestVerificationToken"]')?.value;
@@ -239,8 +317,15 @@ document.getElementById('saveBtn').addEventListener('click', async function() {
     formData.append('EitaaUrl', document.getElementById('EitaaUrlInput').value);
     formData.append('SoroushUrl', document.getElementById('SoroushUrlInput').value);
     
-    // گواهینامه‌ها
-    formData.append('CertificationsJson', document.getElementById('CertificationsJsonInput').value);
+    // تنظیمات اپلیکیشن
+    formData.append('AppEnabled', document.getElementById('AppEnabled').checked);
+    formData.append('AppDisplayName', document.getElementById('AppDisplayName').value);
+    formData.append('AppBaseUrl', document.getElementById('AppBaseUrl').value);
+    formData.append('AppAndroidEnabled', document.getElementById('AppAndroidEnabled').checked);
+    formData.append('AppIosEnabled', document.getElementById('AppIosEnabled').checked);
+    
+    // گواهینامه‌ها دیگر از این صفحه ارسال نمی‌شوند؛ مدیریت آن‌ها در «تنظیمات سایت» انجام می‌شود
+    // تا ذخیره تنظیمات ظاهری، تصادفاً نمادهای ویرایش‌شده را بازنویسی نکند.
     
     try {
         const response = await fetch('/Admin/Theme/SaveJson', {

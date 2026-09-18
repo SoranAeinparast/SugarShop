@@ -1,0 +1,326 @@
+﻿@using SugarShop.Web.Extensions
+@model SugarShop.Web.ViewModels.StagePaymentViewModel
+@{
+    ViewData["Title"] = $"تأیید و پرداخت سفارش {Model.OrderCode}";
+    string Toman(decimal t) => t.ToString("N0").ToPersianNumber() + " تومان";
+    bool hasRows = Model.Boxes.Any() || Model.Products.Any();
+
+    // مرحله اول سفارش ترکیبی: هنوز هیچ جعبه‌ای وزن‌کشی نشده و مبلغ این پرداخت فقط
+    // بخش قیمت‌ثابت (محصولات + ارسال − تخفیف) است؛ جعبه‌ها به مرحله بعد می‌مانند.
+    bool hasFinalizedBoxes = Model.Boxes.Any(b => b.IsFinalized);
+    bool hasPendingBoxes = Model.Boxes.Any(b => !b.IsFinalized);
+    bool isFirstStage = !hasFinalizedBoxes && hasPendingBoxes;
+}
+<div class="container my-4">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h2 class="mb-0">💳 تأیید و پرداخت سفارش @Model.OrderCode</h2>
+        <div class="d-flex gap-2 flex-wrap">
+            @* دانلود PDF واقعی، نسخه چاپی و اکسل — مشتری می‌تواند سند مبلغ را نگه دارد *@
+            <a asp-action="StatementPdf" asp-route-orderId="@Model.OrderId" class="btn btn-primary">
+                ⬇️ دانلود PDF صورت‌حساب
+            </a>
+            <a asp-action="Statement" asp-route-orderId="@Model.OrderId" target="_blank" rel="noopener" class="btn btn-outline-primary">
+                🖨️ نسخه چاپی
+            </a>
+            <a asp-action="StatementExcel" asp-route-orderId="@Model.OrderId" class="btn btn-outline-success">
+                ⬇️ دانلود اکسل
+            </a>
+            <a asp-controller="Profile" asp-action="OrderDetails" asp-route-id="@Model.OrderId" class="btn btn-outline-secondary">🔙 بازگشت به سفارش</a>
+        </div>
+    </div>
+
+    <div class="alert alert-info">
+        <strong>مبلغ این مرحله را ببینید و سپس پرداخت کنید.</strong>
+        <div class="small mt-1">
+            سفارش شما: @Model.OrderDate.ToPersianNumber() — @Model.DeliveryMethodText.
+            @if (isFirstStage)
+            {
+                <span>
+                    در این مرحله فقط <strong>محصولات قیمت‌ثابت و هزینه ارسال</strong> پرداخت می‌شود؛
+                    جعبه‌های شیرینی پس از وزن‌کشی توسط فروشگاه، در مرحله دوم (با همین ریز جزئیات) تسویه می‌شوند.
+                </span>
+            }
+            else
+            {
+                <span>
+                    این مبلغ بر اساس وزن واقعی جعبه‌هایی است که فروشگاه وزن‌کشی و ثبت کرده است؛
+                    ریز وزن و قیمت هر ردیف در جدول‌های زیر آمده است.
+                </span>
+            }
+        </div>
+    </div>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+
+    @if (!hasRows)
+    {
+        <div class="alert alert-warning">ردیفی برای این سفارش ثبت نشده است؛ برای بررسی به صفحه سفارش برگردید.</div>
+    }
+
+    @* ═══════════ جعبه‌های شیرینی: ریز وزن و قیمت هر ردیف ═══════════ *@
+    @if (Model.Boxes.Any())
+    {
+        <h4 class="mt-4">
+            @if (isFirstStage)
+            {
+                <span>📦 جعبه‌های شیرینی شما — پرداخت در مرحله دوم پس از وزن‌کشی</span>
+            }
+            else
+            {
+                <span>📦 ریز وزن و قیمت جعبه‌های شیرینی</span>
+            }
+        </h4>
+        foreach (var box in Model.Boxes)
+        {
+            <div class="card mb-4 @(box.IsFinalized ? "border-success" : "border-warning")">
+                <div class="card-header d-flex justify-content-between align-items-center @(box.IsFinalized ? "bg-success text-white" : "bg-warning text-dark")">
+                    <h5 class="mb-0">📦 @box.BoxTitle — جعبه @box.BoxNumber.ToPersianNumber() از @box.BoxCount.ToPersianNumber()</h5>
+                    @if (box.IsFinalized)
+                    {
+                        <span class="badge bg-light text-success">در مبلغ این مرحله لحاظ شده</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-light text-dark">در انتظار وزن‌کشی — در مبلغ این مرحله نیست</span>
+                    }
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-center" style="width:60px;">ردیف</th>
+                                    <th>🍪 شیرینی</th>
+                                    <th class="text-center">تعداد</th>
+                                    <th class="text-center">⚖️ وزن این ردیف</th>
+                                    <th class="text-center">💰 قیمت این ردیف</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @{ int rowNo = 1; }
+                                @foreach (var row in box.Rows)
+                                {
+                                    <tr>
+                                        <td class="align-middle text-center">@rowNo.ToPersianNumber()</td>
+                                        <td class="align-middle"><strong>@row.Name</strong></td>
+                                        <td class="align-middle text-center">@row.Quantity.ToPersianNumber()</td>
+                                        <td class="align-middle text-center">
+                                            @if (row.WeightGrams.HasValue)
+                                            {
+                                                <span>@row.WeightGrams.Value.ToPersianNumber() گرم</span>
+                                                @if (row.IsApproximate)
+                                                {
+                                                    <small class="text-muted d-block">(تقریبی)</small>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                        </td>
+                                        <td class="align-middle text-center">
+                                            @Toman(row.TotalPrice)
+                                            @if (row.Quantity > 1 && row.UnitPrice > 0)
+                                            {
+                                                <small class="text-muted d-block">@row.Quantity.ToPersianNumber() × @Toman(row.UnitPrice)</small>
+                                            }
+                                        </td>
+                                    </tr>
+                                    rowNo++;
+                                }
+                            </tbody>
+                            <tfoot class="table-secondary">
+                                <tr>
+                                    <td colspan="3" class="text-end"><strong>جمع ردیف‌ها:</strong></td>
+                                    <td class="text-center"><strong>@box.RowsWeightGrams.ToPersianNumber() گرم</strong></td>
+                                    <td class="text-center"><strong>@Toman(box.RowsPrice)</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    @if (box.IsFinalized)
+                    {
+                        <div class="alert alert-success mt-3 mb-0">
+                            <div class="d-flex justify-content-between flex-wrap">
+                                <span><strong>⚖️ وزن نهایی جعبه:</strong> @box.FinalWeightGrams.GetValueOrDefault().ToPersianNumber() گرم</span>
+                                <span><strong>💰 مبلغ این جعبه (مبنای پرداخت):</strong> @Toman(box.FinalPrice ?? 0)</span>
+                            </div>
+                            @if (box.RowsPrice != (box.FinalPrice ?? 0))
+                            {
+                                <small class="d-block mt-1 text-muted">
+                                    مبلغ این جعبه توسط فروشگاه نهایی شده است؛ جمع ردیف‌ها (@Toman(box.RowsPrice)) ممکن است کمی تفاوت داشته باشد
+                                    و مبنای دریافتی، مبلغ نهایی جعبه است.
+                                </small>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning mt-3 mb-0">
+                            این جعبه هنوز وزن‌کشی/ثبت نشده است؛ وزن و قیمت بالا تقریبی است و مبلغ نهایی آن پس از وزن‌کشی،
+                            در همین صفحه برای پرداخت مرحله بعد نمایش داده می‌شود.
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+
+    @* ═══════════ محصولات قیمت‌ثابت ═══════════ *@
+    @if (Model.Products.Any())
+    {
+        <h4 class="mt-4">🛍️ محصولات قیمت‌ثابت</h4>
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>محصول</th>
+                                <th class="text-center">تعداد</th>
+                                <th class="text-center">قیمت واحد</th>
+                                <th class="text-center">جمع</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var product in Model.Products)
+                            {
+                                <tr>
+                                    <td class="align-middle"><strong>@product.Name</strong></td>
+                                    <td class="align-middle text-center">@product.Quantity.ToPersianNumber()</td>
+                                    <td class="align-middle text-center">@Toman(product.UnitPrice)</td>
+                                    <td class="align-middle text-center">@Toman(product.TotalPrice)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ═══════════ جمع‌بندی: مبلغ از کجا آمده ═══════════ *@
+    <h4 class="mt-4">🧾 مبلغ این پرداخت از چه اجزایی تشکیل شده است؟</h4>
+    <div class="card mb-4">
+        <div class="card-body">
+            <table class="table table-sm mb-0">
+                <tbody>
+                    @if (Model.FinalizedBoxTotal > 0)
+                    {
+                        <tr>
+                            <td>جمع جعبه‌های وزن‌کشی‌شده @(Model.HasUnfinalizedBoxes ? "(فقط جعبه‌های نهایی‌شده)" : "")</td>
+                            <td class="text-start">@Toman(Model.FinalizedBoxTotal)</td>
+                        </tr>
+                    }
+                    @if (Model.Products.Any())
+                    {
+                        <tr>
+                            <td>جمع محصولات قیمت‌ثابت</td>
+                            <td class="text-start">@Toman(Model.ProductTotal)</td>
+                        </tr>
+                    }
+                    <tr class="table-light fw-bold">
+                        <td>جمع کالاها</td>
+                        <td class="text-start">@Toman(Model.GoodsTotal)</td>
+                    </tr>
+                    @if (Model.DiscountAmount > 0)
+                    {
+                        <tr>
+                            <td>کد تخفیف</td>
+                            <td class="text-start text-success">− @Toman(Model.DiscountAmount)</td>
+                        </tr>
+                    }
+                    <tr>
+                        <td>
+                            هزینه ارسال با پیک
+                            @if (Model.IsDeliveryFree)
+                            {
+                                <span class="badge bg-success">ارسال رایگان</span>
+                            }
+                        </td>
+                        <td class="text-start">
+                            @if (Model.IsDeliveryFree)
+                            {
+                                <span class="text-decoration-line-through text-muted me-1">@Toman(Model.StoredDeliveryFee)</span>
+                                <span class="text-success fw-bold">۰ تومان</span>
+                            }
+                            else
+                            {
+                                @Toman(Model.DeliveryFee)
+                            }
+                        </td>
+                    </tr>
+                    <tr class="table-secondary fw-bold">
+                        <td>مبلغ کل سفارش تا این لحظه</td>
+                        <td class="text-start">@Toman(Model.GrandTotal)</td>
+                    </tr>
+                    @if (Model.PaidTotal > 0)
+                    {
+                        <tr>
+                            <td>
+                                پرداخت‌های قبلی
+                                @if (Model.PreviousPayments.Any())
+                                {
+                                    <small class="text-muted d-block">
+                                        @foreach (var payment in Model.PreviousPayments)
+                                        {
+                                            <span>@payment.Date.ToPersianNumber() — @payment.Provider — @Toman(payment.Amount)</span>
+                                            <br />
+                                        }
+                                    </small>
+                                }
+                            </td>
+                            <td class="text-start text-success">− @Toman(Model.PaidTotal)</td>
+                        </tr>
+                    }
+                    <tr class="table-success fw-bold fs-5">
+                        <td>
+                            💰 مبلغ قابل پرداخت در این مرحله
+                            @if (isFirstStage)
+                            {
+                                <small class="d-block fw-normal text-muted">مبلغ جعبه‌های شیرینی پس از وزن‌کشی در مرحله دوم دریافت می‌شود.</small>
+                            }
+                        </td>
+                        <td class="text-start">@Toman(Model.PayableNow)</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            @if (Model.HasUnfinalizedBoxes)
+            {
+                <div class="alert alert-warning mt-3 mb-0">
+                    برخی جعبه‌ها هنوز وزن‌کشی نهایی نشده‌اند؛ مبلغ آن‌ها در این پرداخت لحاظ نشده و پس از وزن‌کشی،
+                    به‌صورت مرحله بعد (با همین ریز جزئیات) از شما دریافت می‌شود.
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 mt-3">
+        <form asp-controller="Profile" asp-action="PayOrder" method="post" class="m-0">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="orderId" value="@Model.OrderId" />
+            @* confirmed=true یعنی مشتری ریز مبلغ را دیده است و درخواست به درگاه می‌رود *@
+            <input type="hidden" name="confirmed" value="true" />
+            <button type="submit" class="btn btn-success btn-lg">
+                💳 پرداخت @(Model.PayableNow.ToString("N0").ToPersianNumber()) تومان
+            </button>
+        </form>
+        <a asp-action="StatementPdf" asp-route-orderId="@Model.OrderId" class="btn btn-primary btn-lg">
+            ⬇️ دانلود PDF صورت‌حساب
+        </a>
+        <a asp-action="Statement" asp-route-orderId="@Model.OrderId" target="_blank" rel="noopener" class="btn btn-outline-primary btn-lg">
+            🖨️ نسخه چاپی
+        </a>
+        <a asp-action="StatementExcel" asp-route-orderId="@Model.OrderId" class="btn btn-outline-success btn-lg">
+            ⬇️ دانلود اکسل
+        </a>
+        <a asp-controller="Profile" asp-action="OrderDetails" asp-route-id="@Model.OrderId" class="btn btn-outline-secondary btn-lg">
+            انصراف و بازگشت به سفارش
+        </a>
+    </div>
+</div>

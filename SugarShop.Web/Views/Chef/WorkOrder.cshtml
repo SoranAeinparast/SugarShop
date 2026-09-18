@@ -21,6 +21,8 @@
     var customerName = !string.IsNullOrWhiteSpace(customer?.FullName) ? customer!.FullName
         : (!string.IsNullOrWhiteSpace(customer?.UserName) ? customer!.UserName : "-");
     var customerPhone = !string.IsNullOrWhiteSpace(customer?.PhoneNumber) ? customer!.PhoneNumber : "-";
+    var receiverName = string.IsNullOrWhiteSpace(Model.ReceiverName) ? "—" : Model.ReceiverName;
+    var receiverPhone = string.IsNullOrWhiteSpace(Model.ReceiverPhone) ? "—" : Model.ReceiverPhone;
 
     var createdStr = new PersianDateTime(Model.CreatedAt).ToString("yyyy/MM/dd HH:mm").ToPersianNumber();
     var printDateStr = new PersianDateTime(DateTime.Now).ToString("yyyy/MM/dd").ToPersianNumber();
@@ -151,18 +153,33 @@
 
     @* ═══════════ مشتری ═══════════ *@
     <div class="wo-box" style="margin-bottom: 8px;">
-        <div class="wo-box-head">👤 اطلاعات مشتری</div>
+        <div class="wo-box-head">👤 اطلاعات مشتری و گیرنده</div>
         <div class="wo-box-body">
-            <span class="wo-label">مشتری:</span> @customerName
+            <span class="wo-label">نام مشتری (صاحب حساب):</span> @customerName
             &nbsp;&nbsp;|&nbsp;&nbsp;<span class="wo-label">تلفن:</span> @customerPhone.ToPersianNumber()
             @if (!string.IsNullOrWhiteSpace(customer?.Email))
             {
                 @:&nbsp;&nbsp;|&nbsp;&nbsp;<span class="wo-label">ایمیل:</span> @customer.Email
             }
+            <div style="margin-top: 3px;"><span class="wo-label">نام گیرنده سفارش:</span> @receiverName | تلفن: @receiverPhone.ToPersianNumber()</div>
             @if (Model.DesiredDeliveryDateTime.HasValue)
             {
                 var deliveryPersian = new PersianDateTime(Model.DesiredDeliveryDateTime.Value).ToString("yyyy/MM/dd HH:mm").ToPersianNumber();
                 <div style="margin-top: 3px;"><span class="wo-label">تاریخ و ساعت تحویل دلخواه مشتری:</span> @deliveryPersian</div>
+            }
+            @if (Model.DeliveryMethod == DeliveryMethod.Delivery)
+            {
+                <div style="margin-top: 3px;"><span class="wo-label">روش تحویل:</span> 🛵 ارسال با پیک</div>
+                <div style="margin-top: 3px;"><span class="wo-label">گیرنده:</span> @(Model.ReceiverName ?? "—") | تلفن: @(Model.ReceiverPhone ?? "—")</div>
+                <div style="margin-top: 3px;"><span class="wo-label">آدرس تحویل:</span> @(Model.CustomerFullAddress ?? "—")</div>
+                @if (Model.DeliveryFee.HasValue && Model.DeliveryFee > 0)
+                {
+                    <div style="margin-top: 3px;"><span class="wo-label">هزینه پیک:</span> @Model.DeliveryFee.Value.ToString("N0").ToPersianNumber() تومان</div>
+                }
+            }
+            else
+            {
+                <div style="margin-top: 3px;"><span class="wo-label">روش تحویل:</span> 🏪 دریافت در محل شیرینی‌سرا</div>
             }
         </div>
     </div>

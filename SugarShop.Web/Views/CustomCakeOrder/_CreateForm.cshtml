@@ -1,0 +1,67 @@
+@model SugarShop.Domain.Entities.Sales.CustomCakeOrder
+<form asp-action="Create" method="post" enctype="multipart/form-data" id="orderForm">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="All" class="alert alert-danger"></div>
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label class="form-label">وزن تقریبی (گرم)</label>
+            <input asp-for="WeightGrams" class="form-control" type="number" min="500"/>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">تعداد نفرات</label>
+            <input asp-for="Servings" class="form-control" type="number" min="1" max="200" />
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">طعم کیک</label>
+            <input asp-for="Flavor" class="form-control" placeholder="مثال: شکلاتی، وانیلی، میوه‌ای" />
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">شکل کیک</label>
+            <input asp-for="Shape" class="form-control" placeholder="مثال: گرد، مربع، قلب" />
+        </div>
+        <div class="col-12">
+            <label class="form-label">مواد به کار رفته (اختیاری)</label>
+            <textarea asp-for="Ingredients" class="form-control" rows="2" placeholder="مثلاً: پسته، گردو، خامه، شکلات"></textarea>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">نوع مراسم</label>
+            <select asp-for="Occasion" class="form-select">
+                <option value="">انتخاب کنید</option>
+                <option>تولد</option>
+                <option>سالگرد ازدواج</option>
+                <option>عروسی</option>
+                <option>نامزدی</option>
+                <option>جشن تولد کودک</option>
+                <option>سایر</option>
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">تاریخ تحویل دلخواه (شمسی)</label>
+            <input type="text" id="deliveryDatePersian" class="form-control" placeholder="مثال: ۱۴۰۴/۰۳/۱۵" />
+            <input type="hidden" name="desiredDeliveryDatePersian" id="deliveryDatePersianHidden" />
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">ساعت تحویل</label>
+            <partial name="_DeliveryTimeSelect" />
+        </div>
+        <div class="col-12">
+            <label class="form-label">توضیحات اضافی</label>
+            <textarea asp-for="SpecialRequests" class="form-control" rows="3" placeholder="هر نکته دیگری که باید بدانیم..."></textarea>
+        </div>
+        <partial name="_CakeDeliverySection" />
+        <div class="col-md-6">
+            <label class="form-label">تصویر نمونه کیک (اختیاری)</label>
+            <input type="file" id="sampleImageInput" name="sampleImage" class="form-control" accept="image/*" />
+            <img id="sampleImagePreview" src="" class="img-fluid mt-2 rounded" style="max-height: 150px; display: none;" />
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">تصویر برای چاپ روی کیک (اختیاری)</label>
+            <input type="file" id="printImageInput" name="printImage" class="form-control" accept="image/*" />
+            <img id="printImagePreview" src="" class="img-fluid mt-2 rounded" style="max-height: 150px; display: none;" />
+        </div>
+    </div>
+    <div class="mt-4 d-flex justify-content-between">
+        <button type="submit" class="btn btn-success px-4 rounded-pill">✅ ثبت سفارش</button>
+        <a asp-controller="Profile" asp-action="Index" class="btn btn-secondary rounded-pill">🔙 بازگشت</a>
+    </div>
+</form>

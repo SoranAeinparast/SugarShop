@@ -1,0 +1,38 @@
+{
+  "name": "شیرینی سرا",
+  "shortName": "شیرینی سرا",
+  "packageId": "ir.soransoftpro.pastry",
+  "host": "https://sweets.soransoftpro.ir",
+  "startUrl": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#8B4513",
+  "themeColorDark": "#000000",
+  "navigationColor": "#8B4513",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#8B4513",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#FFF8F0",
+  "enableNotifications": false,
+  "enableSiteSettingsShortcut": true,
+  "fallbackType": "customtabs",
+  "features": {},
+  "shortcuts": [
+    {
+      "name": "کیک سفارشی",
+      "short_name": "کیک سفارشی",
+      "url": "/CustomCakeOrder/Create",
+      "icons": [{ "url": "/Pwa/Icon?size=192", "sizes": "192x192" }]
+    },
+    {
+      "name": "سفارش‌های من",
+      "short_name": "سفارش‌ها",
+      "url": "/Profile/Orders",
+      "icons": [{ "url": "/Pwa/Icon?size=192", "sizes": "192x192" }]
+    }
+  ],
+  "iconUrl": "https://sweets.soransoftpro.ir/Pwa/Icon?size=512",
+  "maskableIconUrl": "https://sweets.soransoftpro.ir/Pwa/Icon?size=512&maskable=true",
+  "monochromeIconUrl": "https://sweets.soransoftpro.ir/Pwa/Icon?size=512&maskable=true",
+  "splashScreenFadeOutDuration": 300
+}

@@ -8,6 +8,12 @@
     Layout = "_ChefLayout";
     var selected = (CustomCakeOrderStatus?)ViewBag.SelectedStatus;
     var users = (Dictionary<string, ApplicationUser>)ViewBag.Users;
+    var countPending = (int)ViewBag.CountPending;
+    var countAccepted = (int)ViewBag.CountAccepted;
+    var countInProduction = (int)ViewBag.CountInProduction;
+    var countReady = (int)ViewBag.CountReady;
+    var countCompleted = (int)ViewBag.CountCompleted;
+    var countRejected = (int)ViewBag.CountRejected;
     string CustomerName(string id)
     {
         if (users != null && users.TryGetValue(id, out var u))
@@ -42,7 +48,7 @@
             <div class="card stat-card bg-warning bg-opacity-10 border-warning">
                 <div class="card-body text-center py-3">
                     <div class="stat-icon">⏳</div>
-                    <div class="stat-value text-warning">@((int)ViewBag.CountPending).ToPersianNumber()</div>
+                    <div class="stat-value text-warning">@countPending.ToPersianNumber()</div>
                     <div class="stat-label">در انتظار بررسی</div>
                 </div>
             </div>
@@ -53,7 +59,7 @@
             <div class="card stat-card bg-primary bg-opacity-10 border-primary">
                 <div class="card-body text-center py-3">
                     <div class="stat-icon">✅</div>
-                    <div class="stat-value text-primary">@((int)ViewBag.CountAccepted).ToPersianNumber()</div>
+                    <div class="stat-value text-primary">@countAccepted.ToPersianNumber()</div>
                     <div class="stat-label">تأیید شده</div>
                 </div>
             </div>
@@ -64,7 +70,7 @@
             <div class="card stat-card bg-info bg-opacity-10 border-info">
                 <div class="card-body text-center py-3">
                     <div class="stat-icon">👨‍🍳</div>
-                    <div class="stat-value text-info">@((int)ViewBag.CountInProduction).ToPersianNumber()</div>
+                    <div class="stat-value text-info">@countInProduction.ToPersianNumber()</div>
                     <div class="stat-label">در حال پخت</div>
                 </div>
             </div>
@@ -75,7 +81,7 @@
             <div class="card stat-card bg-success bg-opacity-10 border-success">
                 <div class="card-body text-center py-3">
                     <div class="stat-icon">🎂</div>
-                    <div class="stat-value text-success">@((int)ViewBag.CountReady).ToPersianNumber()</div>
+                    <div class="stat-value text-success">@countReady.ToPersianNumber()</div>
                     <div class="stat-label">آماده تحویل</div>
                 </div>
             </div>
@@ -86,7 +92,7 @@
             <div class="card stat-card bg-secondary bg-opacity-10 border-secondary">
                 <div class="card-body text-center py-3">
                     <div class="stat-icon">📦</div>
-                    <div class="stat-value text-secondary">@((int)ViewBag.CountCompleted).ToPersianNumber()</div>
+                    <div class="stat-value text-secondary">@countCompleted.ToPersianNumber()</div>
                     <div class="stat-label">تحویل شده</div>
                 </div>
             </div>
@@ -97,7 +103,7 @@
             <div class="card stat-card bg-danger bg-opacity-10 border-danger">
                 <div class="card-body text-center py-3">
                     <div class="stat-icon">❌</div>
-                    <div class="stat-value text-danger">@((int)ViewBag.CountRejected).ToPersianNumber()</div>
+                    <div class="stat-value text-danger">@countRejected.ToPersianNumber()</div>
                     <div class="stat-label">رد شده</div>
                 </div>
             </div>
@@ -154,7 +160,8 @@
                     <thead>
                         <tr>
                             <th>#</th>
-                            <th>مشتری</th>
+                            <th>نام مشتری</th>
+                            <th>نام گیرنده سفارش</th>
                             <th>طعم / شکل</th>
                             <th>تاریخ ثبت</th>
                             <th>تحویل دلخواه</th>
@@ -171,7 +178,11 @@
                                 <td class="fw-bold">@order.Id.ToPersianNumber()</td>
                                 <td>
                                     <div class="fw-semibold">@CustomerName(order.UserId)</div>
-                                    <small class="text-muted">@order.UserId</small>
+                                    <small class="text-muted">@(users != null && users.TryGetValue(order.UserId, out var cu) ? (cu.PhoneNumber ?? "") : "")</small>
+                                </td>
+                                <td>
+                                    <div>@(string.IsNullOrWhiteSpace(order.ReceiverName) ? "—" : order.ReceiverName)</div>
+                                    <small class="text-muted" dir="ltr">@(string.IsNullOrWhiteSpace(order.ReceiverPhone) ? "" : order.ReceiverPhone)</small>
                                 </td>
                                 <td>
                                     <div>@(order.Flavor ?? "-")</div>

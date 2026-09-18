@@ -1,5 +1,6 @@
 ﻿using Hangfire;
 using Hangfire.Dashboard;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
@@ -14,11 +15,17 @@ using SugarShop.Web.ModelBinders;
 using SugarShop.Web.Services;
 using SugarShop.Web.Services.Implementations;
 using SugarShop.Web.Services.Interfaces;
+using SugarShop.Web.Services.Sms;
 using SugarShop.Web.Validators;
 using SugarShop.Web.ViewComponents;
 using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.ResponseCompression;
 using System.IO;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using SugarShop.Web.Services.Api;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -56,14 +63,50 @@ builder.Services.AddSession(options =>
 
 builder.Services.AddHttpClient();
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
+
+// ── Web API داخلی (اتصال اپلیکیشن موبایل) ──
+// توکن JWT روی همان Identity سایت صادر می‌شود؛ حساب کاربری مشترک وب + اپ.
+// اسکیم JWT همیشه ثبت می‌شود (بدون کلید معتبر، توکن‌ها صادر/پذیرفته نمی‌شوند → ۴۰۱)
+// تا Attributeهای Authorize در هیچ حالتی خطای «scheme not registered» ندهند.
+builder.Services.AddSingleton<ApiJwtTokenService>();
+// سرویس پیامک برای ساخت لینک مطلق داخل متن پیامک به آدرس همان درخواست نیاز دارد
+builder.Services.AddHttpContextAccessor();
+var apiSecret = ApiAuthKeyHolder.GetKey(builder.Configuration); // یک کلید برای هم امضا هم اعتبارسنجی
+builder.Services.AddAuthentication()
+    .AddJwtBearer("ApiJwt", options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["ApiAuth:Issuer"] ?? "SugarShop",
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["ApiAuth:Audience"] ?? "SugarShopMobile",
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(apiSecret)),
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(1),
+            RoleClaimType = System.Security.Claims.ClaimTypes.Role,
+            NameClaimType = "sub"
+        };
+    });
 builder.Services.AddScoped<ThemeStylesViewComponent>();
 
 builder.Services.AddDbContext<SugarShopIdentityDbContext>(options =>
     options.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("SugarShop.Infrastructure")));
-builder.Services.AddDbContext<SugarShopCatalogDbContext>(options =>
-    options.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("SugarShop.Infrastructure")));
-builder.Services.AddDbContext<SugarShopSalesDbContext>(options =>
-    options.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("SugarShop.Infrastructure")));
+
+// ✅ اتصال SQL مشترک برای DbContextهای فروش و کاتالوگ:
+// هر DbContext به‌صورت پیش‌فرض اتصال مستقل خودش را می‌سازد؛ در نتیجه نمی‌توان تراکنشی را که روی
+// یک DbContext آغاز شده (BeginTransaction) با UseTransaction روی DbContext دیگر اعمال کرد و خطای
+// «The specified transaction is not associated with the current connection» رخ می‌دهد.
+// با تزریق یک SqlConnection مشترک (scoped) به هر دو DbContext، هر دو روی یک اتصال واحد کار می‌کنند
+// و یک تراکنش می‌تواند هر دو DbContext را پوشش دهد (الگوی رسمی EF Core برای اشتراک تراکنش).
+builder.Services.AddScoped(_ => new Microsoft.Data.SqlClient.SqlConnection(connectionString));
+builder.Services.AddDbContext<SugarShopCatalogDbContext>((sp, options) =>
+    options.UseSqlServer(sp.GetRequiredService<Microsoft.Data.SqlClient.SqlConnection>(),
+        sql => sql.MigrationsAssembly("SugarShop.Infrastructure")));
+builder.Services.AddDbContext<SugarShopSalesDbContext>((sp, options) =>
+    options.UseSqlServer(sp.GetRequiredService<Microsoft.Data.SqlClient.SqlConnection>(),
+        sql => sql.MigrationsAssembly("SugarShop.Infrastructure")));
 
 builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
@@ -82,6 +125,46 @@ builder.Services.AddHttpClient<ZibalPaymentService>();
 builder.Services.AddScoped<ZibalPaymentService>();
 builder.Services.AddScoped<ZarinPalPaymentService>();
 builder.Services.AddScoped<InventoryService>();
+builder.Services.AddScoped<SugarShop.Web.Services.OrderPricingService>();
+    // تولید PDF صورتحساب پرداخت: بدون حالت (state) است و فونت‌هایش یک‌بار ثبت می‌شوند
+    builder.Services.AddSingleton<SugarShop.Web.Services.PaymentStatementPdfService>();
+    // توکن موقت لینک صورت‌حساب (باز شدن سند بدون نیاز به ورود)
+    builder.Services.AddScoped<SugarShop.Web.Services.StatementLinkService>();
+    builder.Services.AddScoped<SugarShop.Web.Services.ImageStorageService>();
+
+// ✅ فشرده‌سازی پاسخ (Gzip/Brotli): حجم HTML/CSS/JS تا ۸۰٪ کم می‌شود — تأثیر بزرگ روی سرعت لود
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[]
+    {
+        "text/html",
+        "text/plain",
+        "text/css",
+        "application/javascript",
+        "application/json",
+        "image/svg+xml",
+        "font/woff2"
+    });
+});
+
+// ── سامانه پیامکی ──
+builder.Services.AddHttpClient<SmsIrClient>();
+// صف پیامک ماندگار در دیتابیس (Outbox): با ری‌استارت شدن سایت هیچ پیامکی گم نمی‌شود
+builder.Services.AddSingleton<ISmsQueue, DbSmsQueue>();
+builder.Services.AddScoped<SmsService>();
+// اثرسنجی پیامک‌های لینک‌دار (چه زمانی رفت / چند بار باز شد) + گزارش پنل ادمین
+builder.Services.AddScoped<SugarShop.Web.Services.SmsLinkTrackingService>();
+builder.Services.AddScoped<SugarShop.Web.Services.SmsLinkReportService>();
+builder.Services.AddScoped<SmsJobs>();
+// کار شبانه پاک‌سازی جدول‌های موقت (توکن صورت‌حساب، لاگ پیامک، صف، OTP و سشنهای منقضی)
+builder.Services.AddScoped<SugarShop.Web.Services.MaintenanceJobs>();
+builder.Services.AddHostedService<SmsProcessor>();
+
+// تأیید ایمیل قابل تنظیم است (Identity:RequireConfirmedEmail). پیش‌فرض "false" است تا وقتی SMTP تنظیم نشده
+// ورود کاربران فعلی قفل نشود؛ برای روشن‌کردن، مقدار را در appsettings به true تغییر دهید.
+var requireConfirmedEmail = string.Equals(
+    builder.Configuration["Identity:RequireConfirmedEmail"], "true", StringComparison.OrdinalIgnoreCase);
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
@@ -92,7 +175,7 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     options.Password.RequireUppercase = false;
     options.Password.RequireNonAlphanumeric = false;
     options.Password.RequiredLength = 6;
-    options.SignIn.RequireConfirmedEmail = false;
+    options.SignIn.RequireConfirmedEmail = requireConfirmedEmail;
     options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
     options.Lockout.MaxFailedAccessAttempts = 5;
 })
@@ -128,6 +211,37 @@ builder.Services.ConfigureApplicationCookie(options =>
             context.CookieOptions.MaxAge = null;
         }
         return Task.CompletedTask;
+    };
+
+    // ✅ ضمانت نهایی برای رفع باگ «کارمند بدون خروج، همچنان لاگین است»:
+    // اگر کارمند (Owner/Admin/OrderManager/Chef) هنوز کوکی ماندگار (persistent) از نسخه‌های قبلی
+    // داشته باشد که با بستن مرورگر حذف نمی‌شود، در اولین درخواست لاگ‌اوت می‌شود تا جلسه او
+    // همیشه فقط به‌صورت Session (غیرماندگار) باشد. این باعث می‌شود کوکی‌های قدیمی هم باطل شوند.
+    var defaultOnValidatePrincipal = options.Events.OnValidatePrincipal;
+    options.Events.OnValidatePrincipal = async context =>
+    {
+        // اجرای اعتبارسنجی پیش‌فرض Identity (Security Stamp) ابتدا
+        if (defaultOnValidatePrincipal != null)
+        {
+            await defaultOnValidatePrincipal(context);
+        }
+
+        if (context.Principal == null || context.Properties == null || !context.Properties.IsPersistent)
+        {
+            return;
+        }
+
+        bool isStaff = context.Principal.IsInRole("Admin") ||
+                       context.Principal.IsInRole("OrderManager") ||
+                       context.Principal.IsInRole("Owner") ||
+                       context.Principal.IsInRole("Chef");
+        if (isStaff)
+        {
+            // کارمند با کوکی ماندگار → باطل کردن نشست و حذف کوکی
+            context.RejectPrincipal();
+            context.ShouldRenew = false;
+            await context.HttpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
+        }
     };
 });
 
@@ -200,6 +314,7 @@ using (var scope = app.Services.CreateScope())
         await SeedRolesAndUsersAsync(roleManager, userManager, builder.Configuration, logger);
         await SeedPaymentGatewaysAsync(salesDb, builder.Configuration, logger);
         await SeedWalletSettingsAsync(salesDb);
+        await SmsSeeder.SeedAsync(scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>(), logger);
         logger.LogInformation("Seed data inserted successfully.");
     }
     catch (Exception ex)
@@ -222,6 +337,40 @@ catch (Exception ex)
     logger.LogError(ex, "Error during Hangfire content scheduler startup. The site will continue without scheduled jobs.");
 }
 
+// ── وظایف زمان‌بندی‌شده سامانه پیامکی (یادآوری تولد / بازگشت مشتری / هشدار موجودی) ──
+try
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var smsSettings = await scope.ServiceProvider.GetRequiredService<SmsService>().GetSettingsAsync();
+        SmsProcessor.UpdateThrottle(smsSettings.QueueBatchSize, smsSettings.QueueDelaySeconds);
+    }
+    // ۹ صبح به وقت ایران = ۵:۳۰ UTC
+    RecurringJob.AddOrUpdate<SmsJobs>("sms-daily-reminders", j => j.RunDailyAsync(), "30 5 * * *");
+
+    // یادآوری پرداخت سفارش‌های وزن‌کشی‌شده: هر ساعت در دقیقه ۲۰ (UTC) تا تأخیر تنظیم‌شده
+    // (پیش‌فرض ۲۴ ساعت) دقیق رعایت شود، نه «حداکثر یک روز بعد».
+    RecurringJob.AddOrUpdate<SmsJobs>("sms-payment-reminders", j => j.RunPaymentRemindersAsync(), "20 * * * *");
+}
+catch (Exception ex)
+{
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+    logger.LogError(ex, "Error scheduling SMS recurring jobs. The site will continue without SMS jobs.");
+}
+
+// ── کار شبانه نگهداری دیتابیس (پاک‌سازی ردیف‌های منقضی و لاگ‌های قدیمی) ──
+try
+{
+    // ۳ بامداد به وقت ایران = ۲۳:۳۰ UTC روز قبل
+    RecurringJob.AddOrUpdate<SugarShop.Web.Services.MaintenanceJobs>(
+        "nightly-cleanup", j => j.RunNightlyCleanupAsync(), "30 23 * * *");
+}
+catch (Exception ex)
+{
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+    logger.LogError(ex, "Error scheduling the nightly maintenance job. The site continues without it.");
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseMigrationsEndPoint();
@@ -233,7 +382,50 @@ else
 }
 
 app.UseHttpsRedirection();
-app.UseStaticFiles();
+
+// ✅ فشرده‌سازی پاسخ — باید قبل از هر middleware دیگری که بدنه پاسخ می‌نویسد فعال شود
+app.UseResponseCompression();
+
+// ✅ کش مطمئن فایل‌های ایستا (تصاویر/CSS/JS): مرورگر یک هفته کش می‌کند — سرعت لود صفحات بعدی به‌طور محسوس بالا می‌رود
+// APK اپ اندروید — نوع MIME آن در پیش‌فرض ASP.NET نیست؛ بدون این، دانلود اپ ۴۰۴ می‌شود
+var staticContentTypeProvider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+staticContentTypeProvider.Mappings[".apk"] = "application/vnd.android.package-archive";
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    ContentTypeProvider = staticContentTypeProvider,
+    OnPrepareResponse = ctx =>
+    {
+        const int cacheDays = 7;
+        // sw.js باید همیشه تازه باشد — در غیر این صورت به‌روزرسانی Service Worker تا ۲۴ ساعت تأخیر می‌خورد
+        if (ctx.Context.Request.Path.StartsWithSegments("/sw.js"))
+            ctx.Context.Response.Headers["Cache-Control"] = "no-cache";
+        else
+            ctx.Context.Response.Headers["Cache-Control"] = $"public,max-age={cacheDays * 24 * 3600}";
+    }
+});
+
+// ✅ جلوگیری از کش‌شدن صفحات پویا (مثل تنظیمات هدر دسته‌بندی):
+// بدون این هدر، مرورگر یا CDN نسخه قدیمی صفحه را نشان می‌داد و تغییرات اعمال‌نشده به نظر می‌رسیدند
+app.Use(async (context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        var response = context.Response;
+        var contentType = response.ContentType ?? "";
+        var isHtml = contentType.StartsWith("text/html", StringComparison.OrdinalIgnoreCase);
+        // صفحات HTML عمومی: بدون کش؛ استاتیک‌ها و APIها مستثنی هستند (هدر خودشان را دارند)
+        if (isHtml && !context.Request.Path.StartsWithSegments("/media"))
+        {
+            response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+            response.Headers["Pragma"] = "no-cache";
+            response.Headers["Expires"] = "0";
+        }
+        return Task.CompletedTask;
+    });
+    await next();
+});
+
 app.UseRouting();
 app.UseSession();
 app.UseAuthentication();
@@ -243,6 +435,8 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
     Authorization = new[] { new HangfireDashboardAuthorizationFilter() }
 });
+
+app.MapControllers();
 
 app.MapControllerRoute(
     name: "areas",
@@ -318,12 +512,14 @@ static async Task SeedPaymentGatewaysAsync(SugarShopSalesDbContext salesDb, ICon
 
     if (await salesDb.PaymentGateways.AnyAsync(g => g.GatewayType == "ZarinPal")) return;
 
+    // ⚠️ زرین‌پال به فرآیند پرداخت این نسخه متصل نیست (تنها زیبال پیاده‌سازی شده است)؛
+    // به همین دلیل از ابتدا غیرفعال ساخته میشود تا ادمین گمان نکند پرداخت از این درگاه انجام میشود.
     var zarinpalGateway = new PaymentGateway
     {
         Name = "ZarinPal",
         Title = "زرین‌پال",
         GatewayType = "ZarinPal",
-        IsActive = true,
+        IsActive = false,
         SortOrder = 2,
         CreatedAt = DateTime.UtcNow
     };

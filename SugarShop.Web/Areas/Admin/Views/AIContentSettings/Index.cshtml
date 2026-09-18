@@ -4,169 +4,386 @@
     Layout = "_AdminLayout";
     var sources = ViewBag.Sources as List<SugarShop.Domain.Entities.ContentSource> ?? new List<SugarShop.Domain.Entities.ContentSource>();
     var topics = ViewBag.Topics as List<SugarShop.Domain.Entities.ContentTopic> ?? new List<SugarShop.Domain.Entities.ContentTopic>();
+    var textAiConfigured = ViewBag.TextAiConfigured is true;
+    var agnesKeyConfigured = ViewBag.AgnesKeyConfigured is true;
 }
-<div class="card">
-    <div class="card-header">
-        <h4>🤖 تنظیمات تولید محتوای هوشمند</h4>
+
+<div class="container-fluid px-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0">🤖 تنظیمات تولید محتوای هوشمند</h4>
+        <span class="badge @(textAiConfigured ? "bg-success" : "bg-warning text-dark") fs-6">
+            @(textAiConfigured ? "متن: کلید فعال" : "متن: حالت پیش‌نویس")
+        </span>
     </div>
-    <div class="card-body">
-        @if (TempData["Success"] != null)
-        {
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                @TempData["Success"]
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @TempData["Success"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (TempData["Warning"] != null)
+    {
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            @TempData["Warning"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @TempData["Error"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <!-- وضعیت سرویس‌ها -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center" style="width:52px;height:52px;">
+                            <i class="bi bi-chat-dots-fill text-primary fs-4"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">📝 تولید متن</h6>
+                            <p class="mb-1 small text-muted">
+                                @if (textAiConfigured)
+                                {
+                                    <span class="text-success">کلید هوش مصنوعی فعال است — بازنویسی کامل و هوشمند.</span>
+                                }
+                                else
+                                {
+                                    <span class="text-warning">بدون کلید — پیش‌نویس ساختاریافته حرفه‌ای تولید می‌شود.</span>
+                                }
+                            </p>
+                            <button type="button" class="btn btn-sm @(textAiConfigured ? "btn-outline-success" : "btn-outline-warning")" id="btnTestConnection">
+                                <i class="bi bi-plug"></i> تست اتصال
+                            </button>
+                            <span id="connectionResult" class="small ms-2"></span>
+                        </div>
+                    </div>
+                </div>
             </div>
-        }
-        @if (TempData["Warning"] != null)
-        {
-            <div class="alert alert-warning alert-dismissible fade show" role="alert">
-                @TempData["Warning"]
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="rounded-circle bg-success bg-opacity-10 d-flex align-items-center justify-content-center" style="width:52px;height:52px;">
+                            <i class="bi bi-image-fill text-success fs-4"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">🖼️ تولید تصویر شاخص</h6>
+                            <p class="mb-0 small text-muted">
+                                @if (agnesKeyConfigured)
+                                {
+                                    <span class="text-success">AgnesAI فعال است — تصویر با کیفیت بالا.</span>
+                                }
+                                else
+                                {
+                                    <span class="text-success">سرویس رایگان Pollinations فعال است — بدون نیاز به کلید. ✓</span>
+                                }
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
-        }
-        @if (TempData["Error"] != null)
-        {
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                @TempData["Error"]
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    </div>
+
+    <!-- راهنمای دریافت کلید رایگان -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h6 class="mb-0"><i class="bi bi-key-fill text-primary"></i> کلیدهای رایگان — راهنمای فعال‌سازی</h6>
+            <button class="btn btn-sm btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#keyGuide">
+                <i class="bi bi-chevron-down"></i> نمایش راهنما
+            </button>
+        </div>
+        <div class="collapse" id="keyGuide">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="border rounded-3 p-3 h-100">
+                            <h6 class="text-primary"><i class="bi bi-stars"></i> گزینه ۱: Google Gemini (پیشنهادی — کاملاً رایگان)</h6>
+                            <ol class="small mb-2">
+                                <li>وارد <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> شوید (با حساب Google).</li>
+                                <li>روی <strong>Create API key</strong> کلیک کنید — بدون نیاز به کارت بانکی.</li>
+                                <li>کلید را کپی کرده و در فیلد «کلید API» پایین همین صفحه وارد کنید (کلیدهای Gemini با <code>AIza…</code> یا قالب جدید <code>AQ.…</code> شروع می‌شوند).</li>
+                            </ol>
+                            <div class="alert alert-info py-2 small mb-0">
+                                <i class="bi bi-info-circle"></i> سهمیه رایگان روزانه صدها درخواست است؛ مدل پیش‌فرض <code>gemini-2.0-flash</code> برای فارسی عالی است.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="border rounded-3 p-3 h-100">
+                            <h6 class="text-primary"><i class="bi bi-hdd-network"></i> گزینه ۲: OpenRouter (مدل‌های رایگان)</h6>
+                            <ol class="small mb-2">
+                                <li>وارد <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a> شوید و ثبت‌نام کنید.</li>
+                                <li>یک کلید جدید بسازید (مدل‌های <code>:free</code> بدون نیاز به شارژ کار می‌کنند).</li>
+                                <li>کلید را وارد کنید (با <code>sk-or-</code> شروع می‌شود) و مدل دلخواه مثل <code>deepseek/deepseek-chat</code> را بنویسید.</li>
+                            </ol>
+                            <div class="alert alert-secondary py-2 small mb-0">
+                                <i class="bi bi-info-circle"></i> سیستم به‌صورت خودکار نوع سرویس را از پیشوند کلید تشخیص می‌دهد: <code>AIza…</code> یا <code>AQ.…</code> → Gemini، <code>sk-or-…</code> → OpenRouter، <code>sk-…</code> → OpenAI.
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-        }
-        <form asp-action="SaveSettings" method="post">
-            @Html.AntiForgeryToken()
-            <div class="row">
-                <div class="col-md-6">
-                    <h5>🔑 تنظیمات API</h5>
-                    <div class="mb-3">
-                        <label class="form-label">کلید OpenAI / OpenRouter</label>
+        </div>
+    </div>
+
+    <form asp-action="SaveSettings" method="post">
+        @Html.AntiForgeryToken()
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white"><h6 class="mb-0">🔑 تنظیمات API</h6></div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">کلید API (Gemini / OpenRouter / OpenAI)</label>
                         @if (!string.IsNullOrEmpty(Model.OpenAIApiKey))
                         {
-                            <div class="mb-1">
-                                <input class="form-control" type="text" value="@Model.OpenAIApiKey" disabled />
-                                <small class="text-muted">کلید فعلی (جهت تغییر، مقدار جدید را در فیلد زیر وارد کنید)</small>
+                            <div class="input-group mb-2">
+                                <span class="input-group-text"><i class="bi bi-key"></i></span>
+                                <input class="form-control" type="text" value="@(Model.OpenAIApiKey.Length > 12 ? Model.OpenAIApiKey.Substring(0, 12) + "…" : Model.OpenAIApiKey)" disabled />
+                                <span class="input-group-text bg-success text-white"><i class="bi bi-check-lg"></i> ذخیره شده</span>
                             </div>
+                            <small class="text-muted d-block mb-2">برای تغییر، کلید جدید را در فیلد زیر وارد کنید.</small>
                         }
-                        <input asp-for="OpenAIApiKey" class="form-control" type="password" placeholder="sk-..." />
-                        <small class="text-muted">برای دریافت کلید به openrouter.ai یا platform.openai.com مراجعه کنید</small>
+                        <input asp-for="OpenAIApiKey" class="form-control" type="password" placeholder="AIza… / AQ.… یا sk-or-… یا sk-…" autocomplete="off" />
+                        <small class="text-muted">کلید در دیتابیس ذخیره می‌شود و به‌صورت خودکار نوع سرویس تشخیص داده می‌شود.</small>
                     </div>
-                    <div class="mb-3">
+                    <div class="col-md-3">
                         <label class="form-label">مدل متن</label>
-                        <input asp-for="ModelName" class="form-control" placeholder="gpt-4o-mini" />
+                        <input asp-for="ModelName" class="form-control" placeholder="gemini-2.0-flash" />
+                        <small class="text-muted">مثال: gemini-2.0-flash / deepseek/deepseek-chat / gpt-4o-mini</small>
                     </div>
-                    <div class="mb-3">
+                    <div class="col-md-3">
                         <label class="form-label">مدل تصویر</label>
                         <input asp-for="ImageModelName" class="form-control" placeholder="dall-e-3" />
+                        <small class="text-muted">فقط در صورت استفاده از AgnesAI</small>
                     </div>
                 </div>
-                <div class="col-md-6">
-                    <h5>⏰ تنظیمات انتشار</h5>
-                    <div class="mb-3">
-                        <label class="form-label">زمان‌بندی (Cron Expression)</label>
-                        <input asp-for="ScheduleCron" class="form-control" placeholder="0 8 * * *" />
-                        <small class="text-muted">مثال: 0 8 * * * یعنی هر روز ساعت ۸ صبح</small>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white"><h6 class="mb-0">⏰ تنظیمات انتشار و زمان‌بندی</h6></div>
+            <div class="card-body">
+                @if (ViewBag.InvalidCron is true)
+                {
+                    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        مقدار ذخیره‌شده برای «زمان‌بندی خودکار» <strong>نامعتبر</strong> است؛ تا اصلاح آن، زمان‌بندی با پیش‌فرض
+                        <code>0 8 * * *</code> (هر روز ساعت ۸ صبح) اجرا می‌شود. عبارت زیر را اصلاح و دوباره ذخیره کنید.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
-                    <div class="mb-3">
+                }
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">زمان‌بندی خودکار (Cron)</label>
+                        <input asp-for="ScheduleCron" id="scheduleCron" class="form-control" placeholder="0 8 * * *" dir="ltr" style="text-align:left;" />
+                        <div id="cronLiveHint" class="form-text d-none mt-1"></div>
+                        <div class="d-flex flex-wrap gap-1 mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary cron-preset" data-cron="23 * * * *">⏱ دقیقهٔ ۲۳ هر ساعت</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary cron-preset" data-cron="0 * * * *">🕐 ابتدای هر ساعت</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary cron-preset" data-cron="0 8 * * *">🌅 هر روز ساعت ۸ صبح</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary cron-preset" data-cron="0 12 * * *">☀️ هر روز ساعت ۱۲</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary cron-preset" data-cron="0 23 * * *">🌙 هر روز ساعت ۲۳</button>
+                        </div>
+                        <small class="text-muted d-block mt-2">
+                            فرمت ۵ بخشی با فاصله: <b>دقیقه</b> <b>ساعت</b> <b>روز ماه</b> <b>ماه</b> <b>روز هفته</b>
+                            — مثال: <code>0 8 * * *</code> یعنی هر روز ساعت ۸ صبح، <code>23 * * * *</code> یعنی دقیقهٔ ۲۳ هر ساعت.
+                        </small>
+                    </div>
+                    <div class="col-md-4">
                         <label class="form-label">حداکثر مقاله در هر اجرا</label>
-                        <input asp-for="MaxArticlesPerRun" class="form-control" type="number" />
+                        <input asp-for="MaxArticlesPerRun" class="form-control" type="number" min="1" max="50" />
                     </div>
-                    <div class="mb-3 form-check">
-                        <input asp-for="AutoPublishEnabled" class="form-check-input" />
-                        <label class="form-check-label">انتشار خودکار (بدون تایید)</label>
-                    </div>
-                    <div class="mb-3 form-check">
-                        <input asp-for="RequireAdminApproval" class="form-check-input" />
-                        <label class="form-check-label">نیاز به تایید مدیر قبل از انتشار</label>
+                    <div class="col-md-4 d-flex align-items-end gap-4 pb-1">
+                        <div class="form-check form-switch">
+                            <input asp-for="AutoPublishEnabled" class="form-check-input" />
+                            <label class="form-check-label" asp-for="AutoPublishEnabled">انتشار خودکار پس از تایید</label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input asp-for="RequireAdminApproval" class="form-check-input" />
+                            <label class="form-check-label" asp-for="RequireAdminApproval">نیاز به تایید مدیر</label>
+                        </div>
                     </div>
                 </div>
             </div>
-            <button type="submit" class="btn btn-success">💾 ذخیره تنظیمات</button>
-        </form>
-        <hr />
-        <h5>📂 مدیریت منابع (URLهای دریافت محتوا)</h5>
-        <form asp-action="AddSource" method="post" class="row g-2">
-            @Html.AntiForgeryToken()
-            <div class="col-md-4">
-                <input type="text" name="Title" class="form-control" placeholder="نام منبع (اختیاری)" />
+        </div>
+
+        <div class="text-end mb-4">
+            <button type="submit" class="btn btn-success btn-lg px-5"><i class="bi bi-save"></i> ذخیره تنظیمات</button>
+        </div>
+    </form>
+
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white"><h6 class="mb-0">📂 مدیریت منابع (URLهای دریافت محتوا)</h6></div>
+                <div class="card-body">
+                    <form asp-action="AddSource" method="post" class="row g-2 mb-3">
+                        @Html.AntiForgeryToken()
+                        <div class="col-md-4">
+                            <input type="text" name="Title" class="form-control" placeholder="نام منبع (اختیاری)" />
+                        </div>
+                        <div class="col-md-6">
+                            <input type="url" name="Url" class="form-control" placeholder="https://example.com/recipe" required />
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i></button>
+                        </div>
+                    </form>
+                    <div class="table-responsive" style="max-height: 340px; overflow-y: auto;">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>عنوان</th>
+                                    <th>URL</th>
+                                    <th>فعال</th>
+                                    <th class="text-center">عملیات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var s in sources)
+                                {
+                                    <tr>
+                                        <td>@(string.IsNullOrEmpty(s.Title) ? "-" : s.Title)</td>
+                                        <td class="text-truncate" style="max-width:180px;"><a href="@s.Url" target="_blank" rel="noopener">@s.Url</a></td>
+                                        <td>@(s.IsActive ? "✅" : "❌")</td>
+                                        <td class="text-center text-nowrap">
+                                            <a asp-action="EditSource" asp-route-id="@s.Id" class="btn btn-sm btn-warning" title="ویرایش"><i class="bi bi-pencil"></i></a>
+                                            <form asp-action="DeleteSource" method="post" style="display:inline;">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@s.Id" />
+                                                <button type="submit" class="btn btn-sm btn-danger" title="حذف" onclick="return confirm('منبع حذف شود؟')"><i class="bi bi-trash"></i></button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                                @if (!sources.Any())
+                                {
+                                    <tr><td colspan="4" class="text-center text-muted py-3">هنوز منبعی اضافه نشده است.</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
-            <div class="col-md-5">
-                <input type="url" name="Url" class="form-control" placeholder="https://example.com/recipe" required />
+        </div>
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white"><h6 class="mb-0">🏷️ مدیریت موضوعات</h6></div>
+                <div class="card-body">
+                    <form asp-action="AddTopic" method="post" class="row g-2 mb-3">
+                        @Html.AntiForgeryToken()
+                        <div class="col-md-5">
+                            <input type="text" name="Name" class="form-control" placeholder="نام موضوع (مثل کیک)" required />
+                        </div>
+                        <div class="col-md-5">
+                            <input type="text" name="Keywords" class="form-control" placeholder="کلمات کلیدی (مثل کیک, شیرینی)" />
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i></button>
+                        </div>
+                    </form>
+                    <div class="table-responsive" style="max-height: 340px; overflow-y: auto;">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>نام</th>
+                                    <th>کلمات کلیدی</th>
+                                    <th>فعال</th>
+                                    <th class="text-center">عملیات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var t in topics)
+                                {
+                                    <tr>
+                                        <td>@t.Name</td>
+                                        <td class="text-truncate" style="max-width:220px;">@t.Keywords</td>
+                                        <td>@(t.IsActive ? "✅" : "❌")</td>
+                                        <td class="text-center">
+                                            <form asp-action="DeleteTopic" method="post" style="display:inline;">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@t.Id" />
+                                                <button type="submit" class="btn btn-sm btn-danger" title="حذف" onclick="return confirm('موضوع حذف شود؟')"><i class="bi bi-trash"></i></button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                                @if (!topics.Any())
+                                {
+                                    <tr><td colspan="4" class="text-center text-muted py-3">هنوز موضوعی اضافه نشده است.</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
-            <div class="col-md-2">
-                <input type="text" name="Category" class="form-control" placeholder="دسته‌بندی" />
-            </div>
-            <div class="col-md-1">
-                <button type="submit" class="btn btn-primary">➕</button>
-            </div>
-        </form>
-        <table class="table table-sm mt-2">
-            <thead>
-                <tr>
-                    <th>عنوان</th>
-                    <th>URL</th>
-                    <th>دسته</th>
-                    <th>فعال</th>
-                    <th>عملیات</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var s in sources)
-                {
-                    <tr>
-                        <td>@s.Title</td>
-                        <td><a href="@s.Url" target="_blank">@s.Url</a></td>
-                        <td>@s.Category</td>
-                        <td>@(s.IsActive ? "✅" : "❌")</td>
-                        <td>
-                            <a asp-action="EditSource" asp-route-id="@s.Id" class="btn btn-sm btn-warning">✏️</a>
-                            <form asp-action="DeleteSource" method="post" style="display:inline;">
-                                @Html.AntiForgeryToken()
-                                <input type="hidden" name="id" value="@s.Id" />
-                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('حذف شود؟')">🗑️</button>
-                            </form>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-        <hr />
-        <h5>🏷️ مدیریت موضوعات</h5>
-        <form asp-action="AddTopic" method="post" class="row g-2">
-            @Html.AntiForgeryToken()
-            <div class="col-md-4">
-                <input type="text" name="Name" class="form-control" placeholder="نام موضوع (مثل کیک)" required />
-            </div>
-            <div class="col-md-6">
-                <input type="text" name="Keywords" class="form-control" placeholder="کلمات کلیدی (مثل کیک, شیرینی, دسر)" />
-            </div>
-            <div class="col-md-2">
-                <button type="submit" class="btn btn-primary">➕</button>
-            </div>
-        </form>
-        <table class="table table-sm mt-2">
-            <thead>
-                <tr>
-                    <th>نام</th>
-                    <th>کلمات کلیدی</th>
-                    <th>فعال</th>
-                    <th>عملیات</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var t in topics)
-                {
-                    <tr>
-                        <td>@t.Name</td>
-                        <td>@t.Keywords</td>
-                        <td>@(t.IsActive ? "✅" : "❌")</td>
-                        <td>
-                            <form asp-action="DeleteTopic" method="post" style="display:inline;">
-                                @Html.AntiForgeryToken()
-                                <input type="hidden" name="id" value="@t.Id" />
-                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('حذف شود؟')">🗑️</button>
-                            </form>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        </div>
     </div>
 </div>
+
+<style>
+    #connectionResult.ok { color: #198754; }
+    #connectionResult.err { color: #dc3545; }
+</style>
+
+@section Scripts {
+    <script>
+        function checkCronInput() {
+            var val = ($('#scheduleCron').val() || '').trim();
+            var $hint = $('#cronLiveHint');
+            if (!val) { $hint.addClass('d-none'); return; }
+            var parts = val.split(/\s+/).filter(function (p) { return p.length > 0; });
+            var ok = (parts.length === 5 || parts.length === 6);
+            $hint.removeClass('d-none');
+            $hint.toggleClass('text-success', ok).toggleClass('text-danger', !ok);
+            if (ok) {
+                $hint.html('<i class="bi bi-check-circle-fill"></i> ' + parts.length + ' بخش — فرمت صحیح است');
+            } else if (parts.length === 4) {
+                $hint.html('<i class="bi bi-x-circle-fill"></i> ' + parts.length + ' بخش وارد شده؛ cron استاندارد ۵ بخش دارد (روز هفته در پایان کم است). مثال درست: <b>23 * * * *</b>');
+            } else {
+                $hint.html('<i class="bi bi-x-circle-fill"></i> ' + parts.length + ' بخش وارد شده؛ باید ۵ بخش باشد: دقیقه ساعت روز-ماه ماه روز-هفته');
+            }
+        }
+        $(function () {
+            $('.cron-preset').on('click', function () {
+                $('#scheduleCron').val($(this).data('cron'));
+                checkCronInput();
+                $('#scheduleCron').trigger('focus');
+            });
+            $('#scheduleCron').on('input', checkCronInput);
+            checkCronInput();
+
+            $('#btnTestConnection').on('click', function () {
+                var $btn = $(this), $result = $('#connectionResult');
+                var token = document.querySelector('input[name="__RequestVerificationToken"]');
+                if (!token) { $result.html('<span class="err">توکن امنیتی یافت نشد</span>'); return; }
+                $btn.prop('disabled', true);
+                $result.html('<span class="text-muted"><span class="spinner-border spinner-border-sm"></span> در حال بررسی…</span>');
+                $.ajax({
+                    url: '/Admin/AIContentSettings/TestConnection',
+                    type: 'POST',
+                    headers: { 'RequestVerificationToken': token.value },
+                    success: function (res) {
+                        var cls = res.success ? 'ok' : 'err';
+                        var icon = res.success ? 'bi-check-circle-fill' : 'bi-x-circle-fill';
+                        $result.html('<span class="' + cls + '"><i class="bi ' + icon + '"></i> ' + (res.provider ? '[' + res.provider + '] ' : '') + res.message + '</span>');
+                    },
+                    error: function (xhr) {
+                        $result.html('<span class="err"><i class="bi bi-x-circle-fill"></i> خطا در برقراری ارتباط: ' + xhr.status + '</span>');
+                    },
+                    complete: function () { $btn.prop('disabled', false); }
+                });
+            });
+        });
+    </script>
+}

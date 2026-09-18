@@ -66,7 +66,7 @@
                 <div class="card-header"><h4>انتخاب جعبه</h4></div>
                 <div class="card-body">
                     <div class="box-type-list">
-                        @foreach (var box in boxTypes)
+                        @foreach (var box in boxTypes!)
                         {
                             <div class="box-type-item @(selectedBox?.Id == box.Id ? "active" : "")">
                                 <div class="box-type-info">
@@ -89,7 +89,7 @@
             <div class="card">
                 <div class="card-header"><h4>شیرینی‌ها</h4></div>
                 <div class="card-body sweet-list">
-                    @foreach (var sweet in sweetItems)
+                    @foreach (var sweet in sweetItems!)
                     {
                         <div class="sweet-item">
                             <div class="sweet-image">
@@ -147,7 +147,7 @@
             <div class="modal-body">
                 <p>جعبه جدید را انتخاب کنید:</p>
                 <div id="changeBoxList">
-                    @foreach (var box in boxTypes)
+                    @foreach (var box in boxTypes!)
                     {
                         <div class="change-box-option" data-box-id="@box.Id">
                             <strong>@box.TitleFa</strong>
@@ -174,7 +174,7 @@
             <div class="modal-body">
                 <p>شیرینی جدید را انتخاب کنید:</p>
                 <select id="replaceSweetSelect" class="form-select">
-                    @foreach (var sweet in sweetItems)
+                    @foreach (var sweet in sweetItems!)
                     {
                         <option value="@sweet.Id" data-weight="@sweet.ApproxWeightGrams">
                             @sweet.TitleFa (~@sweet.ApproxWeightGrams گرم)

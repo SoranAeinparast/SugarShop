@@ -14,7 +14,7 @@ namespace SugarShop.Web.Helpers
     {
         private static readonly HashSet<string> AllowedTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "p", "br", "hr", "div", "span",
+            "p", "br", "hr", "div", "span", "article", "section", "header", "footer",
             "h1", "h2", "h3", "h4", "h5", "h6",
             "strong", "b", "em", "i", "u", "s", "mark", "small",
             "blockquote", "cite", "code", "pre",

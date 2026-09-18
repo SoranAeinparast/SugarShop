@@ -24,6 +24,10 @@
     var preparingCount = (int)ViewBag.PreparingCount;
     var deliveredCount = (int)ViewBag.DeliveredCount;
     var totalStatusOrders = awaitingCount + pendingCount + paidCount + preparingCount + deliveredCount;
+    var appDownloadsTotal = (int)ViewBag.AppDownloadsTotal;
+    var appDownloadsMonth = (int)ViewBag.AppDownloadsThisMonth;
+    var appDownloadsToday = (int)ViewBag.AppDownloadsToday;
+    var appDownloadsUnique = (int)ViewBag.AppDownloadsUnique;
 }
 <style>
     .dashboard-container {
@@ -114,6 +118,9 @@
         align-items: center;
         gap: 8px;
         max-width: 80px;
+        /* ستون میله: ارتفاع ثابت تا میله‌های درصدی داخل آن دیده شوند (باگ نمودار جمع‌شده) */
+        height: 160px;
+        justify-content: flex-end;
     }
     .bar {
         width: 100%;
@@ -313,7 +320,8 @@
     @@media (max-width: 768px) {
         .stat-card .stat-value { font-size: 1.5rem; }
         .stat-card .stat-icon { width: 50px; height: 50px; font-size: 1.4rem; }
-        .bar-chart { height: 150px; }
+        .bar-chart { height: auto; }
+        .bar-item { height: 110px; }
         .donut-chart { width: 160px; height: 160px; }
     }
 </style>
@@ -499,6 +507,36 @@
                     <div class="legend-item">
                         <div class="legend-color" style="background: #17a2b8;"></div>
                         <span>تحویل شده: @deliveredCount.ToString().ToPersianNumber()</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="chart-card">
+                <h5>📱 آمار دانلود اپلیکیشن اندروید</h5>
+                <div style="display: flex; flex-wrap: wrap; gap: 18px; align-items: stretch; margin-top: 12px;">
+                    <div style="flex: 1 1 140px; background: linear-gradient(135deg, #6D3410, #8B4513); border-radius: 14px; padding: 16px 18px; color: #fff; text-align: center;">
+                        <div style="font-size: 1.9rem; font-weight: 700;">@appDownloadsTotal.ToString().ToPersianNumber()</div>
+                        <div style="font-size: .85rem; opacity: .9;">کل دانلودها</div>
+                    </div>
+                    <div style="flex: 1 1 140px; background: #FFF8F0; border: 1px solid #E9D9C3; border-radius: 14px; padding: 16px 18px; text-align: center;">
+                        <div style="font-size: 1.6rem; font-weight: 700; color: #8B4513;">@appDownloadsMonth.ToString().ToPersianNumber()</div>
+                        <div style="font-size: .85rem; color: #7A6A5F;">این ماه</div>
+                    </div>
+                    <div style="flex: 1 1 140px; background: #FFF8F0; border: 1px solid #E9D9C3; border-radius: 14px; padding: 16px 18px; text-align: center;">
+                        <div style="font-size: 1.6rem; font-weight: 700; color: #8B4513;">@appDownloadsToday.ToString().ToPersianNumber()</div>
+                        <div style="font-size: .85rem; color: #7A6A5F;">امروز</div>
+                    </div>
+                    <div style="flex: 1 1 140px; background: #FFF8F0; border: 1px solid #E9D9C3; border-radius: 14px; padding: 16px 18px; text-align: center;">
+                        <div style="font-size: 1.6rem; font-weight: 700; color: #8B4513;">@appDownloadsUnique.ToString().ToPersianNumber()</div>
+                        <div style="font-size: .85rem; color: #7A6A5F;">کاربر یکتا (IP)</div>
+                    </div>
+                    <div style="flex: 2 1 240px; display: flex; align-items: center; justify-content: center;">
+                        <a href="/App/Download" target="_blank" class="btn btn-sm" style="background: linear-gradient(135deg, #B8860B, #DAA520); color: #fff; border: none; border-radius: 999px; padding: 10px 22px; font-weight: 600;">
+                            مشاهده صفحه‌ی دانلود (QR) ↗
+                        </a>
                     </div>
                 </div>
             </div>

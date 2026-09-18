@@ -23,11 +23,14 @@
         }
     }
     var theme = await DbContext.ThemeSettings.OrderByDescending(t => t.Id).FirstOrDefaultAsync() ?? new ThemeSetting();
-    var isHeaderTransparent = theme.HeaderTransparency < 100; 
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
     var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
     bool isHomePage = currentController == "Home" && currentAction == "Index";
-    bool applyTransparentOverlay = isHeaderTransparent && isHomePage;
+    // ✅ حالت شفاف (absolute overlay) فقط وقتی معنا دارد که هدر «معمولی» باشد؛
+    // اگر Sticky یا Fixed انتخاب شده باشد، همان حالت انتخاب‌شده در همه صفحات اعمال می‌شود.
+    bool applyTransparentOverlay = theme.HeaderType == HeaderType.Normal
+                                   && theme.HeaderTransparency < 100
+                                   && isHomePage;
     var headerMenu = await DbContext.MenuItems
         .Where(m => m.Location == "header" && m.IsActive)
         .OrderBy(m => m.Order)
@@ -36,6 +39,8 @@
         .Where(m => m.Location == "footer" && m.IsActive)
         .OrderBy(m => m.Order)
         .ToListAsync();
+    // 📱 آیا اپلیکیشن در سایت ارائه می‌شود؟ (کنترل از تنظیمات ظاهری → تب تنظیمات اپلیکیشن)
+    bool appEnabled = theme.AppEnabled;
 }
 @functions {
     private string HexToRgb(string hex)
@@ -51,6 +56,20 @@
         int g = Convert.ToInt32(hex.Substring(2, 2), 16);
         int b = Convert.ToInt32(hex.Substring(4, 2), 16);
         return $"{r},{g},{b}";
+    }
+
+    // ✅ رنگ متن دکمه بر اساس روشنایی پس‌زمینه: روی رنگ‌های روشن متن تیره و روی تیره، متن سفید
+    // (رنگ اصلی تم ممکن است سفید یا خیلی روشن باشد؛ بدون این محاسبه متن دکمه نامرئی می‌شود)
+    private string TextColorFor(string hex)
+    {
+        hex = (hex ?? "").TrimStart('#');
+        if (hex.Length == 3) hex = new string(new char[] { hex[0], hex[0], hex[1], hex[1], hex[2], hex[2] });
+        if (hex.Length != 6) return "#ffffff";
+        int r = Convert.ToInt32(hex.Substring(0, 2), 16);
+        int g = Convert.ToInt32(hex.Substring(2, 2), 16);
+        int b = Convert.ToInt32(hex.Substring(4, 2), 16);
+        double luminance = (0.299 * r + 0.587 * g + 0.114 * b);
+        return luminance > 150 ? "#212529" : "#ffffff";
     }
 }
 <!DOCTYPE html>
@@ -69,17 +88,28 @@
     <link rel="stylesheet" href="~/SugarShop.Web.styles.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/lib/persian-datepicker/css/persian-datepicker.css" />
     <link rel="stylesheet" href="~/lib/sweetalert2/sweetalert2.min.css" />
+    <link rel="stylesheet" href="~/css/pwa.css" asp-append-version="true" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#8B4513" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="شیرینی سرا" />
     @await RenderSectionAsync("Styles", required: false)
     <style>
         html,
         body {
+            /* ✅ نکته مهم: hidden یک Scroll Container میسازد و position:sticky را از کار میاندازد؛
+               مقدار clip (در مرورگرهای جدید) این مشکل را ندارد. مقدار اول برای مرورگرهای قدیمی است. */
             overflow-x: hidden;
+            overflow-x: clip;
             margin: 0;
             padding: 0;
             min-height: 100vh;
         }
         body {
-            background-color: @theme.PrimaryColor !important;
+            background-color: @theme.BodyBgColor !important;
             color: @theme.BodyTextColor;
             display: flex;
             flex-direction: column;
@@ -88,18 +118,24 @@
             flex: 1 0 auto;
             width: 100%;
         }
+        /* ✅ جایگاه هدر روی خودِ <header> اعمال میشود (فرزند مستقیم body)،
+           چون sticky/fixed داخل پدرِ همقدِ خودشان (nav داخل header) هیچ اثری ندارند. */
+        header.site-header {
+            width: 100%;
+            z-index: 1050;
+            transition: all .3s ease;
+        }
         .navbar {
             background-color: rgba(@(HexToRgb(theme.HeaderBgColor)),
                                    @(theme.HeaderTransparency / 100.0)) !important;
             color: @theme.HeaderTextColor !important;
             width: 100%;
-            z-index: 1050;
             transition: all .3s ease;
         }
         @if (theme.HeaderType == HeaderType.Sticky)
         {
             <text>
-            .navbar {
+            header.site-header {
                 position: sticky !important;
                 top: 0 !important;
             }
@@ -108,7 +144,7 @@
         else if (theme.HeaderType == HeaderType.Fixed)
         {
             <text>
-            .navbar {
+            header.site-header {
                 position: fixed !important;
                 top: 0 !important;
                 left: 0 !important;
@@ -119,12 +155,11 @@
         @if (applyTransparentOverlay)
         {
             <text>
-            .navbar {
+            header.site-header {
                 position: absolute !important;
                 top: 0 !important;
                 left: 0 !important;
                 right: 0 !important;
-                background-color: rgba(@(HexToRgb(theme.HeaderBgColor)), @(theme.HeaderTransparency / 100.0)) !important;
             }
             body {
                 padding-top: 0 !important;
@@ -267,20 +302,24 @@
         .btn-primary {
             background-color: @theme.PrimaryColor;
             border-color: @theme.PrimaryColor;
+            color: @(TextColorFor(theme.PrimaryColor));
         }
         .btn-primary:hover {
             background-color: @theme.PrimaryColor !important;
             border-color: @theme.PrimaryColor;
-            filter: brightness(.9);
+            filter: brightness(.92);
+            color: @(TextColorFor(theme.PrimaryColor)) !important;
         }
+        /* دکمه outline: پس‌زمینه شفاف و متن/حاشیه همرنگ تم — در حالت hover پر می‌شود */
         .btn-outline-primary {
-            background-color: @theme.PrimaryColor !important;
+            background-color: transparent !important;
             border-color: @theme.PrimaryColor;
+            color: @(TextColorFor(theme.PrimaryColor));
         }
         .btn-outline-primary:hover {
             background-color: @theme.PrimaryColor !important;
             border-color: @theme.PrimaryColor;
-            color: #fff;
+            color: @(TextColorFor(theme.PrimaryColor)) !important;
         }
         footer {
             position: relative;
@@ -306,17 +345,18 @@
         footer h5 {
             position: relative;
             display: inline-block;
-            margin-bottom: 1.5rem !important;
+            margin-bottom: 0.75rem !important;
             font-weight: 700;
+            font-size: 1rem;
             letter-spacing: -0.3px;
-            padding-bottom: 0.75rem;
+            padding-bottom: 0.45rem;
         }
         footer h5::after {
             content: '';
             position: absolute;
             bottom: 0;
             right: 0;
-            width: 50px;
+            width: 38px;
             height: 3px;
             background: linear-gradient(90deg, @theme.SecondaryColor, @theme.PrimaryColor);
             border-radius: 3px;
@@ -517,11 +557,36 @@
 .user-name-link:hover {
     text-decoration: none;
 }
+
+/* 📱 چیپ دانلود اپلیکیشن در فوتر */
+.app-download-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.18);
+    color: #fff;
+    text-decoration: none;
+    font-size: .88rem;
+    transition: background .2s, transform .2s;
+}
+.app-download-chip:hover {
+    background: rgba(255,255,255,.15);
+    transform: translateY(-2px);
+    color: #fff;
+    text-decoration: none;
+}
+.app-download-chip i { font-size: 1.05rem; }
     </style>
     @await Component.InvokeAsync("ThemeStyles")
+    @* تشخیص «داخل اپ / مرورگر» پیش از رندر بدنه: صفت data-app-mode روی <html> می‌نشیند
+       تا داخل اپ، هدر و فوتر سایت بدون پرش (flash) جمع شوند و نوار پایین اپ ناوبری اصلی باشد *@
+    <script src="~/js/app-mode.js" asp-append-version="true"></script>
 </head>
 <body class="@(theme.BodyDotPatternEnabled ? "dot-grid-bg" : "")" style="background-color: @theme.BodyBgColor; color: @theme.BodyTextColor;">
-    <header>
+    <header class="site-header">
         <nav class="navbar navbar-expand-lg navbar-dark border-bottom shadow-sm">
             <div class="container-fluid">
                 <a class="navbar-brand d-flex align-items-center gap-2"
@@ -565,6 +630,12 @@
                                 <span id="cartBadge" class="badge bg-danger rounded-pill" style="display:none;">0</span>
                             </a>
                         </li>
+                        @if (appEnabled)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link" href="/App/Download" title="دانلود اپلیکیشن موبایل">📱 اپلیکیشن</a>
+                            </li>
+                        }
                     </ul>
                     <ul class="navbar-nav">
                         @if (SignInManager.IsSignedIn(User))
@@ -617,14 +688,14 @@
     </header>
     <script>
     (function() {
-        // فقط در صفحات غیر از صفحه اصلی و در صورت عدم اعمال حالت شفاف مطلق
-        @if (!applyTransparentOverlay)
+        // ✅ فقط هدر Fixed به padding نیاز دارد (Sticky فضای خودش را در جریان صفحه نگه میدارد؛
+        // Normal و حالت شفاف صفحه اصلی هم نیازی به padding ندارند)
+        @if (theme.HeaderType == HeaderType.Fixed)
         {
             <text>
-            var header = document.querySelector('.navbar');
+            var header = document.querySelector('header.site-header');
             if (header) {
-                var headerHeight = header.offsetHeight;
-                document.body.style.paddingTop = headerHeight + 'px';
+                document.body.style.paddingTop = header.offsetHeight + 'px';
             }
             </text>
         }
@@ -635,11 +706,11 @@
             @RenderBody()
         </main>
     </div>
-    <footer>
-        <div class="container py-5">
-            <div class="row gy-4">
+    <footer class="site-footer">
+        <div class="container" style="padding-top: 2rem; padding-bottom: 1.5rem;">
+            <div class="row gy-3">
                 <div class="col-lg-4">
-                    <h5 class="mb-3">درباره ما</h5>
+                    <h5 class="mb-2">درباره ما</h5>
                     <p style="text-align:justify;">
                         @(siteSettings?.AboutShortText ?? "فروشگاه شیرینی‌جات شکر با بهترین کیفیت و تنوع بالا")
                     </p>
@@ -647,49 +718,96 @@
                         @if (!string.IsNullOrEmpty(siteSettings?.InstagramUrl))
                         {
                             <a href="@siteSettings.InstagramUrl" target="_blank" class="me-3" title="اینستاگرام">
-                                <img src="~/images/icons/instagram.ico" alt="اینستاگرام" style="width: 20px; height: 20px; vertical-align: middle;" />
+                                <img src="~/images/icons/instagram.ico" alt="اینستاگرام" loading="lazy" style="width: 20px; height: 20px; vertical-align: middle;" />
                             </a>
                         }
                         @if (!string.IsNullOrEmpty(siteSettings?.TelegramUrl))
                         {
                             <a href="@siteSettings.TelegramUrl" target="_blank" class="me-3" title="تلگرام">
-                                <img src="~/images/icons/telegram.ico" alt="تلگرام" style="width: 20px; height: 20px; vertical-align: middle;" />
+                                <img src="~/images/icons/telegram.ico" alt="تلگرام" loading="lazy" style="width: 20px; height: 20px; vertical-align: middle;" />
                             </a>
                         }
                         @if (!string.IsNullOrEmpty(siteSettings?.WhatsAppUrl))
                         {
                             <a href="@siteSettings.WhatsAppUrl" target="_blank" class="me-3" title="واتساپ">
-                                <img src="~/images/icons/whatsapp.ico" alt="واتساپ" style="width: 20px; height: 20px; vertical-align: middle;" />
+                                <img src="~/images/icons/whatsapp.ico" alt="واتساپ" loading="lazy" style="width: 20px; height: 20px; vertical-align: middle;" />
                             </a>
                         }
                         @if (!string.IsNullOrEmpty(siteSettings?.baleUrl))
                         {
                             <a href="@siteSettings.baleUrl" target="_blank" class="me-3" title="بله">
-                                <img src="~/images/icons/bale.ico" alt="بله" style="width: 20px; height: 20px; vertical-align: middle;" />
+                                <img src="~/images/icons/bale.ico" alt="بله" loading="lazy" style="width: 20px; height: 20px; vertical-align: middle;" />
                             </a>
                         }
                         @if (!string.IsNullOrEmpty(siteSettings?.rubikaUrl))
                         {
                             <a href="@siteSettings.rubikaUrl" target="_blank" class="me-3" title="روبیکا">
-                                <img src="~/images/icons/rubika.ico" alt="روبیکا" style="width: 20px; height: 20px; vertical-align: middle;" />
+                                <img src="~/images/icons/rubika.ico" alt="روبیکا" loading="lazy" style="width: 20px; height: 20px; vertical-align: middle;" />
                             </a>
                         }
                         @if (!string.IsNullOrEmpty(siteSettings?.eitaaUrl))
                         {
                             <a href="@siteSettings.eitaaUrl" target="_blank" class="me-3" title="ایتا">
-                                <img src="~/images/icons/eitaa.ico" alt="ایتا" style="width: 20px; height: 20px; vertical-align: middle;" />
+                                <img src="~/images/icons/eitaa.ico" alt="ایتا" loading="lazy" style="width: 20px; height: 20px; vertical-align: middle;" />
                             </a>
                         }
                         @if (!string.IsNullOrEmpty(siteSettings?.soroushUrl))
                         {
                             <a href="@siteSettings.soroushUrl" target="_blank" class="me-3" title="سروش">
-                                <img src="~/images/icons/soroush.ico" alt="سروش" style="width: 20px; height: 20px; vertical-align: middle;" />
+                                <img src="~/images/icons/soroush.ico" alt="سروش" loading="lazy" style="width: 20px; height: 20px; vertical-align: middle;" />
                             </a>
                         }
                     </div>
+
+                    @if (appEnabled)
+                    {
+                    @* 📱 لینک دانلود اپلیکیشن — چسبیده و کم‌ارتفاع، بدون QR (QR در صفحه دانلود است) *@
+                    <a href="/App/Download" class="app-download-chip mt-4" title="دانلود اپلیکیشن موبایل">
+                        <i class="bi bi-phone"></i>
+                        <span>دانلود اپلیکیشن موبایل</span>
+                    </a>
+                    }
+
+                    @* ✅ نمادهای اعتماد و گواهینامه‌ها (مدیریت از «تنظیمات سایت») *@
+                    @{
+                        List<SugarShop.Web.Areas.Admin.ViewModels.CertificationItem>? certItems = null;
+                        if (!string.IsNullOrEmpty(siteSettings?.CertificationsJson))
+                        {
+                            try
+                            {
+                                certItems = System.Text.Json.JsonSerializer.Deserialize<List<SugarShop.Web.Areas.Admin.ViewModels.CertificationItem>>(
+                                    siteSettings.CertificationsJson,
+                                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                            }
+                            catch { /* JSON خراب: نمایش داده نمی‌شود */ }
+                        }
+                    }
+                    @if (certItems != null && certItems.Any())
+                    {
+                        <div class="mt-4 d-flex flex-wrap gap-3 align-items-center certification-badges">
+                            @foreach (var cert in certItems)
+                            {
+                                var certAlt = string.IsNullOrWhiteSpace(cert.Alt) ? cert.Title : cert.Alt;
+                                if (string.IsNullOrWhiteSpace(cert.ImagePath))
+                                {
+                                    continue;
+                                }
+                                if (!string.IsNullOrWhiteSpace(cert.Link))
+                                {
+                                    <a href="@cert.Link" target="_blank" rel="nofollow noopener" title="@cert.Title">
+                                        <img src="@cert.ImagePath" alt="@certAlt" style="height: 64px; width: auto;" loading="lazy" />
+                                    </a>
+                                }
+                                else
+                                {
+                                    <img src="@cert.ImagePath" alt="@certAlt" title="@cert.Title" style="height: 64px; width: auto;" loading="lazy" />
+                                }
+                            }
+                        </div>
+                    }
                 </div>
                 <div class="col-lg-2 col-md-6">
-                    <h5 class="mb-3">لینک‌های سریع</h5>
+                    <h5 class="mb-2">لینک‌های سریع</h5>
                     <ul class="list-unstyled">
                         @if (!string.IsNullOrEmpty(siteSettings?.QuickLinksJson))
                         {
@@ -698,39 +816,39 @@
                             {
                                 foreach (var link in links)
                                 {
-                                    <li class="mb-2"><a href="@link["Url"]">@link["Title"]</a></li>
+                                    <li class="mb-1"><a href="@link["Url"]">@link["Title"]</a></li>
                                 }
                             }
                         }
                         @foreach (var menuItem in footerMenu)
                         {
-                            <li class="mb-2"><a href="@menuItem.Url">@menuItem.Title</a></li>
+                            <li class="mb-1"><a href="@menuItem.Url">@menuItem.Title</a></li>
                         }
                     </ul>
                 </div>
                 <div class="col-lg-3 col-md-6">
-                    <h5 class="mb-3">تماس با ما</h5>
+                    <h5 class="mb-2">تماس با ما</h5>
                     <ul class="list-unstyled">
                         @if (!string.IsNullOrEmpty(siteSettings?.Address))
                         {
-                            <li class="mb-2">🏢 @siteSettings.Address</li>
+                            <li class="mb-1">🏢 @siteSettings.Address</li>
                         }
                         @if (!string.IsNullOrEmpty(siteSettings?.Phone))
                         {
-                            <li class="mb-2">📞 @siteSettings.Phone.ToPersianNumber()</li>
+                            <li class="mb-1">📞 @siteSettings.Phone.ToPersianNumber()</li>
                         }
                         @if (!string.IsNullOrEmpty(siteSettings?.Email))
                         {
-                            <li class="mb-2">✉️ @siteSettings.Email</li>
+                            <li class="mb-1">✉️ @siteSettings.Email</li>
                         }
                         @if (!string.IsNullOrEmpty(siteSettings?.WorkingHours))
                         {
-                            <li class="mb-2">🕘 @siteSettings.WorkingHours.ToPersianNumber()</li>
+                            <li class="mb-1">🕘 @siteSettings.WorkingHours.ToPersianNumber()</li>
                         }
                     </ul>
                 </div>
                 <div class="col-lg-3">
-                    <h5 class="mb-3">خبرنامه</h5>
+                    <h5 class="mb-2">خبرنامه</h5>
                     <p>برای دریافت آخرین اخبار و تخفیف‌ها ایمیل خود را وارد کنید.</p>
                     <form asp-controller="Newsletter" asp-action="Subscribe" method="post">
                         <input type="email" name="email" class="form-control mb-2" placeholder="آدرس ایمیل شما" required />
@@ -759,9 +877,11 @@
                 </div>
             </div>
         </footer>
+<partial name="_PwaShell" />
 <script src="~/lib/jquery/dist/jquery.min.js"></script>
 <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
 <script src="~/js/site.js" asp-append-version="true"></script>
+<script src="~/js/pwa.js" asp-append-version="true"></script>
 <script src="~/lib/persian-date/persian-date.js"></script>
 <script src="~/lib/persian-datepicker/js/persian-datepicker.js"></script>
 @await RenderSectionAsync("Scripts", required: false)
@@ -776,10 +896,14 @@
             }
         });
     }
-    setInterval(updateCartBadge, 5000);
-    updateCartBadge();
+    // جلوگیری از انباشت چندین تایمر (اگر اسکریپت‌های layout دوباره اجرا شوند)
+    if (!window.__cartBadgePollStarted) {
+        window.__cartBadgePollStarted = true;
+        setInterval(updateCartBadge, 5000);
+        updateCartBadge();
+    }
     function adjustLayout() {
-        var header = document.querySelector('.navbar');
+        var header = document.querySelector('header.site-header');
         var footer = document.querySelector('footer');
         @if (applyTransparentOverlay)
         {
@@ -791,7 +915,8 @@
         else
         {
             <text>
-            if (header && (getComputedStyle(header).position === 'fixed' || getComputedStyle(header).position === 'sticky')) {
+            // فقط هدر Fixed به padding نیاز دارد؛ Sticky جای خودش را در جریان صفحه رزرو می‌کند
+            if (header && getComputedStyle(header).position === 'fixed') {
                 var newPadding = header.offsetHeight + 'px';
                 if (document.body.style.paddingTop !== newPadding) {
                     document.body.style.paddingTop = newPadding;
@@ -803,12 +928,26 @@
             }
             </text>
         }
-        if (footer && (getComputedStyle(footer).position === 'fixed' || getComputedStyle(footer).position === 'sticky')) {
-            document.body.style.paddingBottom = footer.offsetHeight + 'px';
-        } else {
-            document.body.style.paddingBottom = '0';
+        // فضای انتهای صفحه: هر چیزی که پایین صفحه را می‌پوشاند (نوار پایین اپ/PWA یا فوتر چسبیده)
+        // باید با padding جبران شود، وگرنه آخرین سطرهای صفحه زیر آن می‌مانند.
+        var bottomNeed = 0;
+        if (footer && getComputedStyle(footer).display !== 'none') {
+            var footerPosition = getComputedStyle(footer).position;
+            if (footerPosition === 'fixed' || footerPosition === 'sticky') {
+                bottomNeed = footer.offsetHeight;
+            }
+        }
+        var pwaNav = document.querySelector('.pwa-bottom-nav');
+        if (pwaNav && getComputedStyle(pwaNav).display !== 'none' && pwaNav.offsetHeight > 0) {
+            bottomNeed = Math.max(bottomNeed, pwaNav.offsetHeight);
+        }
+        var bottomPadding = bottomNeed > 0 ? bottomNeed + 'px' : '0';
+        if (document.body.style.paddingBottom !== bottomPadding) {
+            document.body.style.paddingBottom = bottomPadding;
         }
     }
+    // اجرای اولیه بلافاصله (جایگزین اسکریپت بالای صفحه)
+    adjustLayout();
     // اجرای اولیه بلافاصله بعد از بارگذاری هدر (درون اسکریپت بالایی انجام شد)
     // اما در صورت تغییر سایز پنجره، دوباره اجرا کن
     window.addEventListener('resize', adjustLayout);

@@ -58,5 +58,11 @@ namespace SugarShop.Domain.Entities
         public string? MapLongitude { get; set; }
         public string? MapLocationName { get; set; }
         public string? ContactSuccessMessage { get; set; }
+
+        /// <summary>
+        /// آستانه ارسال رایگان (تومان). اگر مبلغ کالاهای سفارش به این مقدار برسد، هزینه پیک صفر محاسبه میشود.
+        /// مقدار صفر یعنی این سیاست غیرفعال است.
+        /// </summary>
+        public decimal FreeDeliveryThreshold { get; set; }
     }
 }

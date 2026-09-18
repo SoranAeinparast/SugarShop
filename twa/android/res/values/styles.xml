@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="splash_cream">#FFF8F0</color>
+
+    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#6D3410</item>
+        <item name="android:windowBackground">@drawable/window_splash</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <!-- Digital Asset Links statement — Android verifies via /.well-known/assetlinks.json -->
+    <string name="asset_statements">[{\n  \"relation\": [\"delegate_permission/common.handle_all_urls\"],\n  \"target\": {\n    \"namespace\": \"web\",\n    \"site\": \"https://sweets.soransoftpro.ir\"\n  }\n}]</string>
+</resources>

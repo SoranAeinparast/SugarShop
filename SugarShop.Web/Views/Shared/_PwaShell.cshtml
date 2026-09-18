@@ -1,0 +1,78 @@
+@using Microsoft.AspNetCore.Identity
+@using SugarShop.Domain.Entities
+@using Microsoft.EntityFrameworkCore
+@inject SignInManager<ApplicationUser> SignInManager
+@inject SugarShop.Infrastructure.Persistence.Sales.SugarShopSalesDbContext DbContext
+@{
+    // نام فروشگاه پویا — از تنظیمات ادمین خوانده می‌شود
+    var siteTitle = await DbContext.SiteSettings.AsNoTracking()
+        .Select(s => s.SiteTitle).FirstOrDefaultAsync();
+    var storeName = string.IsNullOrWhiteSpace(siteTitle) ? "شیرینی سرا" : siteTitle!;
+
+    // تنظیمات اپ: اگر ارائه‌ی اپلیکیشن غیرفعال باشد، نه بنر نصب و نه ناوبری مربوطه نمایش داده می‌شود
+    var appTheme = await DbContext.ThemeSettings.AsNoTracking()
+        .OrderByDescending(t => t.Id).FirstOrDefaultAsync();
+    var appEnabled = appTheme?.AppEnabled ?? true;
+    var appStoreName = string.IsNullOrWhiteSpace(appTheme?.AppDisplayName) ? storeName : appTheme.AppDisplayName!;
+
+    var isAuthenticated = SignInManager.IsSignedIn(User);
+    var controller = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
+    var action = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
+
+    string Active(string c, string a = "Index") =>
+        controller.Equals(c, StringComparison.OrdinalIgnoreCase) && action.Equals(a, StringComparison.OrdinalIgnoreCase)
+            ? "active" : "";
+
+    // «سفارش‌های من» در اپ: هم لیست سفارش‌ها و هم صفحه‌ی جزئیات یک سفارش را فعال نشان می‌دهد
+    var ordersActive = controller.Equals("Profile", StringComparison.OrdinalIgnoreCase)
+        && (action.Equals("Orders", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("OrderDetails", StringComparison.OrdinalIgnoreCase))
+        ? "active" : "";
+}
+<div id="pwaOfflineBar" class="pwa-offline-bar">⚠️ اتصال اینترنت قطع است — اطلاعات نمایش‌داده‌شده ممکن است قدیمی باشد</div>
+
+<nav class="pwa-bottom-nav" aria-label="ناوبری اصلی">
+    <div class="pwa-nav-inner">
+        <a href="/" class="pwa-nav-item @Active("Home")">
+            <i class="bi bi-house-door"></i>
+            <span>خانه</span>
+        </a>
+        @* فقط در وب/مرورگر: داخل اپ جای این دو، «سفارش‌های من» می‌آید (چهار آیتم اپ‌محور) *@
+        <a href="/Category/All" class="pwa-nav-item nav-web-only @Active("Category", "All")">
+            <i class="bi bi-grid-3x3-gap"></i>
+            <span>دسته‌بندی‌ها</span>
+        </a>
+        <a href="/Cart" class="pwa-nav-item @Active("Cart")">
+            <i class="bi bi-basket2"></i>
+            <span>سبد</span>
+            <span id="pwaCartBadge" class="pwa-badge" style="display:none">0</span>
+        </a>
+        <a href="/CustomCakeOrder/Create" class="pwa-nav-item nav-web-only @Active("CustomCakeOrder", "Create")">
+            <i class="bi bi-cake2"></i>
+            <span>کیک سفارشی</span>
+        </a>
+        @* فقط داخل اپ: مشتری سفارش‌هایش را همان‌جا دارد و برای پیگیری به هدر نیاز ندارد *@
+        <a href="@(isAuthenticated ? "/Profile/Orders" : "/Account/Login?returnUrl=%2FProfile%2FOrders")"
+           class="pwa-nav-item nav-app-only @ordersActive">
+            <i class="bi bi-receipt"></i>
+            <span>سفارش‌ها</span>
+        </a>
+        <a href="@(isAuthenticated ? "/Profile" : "/Account/Login")" class="pwa-nav-item @Active("Profile") @Active("Account", "Login")">
+            <i class="bi bi-person"></i>
+            <span>@(isAuthenticated ? "پروفایل" : "ورود")</span>
+        </a>
+    </div>
+</nav>
+
+@if (appEnabled)
+{
+<div id="pwaInstallBanner" class="pwa-install-banner pwa-hidden">
+    <img src="/Pwa/Icon?size=192" alt="" class="pwa-app-logo" />
+    <div class="pwa-banner-text">
+        <div class="pwa-banner-title">نصب اپلیکیشن @appStoreName</div>
+        <div class="pwa-banner-sub">سریع‌تر، آفلاین، راحت</div>
+    </div>
+    <a href="/App/Download" id="pwaInstallBtn" class="pwa-install-btn" style="text-decoration:none">نصب</a>
+    <button type="button" id="pwaDismissBtn" class="pwa-dismiss-btn" aria-label="بستن">&times;</button>
+</div>
+}

@@ -1,0 +1,45 @@
+@model SugarShop.Web.ViewComponents.AppLinkBarModel
+@*
+    دو چیز اینجا ساخته می‌شود:
+    ۱) دکمه «باز کردن در اپلیکیشن» برای مرورگرهای اندرویدی که خودشان لینک را در اپ باز نکرده‌اند
+       (با نام پکیج صریح، حتی وقتی تأیید مالکیت دامنه انجام نشده باشد هم اپ باز می‌شود).
+    ۲) تنظیم data-app-mode روی <html> تا خودِ صفحه بتواند مخصوص هر حالت (داخل اپ / مرورگر)
+       متن و دکمه‌های متفاوت نشان دهد.
+
+    برای اینکه این نوار در حالت‌های بی‌ربط (دسکتاپ، WebView داخل تلگرام) دیده نشود، خودش
+    مسئول نمایش/پنهان کردن خویش است و برای تشخیص حالت، به اسکریپت مشترک
+    <c>/js/app-mode.js</c> تکیه می‌کند (صفحه‌های درون چیدمان، آن را در <head> بار می‌کنند؛
+    صفحه‌های مستقل مثل صورتحساب پیامکی خودشان صدا می‌زنند).
+*@
+<div id="appLinkBar" style="display:none;margin-bottom:12px;font-size:13px;line-height:2;">
+    <a id="appLinkOpenBtn" href="@Model.IntentUrl" style="display:none;font-weight:700;">📱 باز کردن در اپلیکیشن</a>
+    @if (Model.OrderId.HasValue)
+    {
+        <span id="appLinkInApp" style="display:none;">
+            این صفحه داخل <strong>اپلیکیشن</strong> باز شده است؛
+            <a href="@Url.Action("OrderDetails", "Profile", new { id = Model.OrderId.Value })">بازگشت به سفارش من</a>
+            یا
+            <a href="@Url.Action("Orders", "Profile")">سفارش‌های من</a>.
+        </span>
+    }
+</div>
+
+<script>
+    (function () {
+        // حالت صفحه را اسکریپت مشترک /js/app-mode.js تعیین می‌کند
+        // (پوسته اندرویدی سایت، PWA نصب‌شده یا مرورگر) — اینجا فقط همان نتیجه استفاده می‌شود.
+        var mode = (window.appMode && window.appMode.mode)
+            || document.documentElement.getAttribute('data-app-mode')
+            || 'browser';
+        var inApp = mode === 'inapp';
+        var canUseIntent = mode === 'android-browser';
+
+        var bar = document.getElementById('appLinkBar');
+        var openBtn = document.getElementById('appLinkOpenBtn');
+        var inAppHint = document.getElementById('appLinkInApp');
+
+        if (openBtn) openBtn.style.display = canUseIntent ? 'inline-block' : 'none';
+        if (inAppHint) inAppHint.style.display = inApp ? 'inline' : 'none';
+        if (bar) bar.style.display = (inApp || canUseIntent) ? '' : 'none';
+    })();
+</script>

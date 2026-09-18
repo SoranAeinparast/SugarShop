@@ -5,171 +5,597 @@
 @{
     ViewData["Title"] = "پیام‌های دریافتی";
     Layout = "_AdminLayout";
+    int totalCount = Model?.Count ?? 0;
     int unreadCount = Model?.Count(m => !m.IsRead) ?? 0;
+    int readCount = totalCount - unreadCount;
+
+    string AvatarColor(int id)
+    {
+        var palette = new[] { "#2c5282", "#c05621", "#276749", "#9b2c2c", "#6b46c1", "#975a16", "#234e52", "#2b6cb0" };
+        return palette[Math.Abs(id) % palette.Length];
+    }
+
+    string RelativeDate(DateTime dt)
+    {
+        var diff = DateTime.UtcNow - dt;
+        if (diff.TotalMinutes < 1) return "همین حالا";
+        if (diff.TotalHours < 1) return ((int)diff.TotalMinutes).ToPersianNumber() + " دقیقه پیش";
+        if (diff.TotalHours < 24) return ((int)diff.TotalHours).ToPersianNumber() + " ساعت پیش";
+        if (diff.TotalDays < 7) return ((int)diff.TotalDays).ToPersianNumber() + " روز پیش";
+        return new PersianDateTime(dt).ToString("yyyy/MM/dd").ToPersianNumber();
+    }
+
+    string FullDate(DateTime dt) =>
+        new PersianDateTime(dt).ToString("dddd d MMMM yyyy - HH:mm").ToPersianNumber();
+
+    string Snippet(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+        return text.Length > 100 ? text.Substring(0, 100) + "…" : text;
+    }
 }
-<div class="card shadow-sm">
-    <div class="card-header d-flex align-items-center justify-content-between">
-        <div class="d-flex align-items-center gap-2">
-            <h4 class="mb-0">📨 پیام‌های دریافتی</h4>
-            @if (unreadCount > 0)
-            {
-                <span class="badge bg-warning text-dark">@unreadCount پیام جدید</span>
-            }
-        </div>
-        <a asp-area="Admin" asp-controller="ContactSettings" asp-action="Index"
-           class="btn btn-outline-secondary btn-sm">
-            ⚙️ تنظیمات صفحه تماس
-        </a>
+
+<style>
+    .msg-toolbar {
+        background: #fff;
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .msg-search { position: relative; }
+    .msg-search .bi-search {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #adb5bd;
+    }
+    .msg-search input {
+        padding-right: 36px;
+        border-radius: 8px;
+        min-width: 260px;
+    }
+    .filter-pills .nav-link {
+        border-radius: 20px;
+        padding: 6px 16px;
+        font-size: 0.875rem;
+        color: #495057;
+        border: 1px solid transparent;
+    }
+    .filter-pills .nav-link.active {
+        background: #2c5282;
+        color: #fff;
+    }
+    .filter-pills .nav-link .badge {
+        margin-right: 4px;
+    }
+    .msg-list { display: flex; flex-direction: column; gap: 10px; }
+    .msg-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        background: #fff;
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        padding: 14px 16px;
+        cursor: pointer;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+        position: relative;
+    }
+    .msg-row:hover {
+        box-shadow: 0 4px 14px rgba(44, 82, 130, 0.10);
+        border-color: #c9d6e8;
+        transform: translateY(-1px);
+    }
+    .msg-row.unread {
+        background: linear-gradient(135deg, #fffdf5 0%, #ffffff 100%);
+        border-color: #f0d9a8;
+        border-right: 4px solid #f59e0b;
+    }
+    .msg-row.unread:hover { border-color: #e3c078; }
+    .msg-avatar {
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1.05rem;
+        color: #fff;
+        flex-shrink: 0;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+    }
+    .msg-main { flex: 1; min-width: 0; }
+    .msg-subject {
+        font-weight: 600;
+        color: #212529;
+        margin-bottom: 2px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .msg-row.unread .msg-subject { font-weight: 700; }
+    .unread-dot {
+        width: 9px; height: 9px; border-radius: 50%;
+        background: #f59e0b;
+        display: inline-block;
+        flex-shrink: 0;
+        animation: pulse-dot 1.6s ease-in-out infinite;
+    }
+    @@keyframes pulse-dot {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.45; transform: scale(0.8); }
+    }
+    .msg-snippet {
+        color: #6c757d;
+        font-size: 0.875rem;
+        margin: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .msg-meta {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-top: 6px;
+        color: #868e96;
+        font-size: 0.8rem;
+    }
+    .msg-meta .bi { font-size: 0.75rem; }
+    .msg-meta a { color: #495057; text-decoration: none; }
+    .msg-meta a:hover { color: #2c5282; text-decoration: underline; }
+    .msg-actions {
+        display: flex;
+        gap: 6px;
+        flex-shrink: 0;
+        align-items: center;
+    }
+    .msg-actions .btn { border-radius: 8px; white-space: nowrap; }
+    .stat-card {
+        border-radius: 14px;
+        border: 1px solid #e9ecef;
+        padding: 16px 18px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        background: #fff;
+        height: 100%;
+    }
+    .stat-icon {
+        width: 48px; height: 48px;
+        border-radius: 12px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.4rem;
+    }
+    .stat-num { font-size: 1.35rem; font-weight: 700; line-height: 1.2; }
+    .stat-label { color: #6c757d; font-size: 0.85rem; }
+    .detail-sender {
+        display: flex; align-items: center; gap: 12px;
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 12px 14px;
+    }
+    .msg-body-box {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        padding: 16px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 340px;
+        overflow-y: auto;
+        font-size: 0.925rem;
+        line-height: 1.9;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 56px 20px;
+        color: #adb5bd;
+    }
+    .empty-state .bi { font-size: 3.4rem; display: block; margin-bottom: 14px; }
+</style>
+
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <div class="d-flex align-items-center gap-2">
+        <h4 class="mb-0">📨 پیام‌های دریافتی</h4>
+        @if (unreadCount > 0)
+        {
+            <span class="badge rounded-pill text-bg-warning">@unreadCount.ToPersianNumber() پیام جدید</span>
+        }
     </div>
-    <div class="card-body">
-        @if (TempData["Success"] != null)
-        {
-            <div class="alert alert-success alert-dismissible fade show">
-                @TempData["Success"]
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    @if (unreadCount > 0)
+    {
+        <form asp-area="Admin" asp-controller="ContactSettings" asp-action="MarkAllAsRead" method="post" class="d-inline">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-outline-success btn-sm">
+                <i class="bi bi-check2-all"></i> علامت‌گذاری همه به‌عنوان خوانده‌شده
+            </button>
+        </form>
+    }
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show">
+        @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show">
+        @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@* آمار کلی *@
+<div class="row g-3 mb-3">
+    <div class="col-md-4 col-6">
+        <div class="stat-card">
+            <div class="stat-icon" style="background:#e8f0fe; color:#2c5282;"><i class="bi bi-envelope"></i></div>
+            <div>
+                <div class="stat-num">@totalCount.ToPersianNumber()</div>
+                <div class="stat-label">کل پیام‌ها</div>
             </div>
-        }
-        @if (TempData["Error"] != null)
-        {
-            <div class="alert alert-danger alert-dismissible fade show">
-                @TempData["Error"]
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    </div>
+    <div class="col-md-4 col-6">
+        <div class="stat-card">
+            <div class="stat-icon" style="background:#fff4e0; color:#b7791f;"><i class="bi bi-envelope-open"></i></div>
+            <div>
+                <div class="stat-num">@unreadCount.ToPersianNumber()</div>
+                <div class="stat-label">خوانده‌نشده (جدید)</div>
             </div>
-        }
-        @if (!Model.Any())
-        {
-            <div class="text-center py-5 text-muted">
-                <i class="bi bi-inbox fs-1 d-block mb-3"></i>
-                هنوز پیامی دریافت نشده است.
+        </div>
+    </div>
+    <div class="col-md-4 col-6">
+        <div class="stat-card">
+            <div class="stat-icon" style="background:#e6f4ea; color:#276749;"><i class="bi bi-check2-circle"></i></div>
+            <div>
+                <div class="stat-num">@readCount.ToPersianNumber()</div>
+                <div class="stat-label">خوانده‌شده</div>
             </div>
-        }
-        else
-        {
-            <div class="table-responsive">
-                <table class="table table-hover align-middle">
-                    <thead class="table-dark">
-                        <tr>
-                            <th style="width:40px">#</th>
-                            <th>نام</th>
-                            <th>ایمیل</th>
-                            <th>تلفن</th>
-                            <th>موضوع</th>
-                            <th>تاریخ</th>
-                            <th>وضعیت</th>
-                            <th style="width:160px">عملیات</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var msg in Model)
-                        {
-                            <tr class="@(msg.IsRead ? "" : "table-warning fw-semibold")">
-                                <td>@msg.Id</td>
-                                <td>@msg.FullName</td>
-                                <td>
-                                    <a href="mailto:@msg.Email" class="text-decoration-none" dir="ltr">@msg.Email</a>
-                                </td>
-                                <td dir="ltr">@msg.Phone</td>
-                                <td>@msg.Subject</td>
-                                <td>
-                                    <small>@(new PersianDateTime(msg.CreatedAt).ToString("yyyy/MM/dd HH:mm").ToPersianNumber())</small>
-                                </td>
-                                <td>
-                                    @if (msg.IsRead)
-                                    {
-                                        <span class="badge bg-success">خوانده شده</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-warning text-dark">جدید</span>
-                                    }
-                                </td>
-                                <td>
-                                    <div class="d-flex gap-1">
-                                        <button class="btn btn-sm btn-info"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#msgModal_@msg.Id"
-                                                title="مشاهده پیام">
-                                            <i class="bi bi-eye"></i>
-                                        </button>
-                                        @if (!msg.IsRead)
-                                        {
-                                            <form asp-area="Admin"
-                                                  asp-controller="ContactSettings"
-                                                  asp-action="MarkAsRead"
-                                                  asp-route-id="@msg.Id"
-                                                  method="post"
-                                                  style="display:inline;">
-                                                @Html.AntiForgeryToken()
-                                                <button type="submit" class="btn btn-sm btn-success" title="علامت خوانده‌شده">
-                                                    <i class="bi bi-check-lg"></i>
-                                                </button>
-                                            </form>
-                                        }
-                                        <form asp-area="Admin"
-                                              asp-controller="ContactSettings"
-                                              asp-action="DeleteMessage"
-                                              asp-route-id="@msg.Id"
-                                              method="post"
-                                              style="display:inline;"
-                                              onsubmit="return confirm('آیا مطمئن هستید؟ این پیام حذف خواهد شد.')">
-                                            @Html.AntiForgeryToken()
-                                            <button type="submit" class="btn btn-sm btn-danger" title="حذف">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
-                            <div class="modal fade" id="msgModal_@msg.Id" tabindex="-1"
-                                 aria-labelledby="msgModalLabel_@msg.Id" aria-hidden="true">
-                                <div class="modal-dialog modal-dialog-centered">
-                                    <div class="modal-content">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title" id="msgModalLabel_@msg.Id">
-                                                پیام از @msg.FullName
-                                            </h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            <table class="table table-borderless table-sm mb-3">
-                                                <tr>
-                                                    <th class="text-muted" style="width:100px">موضوع:</th>
-                                                    <td>@msg.Subject</td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="text-muted">ایمیل:</th>
-                                                    <td><a href="mailto:@msg.Email" dir="ltr">@msg.Email</a></td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="text-muted">تلفن:</th>
-                                                    <td dir="ltr">@msg.Phone</td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="text-muted">تاریخ:</th>
-                                                    <td>@(new PersianDateTime(msg.CreatedAt).ToString("yyyy/MM/dd - HH:mm").ToPersianNumber())</td>
-                                                </tr>
-                                            </table>
-                                            <hr />
-                                            <p class="fw-semibold mb-2">متن پیام:</p>
-                                            <div class="bg-light p-3 rounded" style="white-space:pre-wrap;">@msg.Message</div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <a href="mailto:@msg.Email?subject=پاسخ به: @msg.Subject"
-                                               class="btn btn-primary">
-                                                <i class="bi bi-reply"></i> پاسخ از طریق ایمیل
-                                            </a>
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">بستن</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        }
-                    </tbody>
-                </table>
-            </div>
-            <div class="mt-2 text-muted small">
-                مجموع: @Model.Count پیام | خوانده‌نشده: @unreadCount
-            </div>
-        }
+        </div>
     </div>
 </div>
+
+@if (!Model!.Any())
+{
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="empty-state">
+                <i class="bi bi-inbox"></i>
+                <p class="h5 text-muted mb-1">هنوز پیامی دریافت نشده است</p>
+                <p class="small">پیام‌های ارسال‌شده از فرم «تماس با ما» در اینجا نمایش داده می‌شوند.</p>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    @* نوار ابزار: جستجو + فیلتر *@
+    <div class="msg-toolbar mb-3">
+        <div class="msg-search flex-grow-1">
+            <i class="bi bi-search"></i>
+            <input type="text" id="msgSearch" class="form-control" placeholder="جستجو در نام، ایمیل، تلفن، موضوع یا متن پیام..." />
+        </div>
+        <ul class="nav filter-pills" id="filterTabs">
+            <li class="nav-item"><a class="nav-link active" href="#" data-filter="all">همه <span class="badge text-bg-light">@totalCount.ToPersianNumber()</span></a></li>
+            <li class="nav-item"><a class="nav-link" href="#" data-filter="new">جدید <span class="badge text-bg-warning">@unreadCount.ToPersianNumber()</span></a></li>
+            <li class="nav-item"><a class="nav-link" href="#" data-filter="read">خوانده‌شده <span class="badge text-bg-success">@readCount.ToPersianNumber()</span></a></li>
+        </ul>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body py-3">
+            <div class="msg-list" id="msgList">
+                @foreach (var msg in Model!)
+                {
+                    var avatarColor = AvatarColor(msg.Id);
+                    var initial = string.IsNullOrEmpty(msg.FullName) ? "؟" : msg.FullName.Trim().Substring(0, 1);
+                    <div class="msg-row @(msg.IsRead ? "" : "unread")"
+                         data-id="@msg.Id"
+                         data-read="@(msg.IsRead ? "true" : "false")"
+                         data-search="@($"{msg.FullName} {msg.Email} {msg.Phone} {msg.Subject} {msg.Message}")"
+                         data-subject="@msg.Subject"
+                         data-name="@msg.FullName"
+                         data-email="@msg.Email"
+                         data-phone="@msg.Phone"
+                         data-date="@FullDate(msg.CreatedAt)"
+                         data-message="@msg.Message"
+                         title="برای مشاهده کلیک کنید">
+                        <div class="msg-avatar" style="background:@avatarColor;">@initial</div>
+                        <div class="msg-main">
+                            <div class="msg-subject">
+                                @if (!msg.IsRead)
+                                {
+                                    <span class="unread-dot"></span>
+                                }
+                                @(string.IsNullOrEmpty(msg.Subject) ? "(بدون موضوع)" : msg.Subject)
+                            </div>
+                            <p class="msg-snippet">@Snippet(msg.Message)</p>
+                            <div class="msg-meta">
+                                <span><i class="bi bi-person"></i> @msg.FullName</span>
+                                @if (!string.IsNullOrEmpty(msg.Email))
+                                {
+                                    <span><i class="bi bi-envelope"></i> <a href="mailto:@msg.Email" dir="ltr">@msg.Email</a></span>
+                                }
+                                @if (!string.IsNullOrEmpty(msg.Phone))
+                                {
+                                    <span><i class="bi bi-telephone"></i> <span dir="ltr">@msg.Phone</span></span>
+                                }
+                                <span><i class="bi bi-clock"></i> @RelativeDate(msg.CreatedAt)</span>
+                            </div>
+                        </div>
+                        <div class="msg-actions">
+                            @if (msg.IsRead)
+                            {
+                                <span class="badge rounded-pill text-bg-success"><i class="bi bi-check2"></i> خوانده شده</span>
+                            }
+                            else
+                            {
+                                <span class="badge rounded-pill text-bg-warning">جدید</span>
+                            }
+                            <button type="button" class="btn btn-sm btn-outline-primary msg-view" title="مشاهده پیام">
+                                <i class="bi bi-eye"></i> مشاهده
+                            </button>
+                            @{
+                                var toggleLabel = msg.IsRead ? "خوانده‌نشده" : "خوانده شد";
+                                var toggleIcon = msg.IsRead ? "bi-envelope" : "bi-check-lg";
+                                var toggleTitle = msg.IsRead ? "علامت‌گذاری به‌عنوان خوانده‌نشده" : "علامت‌گذاری به‌عنوان خوانده‌شده";
+                            }
+                            <button type="button" class="btn btn-sm btn-outline-success msg-toggle" title="@toggleTitle">
+                                <i class="bi @toggleIcon"></i> @toggleLabel
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger msg-delete"
+                                    data-form="deleteForm_@msg.Id" title="حذف پیام">
+                                <i class="bi bi-trash"></i> حذف
+                            </button>
+                            <form id="deleteForm_@msg.Id" asp-area="Admin" asp-controller="ContactSettings" asp-action="DeleteMessage" asp-route-id="@msg.Id" method="post" class="d-none">
+                                @Html.AntiForgeryToken()
+                            </form>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="empty-state d-none" id="msgEmptyFilter">
+                <i class="bi bi-search"></i>
+                <p class="h6 text-muted">موردی مطابق جستجو یا فیلتر انتخابی یافت نشد.</p>
+            </div>
+
+            <div class="mt-3 text-muted small border-top pt-2">
+                مجموع: <strong>@totalCount.ToPersianNumber()</strong> پیام | خوانده‌نشده: <strong>@unreadCount.ToPersianNumber()</strong>
+            </div>
+        </div>
+    </div>
+}
+
+@* مودال نمایش پیام (تکی، با جاوااسکریپت پر می‌شود) *@
+<div class="modal fade" id="msgDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="msgDetailSubject">پیام</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-sender mb-3">
+                    <div class="msg-avatar" id="msgDetailAvatar">؟</div>
+                    <div class="flex-grow-1">
+                        <div class="fw-bold" id="msgDetailName">—</div>
+                        <div class="small text-muted" id="msgDetailMeta">
+                            <span id="msgDetailDate">—</span>
+                        </div>
+                    </div>
+                    <div class="text-end small">
+                        @* قرار دادن وضعیت خواندن به‌صورت پویا در JS *@
+                        <span id="msgDetailStatus"></span>
+                    </div>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <div class="border rounded p-2 px-3">
+                            <small class="text-muted d-block">ایمیل</small>
+                            <a id="msgDetailEmail" href="#" dir="ltr" class="text-decoration-none">—</a>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="border rounded p-2 px-3">
+                            <small class="text-muted d-block">تلفن</small>
+                            <span id="msgDetailPhone" dir="ltr">—</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="fw-semibold">متن پیام:</span>
+                </div>
+                <div class="msg-body-box" id="msgDetailBody">—</div>
+            </div>
+            <div class="modal-footer">
+                <a id="msgDetailReply" href="#" class="btn btn-primary">
+                    <i class="bi bi-reply"></i> پاسخ از طریق ایمیل
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">بستن</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* مودال تأیید حذف *@
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger"><i class="bi bi-exclamation-triangle"></i> تأیید حذف</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                آیا از حذف این پیام مطمئن هستید؟<br />
+                <span class="text-muted small">این عمل قابل بازگشت نیست.</span>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">انصراف</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                    <i class="bi bi-trash"></i> حذف پیام
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const antiforgeryToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+
+        function postJson(url) {
+            return fetch(url, {
+                method: 'POST',
+                headers: { 'RequestVerificationToken': antiforgeryToken }
+            });
+        }
+
+        // ======= فیلتر و جستجو =======
+        function applyFilters() {
+            const q = ($('#msgSearch').val() || '').toLowerCase().trim();
+            const f = $('#filterTabs .nav-link.active').data('filter');
+            let visible = 0;
+            $('#msgList .msg-row').each(function () {
+                const $row = $(this);
+                const isRead = $row.data('read') === 'true';
+                let ok = true;
+                if (f === 'new' && isRead) ok = false;
+                if (f === 'read' && !isRead) ok = false;
+                if (ok && q && (($row.data('search') || '').toLowerCase().indexOf(q) === -1)) ok = false;
+                $row.toggle(ok);
+                if (ok) visible++;
+            });
+            const hasRows = $('#msgList .msg-row').length > 0;
+            $('#msgEmptyFilter').toggleClass('d-none', !(hasRows && visible === 0));
+        }
+
+        $('#msgSearch').on('input', applyFilters);
+        $('#filterTabs .nav-link').on('click', function (e) {
+            e.preventDefault();
+            $('#filterTabs .nav-link').removeClass('active');
+            $(this).addClass('active');
+            applyFilters();
+        });
+
+        // ======= مودال‌ها با API استاندارد Bootstrap 5 =======
+        const msgDetailModalEl = document.getElementById('msgDetailModal');
+        const msgDetailModal = msgDetailModalEl ? new bootstrap.Modal(msgDetailModalEl) : null;
+        const deleteModalEl = document.getElementById('deleteConfirmModal');
+        const deleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
+
+        // ======= به‌روزرسانی وضعیت خواندن یک ردیف (بدون رفرش) =======
+        function refreshRowReadState($row, isRead) {
+            $row.data('read', isRead ? 'true' : 'false');
+            $row.toggleClass('unread', !isRead);
+            $row.find('.unread-dot').remove();
+            if (!isRead) {
+                $row.find('.msg-subject').prepend('<span class="unread-dot"></span>');
+            }
+            const $badge = $row.find('.msg-actions > .badge').first();
+            if ($badge.length) {
+                $badge.replaceWith(isRead
+                    ? '<span class="badge rounded-pill text-bg-success"><i class="bi bi-check2"></i> خوانده شده</span>'
+                    : '<span class="badge rounded-pill text-bg-warning">جدید</span>');
+            }
+            const $toggle = $row.find('.msg-toggle');
+            if ($toggle.length) {
+                const label = isRead ? 'خوانده‌نشده' : 'خوانده شد';
+                const icon = isRead ? 'bi-envelope' : 'bi-check-lg';
+                const title = isRead ? 'علامت‌گذاری به‌عنوان خوانده‌نشده' : 'علامت‌گذاری به‌عنوان خوانده‌شده';
+                $toggle.html('<i class="bi ' + icon + '"></i> ' + label).attr('title', title);
+            }
+            applyFilters();
+        }
+
+        // ======= مشاهده پیام + علامت‌گذاری خودکار خوانده‌شده =======
+        function markReadAjax(id, onDone) {
+            postJson('/Admin/ContactSettings/MarkAsRead/' + id)
+                .then(r => r.ok ? r : Promise.reject())
+                .then(() => { if (onDone) onDone(); })
+                .catch(() => { if (onDone) onDone(); });
+        }
+
+        function openMessage($row) {
+            $('#msgDetailSubject').text($row.data('subject') || '(بدون موضوع)');
+            $('#msgDetailName').text($row.data('name') || '—');
+            $('#msgDetailDate').text($row.data('date') || '—');
+            $('#msgDetailEmail').attr('href', 'mailto:' + ($row.data('email') || '')).text($row.data('email') || '—');
+            $('#msgDetailPhone').text($row.data('phone') || '—');
+            $('#msgDetailBody').text($row.data('message') || '');
+            $('#msgDetailAvatar').text(($row.data('name') || '؟').trim().charAt(0));
+            const avatarEl = $row.find('.msg-avatar')[0];
+            if (avatarEl) {
+                $('#msgDetailAvatar').css('background', getComputedStyle(avatarEl).backgroundColor);
+            }
+            const email = $row.data('email') || '';
+            const subject = $row.data('subject') || '';
+            $('#msgDetailReply').attr('href', 'mailto:' + email + '?subject=' + encodeURIComponent('پاسخ به: ' + subject));
+
+            const isRead = $row.data('read') === 'true';
+            $('#msgDetailStatus').html(isRead
+                ? '<span class="badge rounded-pill text-bg-success">خوانده شده</span>'
+                : '<span class="badge rounded-pill text-bg-warning">جدید</span>');
+
+            if (msgDetailModal) msgDetailModal.show();
+
+            if (!isRead) {
+                markReadAjax($row.data('id'), function () {
+                    refreshRowReadState($row, true);
+                    $('#msgDetailStatus').html('<span class="badge rounded-pill text-bg-success">خوانده شده</span>');
+                });
+            }
+        }
+
+        $(document).on('click', '.msg-view', function (e) {
+            e.stopPropagation();
+            openMessage($(this).closest('.msg-row'));
+        });
+        // کلیک روی ردیف پیام (کلیک روی دکمه‌های اکشن نباید پیام را باز کند)
+        $(document).on('click', '.msg-row', function (e) {
+            if ($(e.target).closest('.msg-actions').length) return;
+            openMessage($(this));
+        });
+
+        // ======= خوانده‌شده / خوانده‌نشده (AJAX، بدون رفرش) =======
+        $(document).on('click', '.msg-toggle', function (e) {
+            e.stopPropagation();
+            const $btn = $(this);
+            const $row = $btn.closest('.msg-row');
+            const id = $row.data('id');
+            const targetRead = $row.data('read') !== 'true';
+            $btn.prop('disabled', true);
+            postJson('/Admin/ContactSettings/ToggleRead/' + id)
+                .then(r => r.ok ? r : Promise.reject())
+                .then(() => refreshRowReadState($row, targetRead))
+                .catch(() => alert('⚠️ خطا در انجام عملیات. لطفاً دوباره تلاش کنید.'))
+                .finally(() => $btn.prop('disabled', false));
+        });
+
+        // ======= حذف با تأیید =======
+        let deleteTargetForm = null;
+        $(document).on('click', '.msg-delete', function (e) {
+            e.stopPropagation();
+            deleteTargetForm = $(this).data('form');
+            if (deleteModal) deleteModal.show();
+        });
+        $('#confirmDeleteBtn').on('click', function () {
+            if (deleteTargetForm && document.getElementById(deleteTargetForm)) {
+                document.getElementById(deleteTargetForm).submit();
+            }
+        });
+    </script>
+}

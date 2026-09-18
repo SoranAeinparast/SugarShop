@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SugarShop.Domain.Entities;
 using SugarShop.Infrastructure.Persistence;
 using SugarShop.Infrastructure.Persistence.Sales;
@@ -17,11 +18,13 @@ namespace SugarShop.Web.Areas.Admin.Controllers
     {
         private readonly SugarShopSalesDbContext _salesDb;
         private readonly SugarShopCatalogDbContext _catalogDb;
+        private readonly ILogger<CategoryHeaderSettingsController> _logger;
 
-        public CategoryHeaderSettingsController(SugarShopSalesDbContext salesDb, SugarShopCatalogDbContext catalogDb)
+        public CategoryHeaderSettingsController(SugarShopSalesDbContext salesDb, SugarShopCatalogDbContext catalogDb, ILogger<CategoryHeaderSettingsController> logger)
         {
             _salesDb = salesDb;
             _catalogDb = catalogDb;
+            _logger = logger;
         }
 
         [HttpGet]
@@ -36,16 +39,31 @@ namespace SugarShop.Web.Areas.Admin.Controllers
             }
             ViewBag.SelectedCategoryId = categoryId ?? 0;
 
+            // اگر هیچ دسته‌بندی وجود نداشته باشد، از خطای NullReference جلوگیری می‌کنیم
+            if (!categoryId.HasValue)
+            {
+                return View(new CategoryHeaderSetting
+                {
+                    CategoryId = 0,
+                    BackgroundColor = "#ffffff",
+                    TextColor = "#2c3e50",
+                    Height = 200,
+                    IsEnabled = true,
+                    UseBackgroundImage = false
+                });
+            }
+
             var settings = await _salesDb.CategoryHeaderSettings
                 .Where(s => s.CategoryId == categoryId.Value)
                 .OrderByDescending(s => s.UpdatedAt)
+                .ThenByDescending(s => s.Id)
                 .FirstOrDefaultAsync();
 
             if (settings == null)
             {
                 settings = new CategoryHeaderSetting
                 {
-                    CategoryId = categoryId.Value,
+                    CategoryId = categoryId!.Value,
                     BackgroundColor = "#ffffff",
                     TextColor = "#2c3e50",
                     Height = 200,
@@ -76,8 +94,14 @@ namespace SugarShop.Web.Areas.Admin.Controllers
 
             try
             {
+                // ✅ انتخاب دقیقاً همان ردیفی که در صفحه نمایش داده می‌شود (جدیدترین ردیف)
+                // اگر رکوردهای تکراری از نسخه‌های قبلی باقی مانده باشند، به‌روزرسانی روی ردیف
+                // درست انجام شود و تغییرات «اعمال نشده» به نظر نرسند.
                 var settings = await _salesDb.CategoryHeaderSettings
-                    .FirstOrDefaultAsync(s => s.CategoryId == finalCategoryId);
+                    .Where(s => s.CategoryId == finalCategoryId)
+                    .OrderByDescending(s => s.UpdatedAt)
+                    .ThenByDescending(s => s.Id)
+                    .FirstOrDefaultAsync();
 
                 if (settings == null)
                 {
@@ -93,24 +117,47 @@ namespace SugarShop.Web.Areas.Admin.Controllers
                 settings.Height = model.Height > 0 ? model.Height : 200;
 
                 settings.IsEnabled = model.IsEnabled;
-                settings.UseBackgroundImage = model.UseBackgroundImage;
 
-                if (!string.IsNullOrWhiteSpace(model.BackgroundImagePath))
+                // ✅ منطق صحیح تصویر پس‌زمینه:
+                // - اگر مسیر جدیدی انتخاب شده باشد → ذخیره و فعال‌سازی خودکار
+                // - اگر مسیر جدیدی انتخاب نشده باشد → تصویر قبلی حفظ می‌شود (پاک نمی‌شود!)
+                // - تصویر فقط زمانی حذف می‌شود که تیک «استفاده از تصویر» برداشته شود
+                if (!string.IsNullOrWhiteSpace(model.BackgroundImagePath) && model.BackgroundImagePath != settings.BackgroundImagePath)
                 {
-                    settings.UseBackgroundImage = true;
+                    // کاربر تصویر جدیدی انتخاب کرده → ذخیره و فعال‌سازی خودکار
                     settings.BackgroundImagePath = model.BackgroundImagePath.Trim();
+                    settings.UseBackgroundImage = true;
+                }
+                else if (model.UseBackgroundImage)
+                {
+                    // تصویر جدیدی انتخاب نشده ولی تیک فعال است → تصویر قبلی حفظ می‌شود
+                    settings.UseBackgroundImage = !string.IsNullOrWhiteSpace(settings.BackgroundImagePath);
                 }
                 else
                 {
+                    // تیک استفاده از تصویر برداشته شده → تصویر حذف می‌شود
                     settings.BackgroundImagePath = null;
+                    settings.UseBackgroundImage = false;
                 }
 
                 settings.UpdatedAt = DateTime.UtcNow;
                 await _salesDb.SaveChangesAsync();
+
+                // ✅ پاک‌سازی رکوردهای تکراری همان دسته (باقی‌مانده از نسخه‌های قبلی)
+                var duplicates = await _salesDb.CategoryHeaderSettings
+                    .Where(s => s.CategoryId == finalCategoryId && s.Id != settings.Id)
+                    .ToListAsync();
+                if (duplicates.Count > 0)
+                {
+                    _salesDb.CategoryHeaderSettings.RemoveRange(duplicates);
+                    await _salesDb.SaveChangesAsync();
+                }
+
                 TempData["Success"] = "✅ تنظیمات با موفقیت در دیتابیس ذخیره شد!";
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "خطا در ذخیره‌سازی تنظیمات هدر دسته‌بندی برای CategoryId={CategoryId}", finalCategoryId);
                 TempData["Error"] = $"❌ خطا در ذخیره‌سازی: {ex.Message}";
             }
 

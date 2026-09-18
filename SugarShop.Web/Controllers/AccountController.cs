@@ -1,11 +1,14 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using SugarShop.Domain.Entities;
+using SugarShop.Domain.Entities.Sms;
 using SugarShop.Infrastructure.Persistence.Sales;
+using SugarShop.Web.Services.Sms;
 using SugarShop.Web.ViewModels.Account;
 using System.Linq;
 using System.Text;
@@ -21,19 +24,22 @@ namespace SugarShop.Web.Controllers
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IEmailSender _emailSender;
         private readonly SugarShopSalesDbContext _salesDbContext;
+        private readonly SmsService _sms;
 
         public AccountController(
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
             RoleManager<IdentityRole> roleManager,
             IEmailSender emailSender,
-            SugarShopSalesDbContext salesDbContext)
+            SugarShopSalesDbContext salesDbContext,
+            SmsService sms)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _roleManager = roleManager;
             _emailSender = emailSender;
             _salesDbContext = salesDbContext;
+            _sms = sms;
         }
 
         [HttpGet]
@@ -82,7 +88,8 @@ namespace SugarShop.Web.Controllers
                     // سرآشپز مستقیم به داشبورد مخصوص خود هدایت می‌شود
                     return Json(new { success = true, redirectUrl = Url.Action("Index", "Chef") });
                 }
-                return Json(new { success = true, redirectUrl = model.ReturnUrl ?? Url.Action("Index", "Home") });
+                // کاربر عادی هرگز به صفحات مدیریتی هدایت نمی‌شود (جلوگیری از صفحه «دسترسی ممنوع»)
+                return Json(new { success = true, redirectUrl = SafeRedirect(model.ReturnUrl) });
             }
 
             if (result.IsLockedOut)
@@ -121,6 +128,169 @@ namespace SugarShop.Web.Controllers
             return Json(new { success = false, type = "error", message = string.Join(" | ", result.Errors.Select(e => e.Description)) });
         }
 
+        // ═══════════ ورود / ثبت‌نام با شماره موبایل + کد یکبار مصرف (OTP) ═══════════
+
+        /// <summary>درخواست کد OTP برای ورود/ثبت‌نام. اگر شماره ثبت‌نشده باشد، حساب در همان لحظه ساخته می‌شود.</summary>
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RequestOtp(string phone)
+        {
+            var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+            var (ok, message) = await _sms.SendOtpAsync(phone, ip, "Login");
+            if (!ok) return Json(new { success = false, message });
+
+            // شماره نرمال‌شده به کلاینت برمی‌گردد تا مرحله بعد با همان کار کند
+            var normalized = SmsService.NormalizePhone(phone);
+            var exists = await _userManager.Users.AnyAsync(u => u.PhoneNumber == normalized);
+            return Json(new
+            {
+                success = true,
+                message,
+                isNew = !exists,
+                maskedPhone = MaskPhone(normalized)
+            });
+        }
+
+        /// <summary>بررسی کد OTP و ورود (یا ساخت حساب و ورود).</summary>
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> VerifyOtp(string phone, string code, string? fullName, string? returnUrl)
+        {
+            var normalized = SmsService.NormalizePhone(phone);
+            if (!SmsService.IsValidIranMobile(normalized))
+                return Json(new { success = false, message = "شماره موبایل معتبر نیست." });
+
+            var matching = await _userManager.Users.Where(u => u.PhoneNumber == normalized).ToListAsync();
+            ApplicationUser? user;
+            if (matching.Count <= 1)
+            {
+                user = matching.FirstOrDefault();
+            }
+            else
+            {
+                // چند حساب با یک شماره (مثلاً حساب مشتری + حساب کارمندی مالک با همان شماره):
+                // حساب کارمندی مقدم است تا ورود با کد همیشه قطعی و قابل پیش‌بینی باشد.
+                user = null;
+                foreach (var role in new[] { "Owner", "Admin", "OrderManager", "Chef" })
+                {
+                    var staffIds = (await _userManager.GetUsersInRoleAsync(role)).Select(u => u.Id).ToHashSet();
+                    user = matching.FirstOrDefault(u => staffIds.Contains(u.Id));
+                    if (user != null) break;
+                }
+                user ??= matching[0];
+            }
+
+            bool isNewUser = user == null;
+            // برای کاربر جدید نام اجباری است؛ این بررسی باید پیش از مصرف کد انجام شود
+            // تا کاربر بتواند بعد از وارد کردن نام، با همان کد وارد شود.
+            if (isNewUser && string.IsNullOrWhiteSpace(fullName))
+                return Json(new { success = false, message = "لطفاً نام و نام خانوادگی خود را وارد کنید تا حساب ساخته شود." });
+
+            if (!await _sms.ValidateOtpAsync(normalized, code, "Login"))
+                return Json(new { success = false, message = "کد وارد شده صحیح نیست یا منقضی شده است." });
+
+            if (user == null)
+            {
+                // ثبت‌نام خودکار با شماره موبایل — نام از کاربر گرفته می‌شود، ایمیل و نام کاربری بعداً در پروفایل قابل تغییرند
+                var autoName = fullName!.Trim();
+                user = new ApplicationUser
+                {
+                    UserName = "u" + normalized,          // نام کاربری یکتا بر اساس شماره (در پروفایل قابل تغییر)
+                    PhoneNumber = normalized,
+                    PhoneNumberConfirmed = true,
+                    FullName = autoName,
+                    Email = normalized + "@phone.local"   // ایمیل الزامی Identity؛ در پروفایل قابل تغییر
+                };
+                var create = await _userManager.CreateAsync(user);
+                if (!create.Succeeded)
+                    return Json(new { success = false, message = string.Join(" | ", create.Errors.Select(e => e.Description)) });
+
+                if (!await _roleManager.RoleExistsAsync("User"))
+                    await _roleManager.CreateAsync(new IdentityRole("User"));
+                await _userManager.AddToRoleAsync(user, "User");
+
+                await _sms.SendScenarioAsync(normalized, SmsScenario.RegisterWelcome,
+                    new Dictionary<string, string> { { "CustomerName", autoName.Split(' ')[0] } });
+            }
+
+            // ورود با کد یکبار مصرف: کوکی ماندگار ۱۴ روزه برای مشتریان — تا با هر بار باز کردن اپ
+            // (حتی پس از تأیید اثر انگشت) کاربر همچنان لاگین باشد. کارکنان را همان
+            // سیاست موجود در Program.cs به جلسه‌ی غیرماندگار محدود می‌کند.
+            var signInProps = new AuthenticationProperties
+            {
+                IsPersistent = true,
+                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(14)
+            };
+            await _signInManager.SignInAsync(user, signInProps);
+
+            bool isStaff = await _userManager.IsInRoleAsync(user, "Owner")
+                        || await _userManager.IsInRoleAsync(user, "Admin")
+                        || await _userManager.IsInRoleAsync(user, "OrderManager")
+                        || await _userManager.IsInRoleAsync(user, "Chef");
+            var redirect = isStaff ? Url.Action("Index", "Admin")
+                : SafeRedirect(returnUrl);
+
+            return Json(new { success = true, redirectUrl = redirect, isNew = isNewUser });
+        }
+
+        /// <summary>ارسال کد بازیابی رمز عبور با پیامک.</summary>
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ForgotPasswordBySms(string phone)
+        {
+            var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+            var (ok, message) = await _sms.SendOtpAsync(phone, ip, "PasswordReset");
+            if (!ok) return Json(new { success = false, message });
+
+            var normalized = SmsService.NormalizePhone(phone);
+            return Json(new { success = true, message, phone = normalized });
+        }
+
+        /// <summary>بررسی کد بازیابی و ورود موقت کاربر برای تغییر رمز.</summary>
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> VerifyResetOtp(string phone, string code)
+        {
+            var normalized = SmsService.NormalizePhone(phone);
+            if (!await _sms.ValidateOtpAsync(normalized, code, "PasswordReset"))
+                return Json(new { success = false, message = "کد وارد شده صحیح نیست یا منقضی شده است." });
+
+            var user = await _userManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == normalized);
+            if (user == null)
+                return Json(new { success = false, message = "کاربری با این شماره یافت نشد." });
+
+            // ورود موقت؛ کاربر باید رمز را در ادامه تغییر دهد
+            await _signInManager.SignInAsync(user, isPersistent: false);
+            return Json(new { success = true, redirectUrl = Url.Action("ChangePassword", "Profile") });
+        }
+
+        private static string MaskPhone(string phone)
+            => phone.Length == 11 ? phone[..4] + "***" + phone[7..] : phone;
+
+        /// <summary>
+        /// هدایت امن پس از ورود: کاربر عادی فقط به صفحات عمومی هدایت می‌شود؛
+        /// آدرس‌های مدیریتی (که برای او «دسترسی ممنوع» می‌دهند) نادیده گرفته و به صفحه اصلی می‌رود.
+        /// </summary>
+        private static readonly string[] AdminOnlyPaths =
+        {
+            "/admin", "/smssettings", "/chef", "/discountcodes", "/users", "/tickets",
+            "/wallet", "/newsletter", "/menu", "/paymentgateways", "/products", "/sweetitems",
+            "/categories", "/boxtypes", "/sliders", "/areas/"
+        };
+
+        private static string SafeRedirect(string? returnUrl)
+        {
+            if (string.IsNullOrWhiteSpace(returnUrl)) return "/";
+            if (!returnUrl.StartsWith("/") || returnUrl.StartsWith("//")) return "/";
+            var path = returnUrl.Split('?')[0].ToLowerInvariant();
+            if (AdminOnlyPaths.Any(p => path.StartsWith(p))) return "/";
+            return returnUrl;
+        }
+
         [HttpGet]
         [AllowAnonymous]
         public IActionResult ForgotPassword() => View();
@@ -152,7 +322,7 @@ namespace SugarShop.Web.Controllers
     <p>سلام {user.FullName} عزیز،</p>
     <p>شما درخواست بازیابی رمز عبور خود را داده‌اید.</p>
     <p>برای تغییر رمز عبور، روی دکمه زیر کلیک کنید:</p>
-    <a href='{HtmlEncoder.Default.Encode(callbackUrl)}' style='background-color: #d4a056; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin-top: 10px;'>تغییر رمز عبور</a>
+    <a href='{HtmlEncoder.Default.Encode(callbackUrl!)}' style='background-color: #d4a056; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin-top: 10px;'>تغییر رمز عبور</a>
     <p style='color: #666; font-size: 12px; margin-top: 20px;'>اگر شما این درخواست را نداده‌اید، این ایمیل را نادیده بگیرید.</p>
 </div>";
 
@@ -182,10 +352,10 @@ namespace SugarShop.Web.Controllers
         public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model)
         {
             if (!ModelState.IsValid) return Json(new { success = false, type = "error", message = GetModelErrors() });
-            var user = await _userManager.FindByIdAsync(model.UserId);
+            var user = await _userManager.FindByIdAsync(model.UserId!);
             if (user == null) return Json(new { success = false, type = "error", message = "کاربر یافت نشد." });
 
-            var code = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(model.Code));
+            var code = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(model.Code!));
             var result = await _userManager.ResetPasswordAsync(user, code, model.Password);
             if (result.Succeeded)
             {

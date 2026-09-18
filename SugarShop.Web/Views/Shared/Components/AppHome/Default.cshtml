@@ -1,0 +1,159 @@
+@using MD.PersianDateTime
+@using SugarShop.Web.Extensions
+@using SugarShop.Web.ViewComponents
+@model AppHomeModel
+@{
+    string Price(decimal value) => value.ToString("N0").ToPersianNumber();
+    // ستون CreatedAt در دیتابیس UTC است؛ برای نمایش به وقت ایران جابه‌جا می‌شود
+    string DateFa(DateTime utc) => new PersianDateTime(utc.Add(SugarShop.Web.Helpers.IranClock.Offset)).ToString("yyyy/MM/dd");
+}
+
+@* ── سربرگ اپ: سلام و احوال‌پرسی ── *@
+<section class="app-home">
+    <div class="app-hero">
+        <div class="app-hero__text">
+            @if (Model.IsSignedIn)
+            {
+                <div class="app-hero__hello">سلام @(string.IsNullOrWhiteSpace(Model.CustomerName) ? "دوست عزیز" : Model.CustomerName) 👋</div>
+                <div class="app-hero__sub">امروز چه شیرینی‌ای می‌چسبه؟</div>
+            }
+            else
+            {
+                <div class="app-hero__hello">به شیرینی‌سرا خوش آمدید 🌸</div>
+                <div class="app-hero__sub">برای پیگیری سفارش‌ها با کد پیامکی وارد شوید</div>
+            }
+        </div>
+        @if (Model.IsSignedIn)
+        {
+            <a href="/Cart" class="app-hero__cta">🛒 سبد خرید</a>
+        }
+        else
+        {
+            <a href="/Account/Login" class="app-hero__cta">ورود سریع</a>
+        }
+    </div>
+
+    @* ── میان‌بر دسته‌بندی‌ها ── *@
+    @if (Model.Categories.Any())
+    {
+        <div class="app-section-head">
+            <span>دسته‌بندی‌ها</span>
+            <a href="/Category/All">همه</a>
+        </div>
+        <div class="app-row app-row--chips">
+            @foreach (var cat in Model.Categories)
+            {
+                <a class="app-chip" href="/Category/@cat.Slug">
+                    <span class="app-chip__media">
+                        @if (!string.IsNullOrWhiteSpace(cat.ImagePath))
+                        {
+                            <img src="@cat.ImagePath" alt="@cat.TitleFa" loading="lazy" />
+                        }
+                        else
+                        {
+                            <span class="app-chip__fallback">🍰</span>
+                        }
+                    </span>
+                    <span class="app-chip__title">@cat.TitleFa</span>
+                </a>
+            }
+        </div>
+    }
+
+    @* ── سفارش‌های اخیر مشتری ── *@
+    @if (Model.IsSignedIn && Model.RecentOrders.Any())
+    {
+        <div class="app-section-head">
+            <span>سفارش‌های من</span>
+            <a href="/Profile/Orders">همه سفارش‌ها</a>
+        </div>
+        <div class="app-stack">
+            @foreach (var order in Model.RecentOrders)
+            {
+                var statusClass = order.Status switch
+                {
+                    SugarShop.Domain.Entities.Sales.OrderStatus.Paid => "ok",
+                    SugarShop.Domain.Entities.Sales.OrderStatus.Delivered => "ok",
+                    SugarShop.Domain.Entities.Sales.OrderStatus.Cancelled => "bad",
+                    SugarShop.Domain.Entities.Sales.OrderStatus.PendingPayment => "warn",
+                    _ => "info"
+                };
+                <div class="app-order">
+                    <div class="app-order__main">
+                        <div class="app-order__code">سفارش @order.OrderCode.ToPersianNumber()</div>
+                        <div class="app-order__meta">
+                            <span>@DateFa(order.CreatedAt)</span>
+                            <span class="app-badge app-badge--@statusClass">@order.Status.ToFarsi()</span>
+                        </div>
+                    </div>
+                    @if (order.IsPaymentEnabled)
+                    {
+                        @* لینک کوتاه پرداخت: همان صفحه «تأیید و پرداخت» *@
+                        <a class="app-order__action app-order__action--pay" href="/p/@order.Id">💳 پرداخت</a>
+                    }
+                    else
+                    {
+                        <a class="app-order__action" href="/Profile/OrderDetails/@order.Id">پیگیری</a>
+                    }
+                </div>
+            }
+        </div>
+    }
+    else if (!Model.IsSignedIn)
+    {
+        <div class="app-stack">
+            <div class="app-order app-order--hint">
+                <div class="app-order__main">
+                    <div class="app-order__code">سفارش‌هایت را اینجا می‌بینی</div>
+                    <div class="app-order__meta"><span>ورود با کد پیامکی، بدون رمز</span></div>
+                </div>
+                <a class="app-order__action app-order__action--pay" href="/Account/Login">ورود</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        @* کاربر وارد شده ولی هنوز سفارشی ندارد: راهنمای کوتاه بهجای جای خالی *@
+        <div class="app-stack">
+            <div class="app-order app-order--hint">
+                <div class="app-order__main">
+                    <div class="app-order__code">هنوز سفارشی ثبت نکرده‌اید</div>
+                    <div class="app-order__meta"><span>جعبه شیرینی دلخواهت را بچین</span></div>
+                </div>
+                <a class="app-order__action app-order__action--pay" href="/Category/All">شروع خرید</a>
+            </div>
+        </div>
+    }
+
+    @* ── پیشنهاد شیرینی تازه ── *@
+    @if (Model.FreshSweets.Any())
+    {
+        <div class="app-section-head">
+            <span>تازه‌های شیرینی‌سرا</span>
+            <a href="/SweetItem">همه شیرینی‌ها</a>
+        </div>
+        <div class="app-row app-row--cards">
+            @foreach (var sweet in Model.FreshSweets)
+            {
+                <a class="app-sweet" href="/SweetItem/Details/@sweet.Id">
+                    <span class="app-sweet__media">
+                        @if (!string.IsNullOrWhiteSpace(sweet.ImagePath))
+                        {
+                            <img src="@sweet.ImagePath" alt="@sweet.TitleFa" loading="lazy" />
+                        }
+                        else
+                        {
+                            <span class="app-sweet__fallback">🍪</span>
+                        }
+                        @if (!sweet.InStock)
+                        {
+                            <span class="app-sweet__soldout">ناموجود</span>
+                        }
+                    </span>
+                    <span class="app-sweet__title">@sweet.TitleFa</span>
+                    <span class="app-sweet__price">@Price(sweet.PricePerKg) تومان / کیلو</span>
+                </a>
+            }
+        </div>
+    }
+</section>

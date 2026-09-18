@@ -17,7 +17,7 @@
                     <label class="form-label">شیرینی مورد نظر را انتخاب کنید:</label>
                     <select name="newSweetItemId" class="form-select" required>
                         <option value="">-- انتخاب کنید --</option>
-                        @foreach (var sweet in sweetItems)
+                        @foreach (var sweet in sweetItems!)
                         {
                             <option value="@sweet.Id">
                                 @sweet.TitleFa (وزن: ~@sweet.ApproxWeightGrams گرم - قیمت: @sweet.PricePerKg.ToString("N0") تومان/کیلو)

@@ -42,7 +42,7 @@ namespace SugarShop.Web.Services.Implementations
                     contents: prompt
                 );
 
-                return response.Candidates[0].Content.Parts[0].Text;
+                return response!.Candidates![0].Content!.Parts![0].Text!;
             }
             catch (Exception ex)
             {
@@ -55,6 +55,22 @@ namespace SugarShop.Web.Services.Implementations
         {
             _logger.LogWarning("Gemini does not support image generation yet.");
             return Task.FromResult("https://via.placeholder.com/1024x1024/FFD700/000000?text=Recipe+Image");
+        }
+
+        public Task<bool> IsTextAiConfiguredAsync()
+        {
+            return Task.FromResult(true);
+        }
+
+        public Task<AIConnectionTestResult> TestConnectionAsync()
+        {
+            return Task.FromResult(new AIConnectionTestResult
+            {
+                Success = false,
+                Provider = "Gemini (قدیمی)",
+                Message = "این سرویس از طریق AIContentService اصلی مدیریت می‌شود.",
+                LatencyMs = 0
+            });
         }
     }
 }

@@ -27,8 +27,8 @@ namespace SugarShop.Web.Controllers
 
             if (!string.IsNullOrEmpty(searchTerm))
             {
-                usersQuery = usersQuery.Where(u => u.UserName.Contains(searchTerm) ||
-                                                    u.Email.Contains(searchTerm) ||
+                usersQuery = usersQuery.Where(u => (u.UserName != null && u.UserName.Contains(searchTerm)) ||
+                                                    (u.Email != null && u.Email.Contains(searchTerm)) ||
                                                     u.FullName.Contains(searchTerm));
             }
 
@@ -38,9 +38,9 @@ namespace SugarShop.Web.Controllers
             var model = users.Select(user => new UserWalletViewModel
             {
                 UserId = user.Id,
-                UserName = user.UserName,
+                UserName = user.UserName!,
                 FullName = user.FullName,
-                Email = user.Email,
+                Email = user.Email!,
                 Balance = wallets.ContainsKey(user.Id) ? wallets[user.Id].Balance : 0
             }).ToList();
 
@@ -215,7 +215,7 @@ namespace SugarShop.Web.Controllers
                     CustomerName = User.Identity?.Name ?? "کاربر مهمان",
                     CreatedAt = DateTime.UtcNow,
                     IsPaymentEnabled = true,
-                    Notes = "WalletRecharge"
+                    Notes = OrderNotes.WalletRecharge
                 };
                 _context.Orders.Add(order);
                 await _context.SaveChangesAsync();

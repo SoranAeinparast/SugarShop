@@ -15,7 +15,7 @@ namespace SugarShop.Domain.Entities.Sales
     public class CustomCakeOrder
     {
         public int Id { get; set; }
-        public string UserId { get; set; }
+        public string UserId { get; set; } = null!;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
         public CustomCakeOrderStatus Status { get; set; } = CustomCakeOrderStatus.Pending;
@@ -32,5 +32,14 @@ namespace SugarShop.Domain.Entities.Sales
         public string? SampleImagePath { get; set; }
         public string? PrintImagePath { get; set; }
         public DateTime? DesiredDeliveryDateTime { get; set; }
+
+        // ✅ تحویل: روش دریافت (در محل / پیک)، آدرس و هزینه پیک
+        public DeliveryMethod DeliveryMethod { get; set; } = DeliveryMethod.Pickup;
+        public int? AddressId { get; set; }
+        public string? ReceiverName { get; set; }
+        public string? ReceiverPhone { get; set; }
+        public string? CustomerFullAddress { get; set; }
+        public string? CustomerPostalCode { get; set; }
+        public decimal? DeliveryFee { get; set; }
     }
 }

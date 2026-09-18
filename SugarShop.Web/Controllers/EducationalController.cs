@@ -25,6 +25,11 @@ namespace SugarShop.Web.Controllers
                 .OrderByDescending(c => c.PublishedAt)
                 .Take(20)
                 .ToListAsync();
+
+            // ✅ تنظیمات هدر (هیرو) صفحه آموزش — قابل مدیریت از پنل ادمین
+            var headerSettings = await _context.EducationalHeaderSettings.FirstOrDefaultAsync();
+            ViewBag.HeaderSettings = headerSettings;
+
             return View(contents);
         }
 

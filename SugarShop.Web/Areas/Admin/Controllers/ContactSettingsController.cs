@@ -128,6 +128,50 @@ namespace SugarShop.Web.Areas.Admin.Controllers
 
         [HttpPost("{id:int}")]
         [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ToggleRead(int id)
+        {
+            var message = await _context.ContactMessages.FindAsync(id);
+            if (message != null)
+            {
+                message.IsRead = !message.IsRead;
+                message.ReadAt = message.IsRead ? DateTime.UtcNow : null;
+                await _context.SaveChangesAsync();
+                TempData["Success"] = message.IsRead
+                    ? "✅ پیام به‌عنوان خوانده‌شده علامت‌گذاری شد."
+                    : "ℹ️ پیام به‌عنوان خوانده‌نشده علامت‌گذاری شد.";
+            }
+            else
+            {
+                TempData["Error"] = "❌ پیام یافت نشد.";
+            }
+            return RedirectToAction(nameof(Messages));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> MarkAllAsRead()
+        {
+            var unread = await _context.ContactMessages
+                .Where(m => !m.IsRead)
+                .ToListAsync();
+
+            foreach (var m in unread)
+            {
+                m.IsRead = true;
+                m.ReadAt = DateTime.UtcNow;
+            }
+
+            if (unread.Count > 0)
+                await _context.SaveChangesAsync();
+
+            TempData["Success"] = unread.Count > 0
+                ? $"✅ {unread.Count} پیام به‌عنوان خوانده‌شده علامت‌گذاری شد."
+                : "ℹ️ پیام جدیدی برای علامت‌گذاری وجود ندارد.";
+            return RedirectToAction(nameof(Messages));
+        }
+
+        [HttpPost("{id:int}")]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteMessage(int id)
         {
             var message = await _context.ContactMessages.FindAsync(id);
