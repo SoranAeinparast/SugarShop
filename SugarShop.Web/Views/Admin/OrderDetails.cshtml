@@ -16,11 +16,14 @@
     var boxCapacities = ViewBag.BoxCapacities as Dictionary<string, SugarShop.Web.ViewModels.BoxCapacityViewModel>
         ?? new Dictionary<string, SugarShop.Web.ViewModels.BoxCapacityViewModel>();
     var sweetPricePerKg = ViewBag.SweetPricePerKg as Dictionary<int, decimal> ?? new Dictionary<int, decimal>();
-    var sweetApproxWeight = ViewBag.SweetApproxWeight as Dictionary<int, int> ?? new Dictionary<int, int>();
-    // وزن هر ردیف جعبه: وزن وزن‌کشی‌شده‌ی قبلی و در غیر این صورت وزن تقریبی همان شیرینی
-    Func<OrderItem, int> rowWeightOf = i => i.WeightSnapshotGrams is > 0
-        ? i.WeightSnapshotGrams!.Value
-        : (i.SweetItemId.HasValue && sweetApproxWeight.ContainsKey(i.SweetItemId.Value) ? sweetApproxWeight[i.SweetItemId.Value] : 0);
+    // ⚖️ وزن هر ردیف جعبه فقط همان وزنی است که فروشگاه وزن‌کشی و ثبت کرده است.
+    // هیچ وزن پیش‌فرض/تقریبی‌ای نشان داده نمی‌شود؛ ردیفِ وزن‌کشی‌نشده خالی می‌ماند.
+    Func<OrderItem, int> rowWeightOf = i => i.WeightSnapshotGrams is > 0 ? i.WeightSnapshotGrams!.Value : 0;
+    // 🏷️ دکمه چاپ برچسب وزن‌کشی فقط وقتی فعال است که وزن همه جعبه‌ها ثبت شده باشد
+    bool allBoxesWeighed = boxGroups.Any()
+        && boxGroups.All(bg => boxInfos.ContainsKey(bg.Key!) && boxInfos[bg.Key!].FinalWeightGrams > 0);
+    string gramsFa(int g) => g.ToString("N0").ToPersianNumber() + " گرم";
+    string tomanFa(decimal t) => t.ToString("N0").ToPersianNumber() + " تومان";
     Func<OrderItem, decimal> rowPriceOf = i =>
     {
         var pricePerKg = i.SweetItemId.HasValue && sweetPricePerKg.ContainsKey(i.SweetItemId.Value) ? sweetPricePerKg[i.SweetItemId.Value] : 0m;
@@ -67,8 +70,21 @@
         <div class="d-flex gap-2">
             @if (boxGroups.Any())
             {
-                <a href="@Url.Action("BoxLabels", "Admin", new { orderId = Model.Id })" target="_blank" rel="noopener"
-                   class="btn btn-dark" title="چاپ برچسب وزن‌کشی همه جعبه‌ها برای چسباندن روی جعبه">🏷️ چاپ برچسب وزن‌کشی</a>
+                @* 🏷️ تنها دکمه چاپ برچسب صفحه (دکمه تکراریِ پایین صفحه حذف شد).
+                   تا وقتی وزن همه جعبه‌ها ثبت نشده باشد غیرفعال است و در همان تب باز می‌شود
+                   تا در حالت وب، پنجره/تب اضافه در پوسته‌ی اپ باز نشود. *@
+                if (allBoxesWeighed)
+                {
+                    <a href="@Url.Action("BoxLabels", "Admin", new { orderId = Model.Id })"
+                       class="btn btn-dark" title="چاپ برچسب وزن‌کشی همه جعبه‌ها برای چسباندن روی جعبه">🏷️ چاپ برچسب وزن‌کشی</a>
+                }
+                else
+                {
+                    <button type="button" class="btn btn-dark" disabled
+                            title="این دکمه پس از ورود اوزان و ثبت آن‌ها توسط فروشگاه فعال می‌شود.">
+                        🏷️ چاپ برچسب وزن‌کشی
+                    </button>
+                }
             }
             <a asp-action="Orders" class="btn btn-secondary">بازگشت</a>
         </div>
@@ -76,6 +92,10 @@
     @if (TempData["SuccessMessage"] != null)
     {
         <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+    }
+    @if (TempData["WarningMessage"] != null)
+    {
+        <div class="alert alert-warning">@TempData["WarningMessage"]</div>
     }
     @if (TempData["ErrorMessage"] != null)
     {
@@ -373,8 +393,17 @@
                         }
                     </h5>
                     <div class="d-flex align-items-center gap-2">
-                        <a href="@Url.Action("BoxLabels", "Admin", new { orderId = Model.Id, boxTitle })" target="_blank" rel="noopener"
-                           class="btn btn-sm btn-light" title="چاپ برچسب وزن‌کشی همین جعبه">🏷️ چاپ برچسب این جعبه</a>
+                        @* برچسب هر جعبه هم تا ثبت وزن همان جعبه غیرفعال است و در همان تب باز میشود *@
+                        @if (boxInfo != null && boxInfo.FinalWeightGrams > 0)
+                        {
+                            <a href="@Url.Action("BoxLabels", "Admin", new { orderId = Model.Id, boxTitle })"
+                               class="btn btn-sm btn-light" title="چاپ برچسب وزن‌کشی همین جعبه">🏷️ چاپ برچسب این جعبه</a>
+                        }
+                        else
+                        {
+                            <button type="button" class="btn btn-sm btn-light" disabled
+                                    title="پس از ثبت وزن این جعبه فعال می‌شود.">🏷️ چاپ برچسب این جعبه</button>
+                        }
                         <form asp-action="DeleteBox" method="post" onsubmit="return confirm('آیا از حذف کل این جعبه اطمینان دارید؟');">
                             <input type="hidden" name="orderId" value="@Model.Id" />
                             <input type="hidden" name="boxTitle" value="@boxTitle" />
@@ -385,8 +414,8 @@
                 <div class="card-body">
                     @if (boxCapacity != null && boxCapacity.CapacityGrams > 0)
                     {
-                        @* هشدار زنده ظرفیت: با JS پر می‌شود و دکمه‌های ثبت را غیرفعال می‌کند *@
-                        <div class="alert alert-danger py-2 px-3 mb-2 d-none box-capacity-alert"
+                        @* هشدار زنده ظرفیت: فقط اطلاع‌رسانی است و جلوی ثبت وزن را نمی‌گیرد *@
+                        <div class="alert alert-warning py-2 px-3 mb-2 d-none box-capacity-alert"
                              data-capacity="@boxCapacity.CapacityGrams"
                              data-type-title="@boxCapacity.TypeTitle"></div>
                     }
@@ -421,13 +450,15 @@
                                         </td>
                                         <td class="align-middle text-center">
                                             <input type="hidden" name="itemWeightId" form="finalizeWeightsForm" value="@row.Id" />
+                                            @* وزن پیش‌فرض ندارد؛ تا وزن‌کشی توسط فروشگاه خالی می‌ماند *@
                                             <input type="number" name="itemWeight" form="finalizeWeightsForm"
                                                    class="form-control form-control-sm text-center box-row-weight"
-                                                   min="0" max="20000" step="1" value="@rowWeight"
+                                                   min="0" max="20000" step="1" placeholder="وزن‌کشی نشده"
+                                                   value="@(rowWeight > 0 ? rowWeight.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
                                                    data-price-per-kg="@pricePerKg.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-quantity="@rowQuantity" />
                                         </td>
                                         <td class="align-middle text-center">@pricePerKg.ToString("N0").ToPersianNumber() تومان</td>
-                                        <td class="align-middle text-center row-price">@rowPrice.ToString("N0").ToPersianNumber() تومان</td>
+                                        <td class="align-middle text-center row-price">@(rowWeight > 0 ? tomanFa(rowPrice) : "—")</td>
                                         <td class="align-middle text-center">
                                             <a href="@Url.Action("EditOrderItem", "Admin", new { itemId = row.Id })" class="btn btn-sm btn-warning">✏️ ویرایش</a>
                                         </td>
@@ -437,9 +468,9 @@
                             <tfoot class="table-secondary">
                                 <tr>
                                     <td class="text-end align-middle"><strong>جمع این جعبه:</strong></td>
-                                    <td class="text-center align-middle"><strong class="box-total-weight">@rowsWeight.ToPersianNumber() گرم</strong></td>
+                                    <td class="text-center align-middle"><strong class="box-total-weight">@(rowsWeight > 0 ? gramsFa(rowsWeight) : "—")</strong></td>
                                     <td class="text-center align-middle"><span class="text-muted small">@sweetGroups.Count().ToPersianNumber() نوع شیرینی</span></td>
-                                    <td class="text-center align-middle"><strong class="box-total-price">@rowsPrice.ToString("N0").ToPersianNumber() تومان</strong></td>
+                                    <td class="text-center align-middle"><strong class="box-total-price">@(rowsPrice > 0 ? tomanFa(rowsPrice) : "—")</strong></td>
                                     <td></td>
                                 </tr>
                             </tfoot>
@@ -523,11 +554,7 @@
     }
     <div class="mt-3 d-flex gap-2 flex-wrap">
         <a href="/Box/Status?returnToOrder=@Model.Id" class="btn btn-success">➕ اضافه کردن جعبه جدید</a>
-        @if (boxGroups.Any())
-        {
-            <a href="@Url.Action("BoxLabels", "Admin", new { orderId = Model.Id })" target="_blank" rel="noopener"
-               class="btn btn-outline-dark" title="چاپ برچسب وزن‌کشی همه جعبه‌های این سفارش">🏷️ چاپ برچسب همه جعبه‌ها</a>
-        }
+        @* 🏷️ دکمه تکراری «چاپ برچسب همه جعبهها» حذف شد؛ همان دکمه بالای صفحه (با فعال/غیرفعال شدن خودکار) کافی است. *@
         <form asp-action="DeleteOrder" method="post" onsubmit="return confirm('آیا از حذف کل این سفارش اطمینان دارید؟');">
             <input type="hidden" name="orderId" value="@Model.Id" />
             <button type="submit" class="btn btn-danger">️ حذف کل سفارش</button>
@@ -617,16 +644,17 @@
 
                 var tr = input.closest('tr');
                 var cell = tr ? tr.querySelector('.row-price') : null;
-                if (cell) cell.textContent = Math.round(rowPrice).toLocaleString('fa-IR') + ' تومان';
+                // ردیفِ وزن‌کشی‌نشده قیمت ندارد (به‌جای عدد صفر/پیش‌فرض، خط تیره)
+                if (cell) cell.textContent = weight > 0 ? (Math.round(rowPrice).toLocaleString('fa-IR') + ' تومان') : '—';
 
                 totalWeight += weight;
                 totalPrice += rowPrice;
             });
 
             var weightLabel = card.querySelector('.box-total-weight');
-            if (weightLabel) weightLabel.textContent = Math.round(totalWeight).toLocaleString('fa-IR') + ' گرم';
+            if (weightLabel) weightLabel.textContent = totalWeight > 0 ? (Math.round(totalWeight).toLocaleString('fa-IR') + ' گرم') : '—';
             var priceLabel = card.querySelector('.box-total-price');
-            if (priceLabel) priceLabel.textContent = Math.round(totalPrice).toLocaleString('fa-IR') + ' تومان';
+            if (priceLabel) priceLabel.textContent = totalPrice > 0 ? (Math.round(totalPrice).toLocaleString('fa-IR') + ' تومان') : '—';
 
             // اگر مدیر خودش وزن/قیمت نهایی را تغییر داده باشد، مقدار او دست‌نخورده می‌ماند
             var finalWeight = card.querySelector('.final-weight-input');
@@ -639,8 +667,9 @@
         }
 
         // ============================================================
-        // ⛔ کنترل ظرفیت جعبه: وزن بیشتر از ظرفیت نوع جعبه قابل ثبت نیست
-        // (همین کنترل سمت سرور هم دوباره انجام می‌شود و مبنا همان است)
+        // ⚖️ هشدار ظرفیت جعبه: اگر وزن از ظرفیت اسمی نوع جعبه کمی بیشتر شد،
+        // فقط هشدار نشان داده می‌شود و ثبت وزن انجام می‌شود (چند گرم اختلاف در وزن‌کشی
+        // طبیعی است). همان هشدار سمت سرور هم به‌صورت پیام اطلاع‌رسانی نمایش داده می‌شود.
         // ============================================================
         function faNum(n) { return Math.round(n).toLocaleString('fa-IR'); }
 
@@ -670,9 +699,9 @@
                 var reason = w.rowsWeight > capacity
                     ? 'جمع وزن ردیف‌ها ' + faNum(w.rowsWeight) + ' گرم است'
                     : 'وزن نهایی واردشده ' + faNum(w.finalWeight) + ' گرم است';
-                alertBox.innerHTML = '⚠️ ' + reason + '، در حالی که ظرفیت ' +
+                alertBox.innerHTML = '⚠️ توجه: ' + reason + '، در حالی که ظرفیت ' +
                     (alertBox.dataset.typeTitle || 'این جعبه') + ' فقط ' + faNum(capacity) +
-                    ' گرم است. تا اصلاح نشود، ثبت وزن انجام نمی‌شود (وزن ردیف‌ها را کم کنید یا با جعبه بزرگ‌تر وزن‌کشی کنید).';
+                    ' گرم است. ثبت وزن انجام می‌شود؛ فقط اگر اختلاف زیاد است وزن ردیف‌ها را کم کنید یا با جعبه بزرگ‌تر وزن‌کشی کنید.';
                 alertBox.classList.remove('d-none');
             }
             else
@@ -684,18 +713,9 @@
         }
 
         function refreshCapacityGuards() {
-            var over = false;
             document.querySelectorAll('.box-card').forEach(function (card) {
-                if (checkBoxCapacity(card)) over = true;
+                checkBoxCapacity(card);
             });
-
-            // تا وقتی یک جعبه از ظرفیت گذشته، هیچ‌کدام از دکمه‌های ثبت کار نمی‌کنند
-            document.querySelectorAll('#finalizeWeightsForm button[type="submit"]').forEach(function (btn) {
-                btn.disabled = over;
-                btn.title = over ? 'ابتدا وزن بیش از ظرفیت جعبه را اصلاح کنید.' : '';
-            });
-
-            return over;
         }
 
         document.querySelectorAll('.box-card').forEach(function (card) {
@@ -718,14 +738,18 @@
             recalcBoxCard(card);
         });
 
-        // نگهبان دوم روی فرم: اگر با کلید میانبر یا Enter هم ارسال شود، جلوی ثبت گرفته می‌شود
+        // پیش از ارسال: ردیف‌های وزن‌کشی‌نشده (خالی) صفر می‌شوند تا آرایه‌های وزن هم‌تراز بمانند.
+        // هیچ مانعی برای ثبت وزن‌های بیش از ظرفیت اسمی جعبه گذاشته نمی‌شود (فقط هشدار داده شد).
         var finalForm = document.getElementById('finalizeWeightsForm');
         if (finalForm) {
-            finalForm.addEventListener('submit', function (e) {
-                if (refreshCapacityGuards()) {
-                    e.preventDefault();
-                    alert('⛔ وزن یک یا چند جعبه از ظرفیت آن نوع جعبه بیشتر است؛ ابتدا وزن‌ها را اصلاح کنید.');
-                }
+            finalForm.addEventListener('submit', function () {
+                // توجه: این ورودی‌ها با صفت form به فرم وصل شده‌اند و داخل خود <form> نیستند
+                document.querySelectorAll('.box-row-weight').forEach(function (input) {
+                    if (input.value === '' || isNaN(parseFloat(input.value))) input.value = '0';
+                });
+                document.querySelectorAll('.final-weight-input, .final-price-input').forEach(function (input) {
+                    if (input.value === '' || isNaN(parseFloat(input.value))) input.value = '0';
+                });
             });
         }
     </script>

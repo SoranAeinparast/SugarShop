@@ -29,6 +29,12 @@ using SugarShop.Web.Services.Api;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// 🧪 حصار محیط آزمون خودکار (Environment = Testing): آزمونهای جداسازی «اپ/وب» و آزمونهای
+// یکپارچه نباید هیچ عارضهی جانبی واقعی داشته باشند — نه پیامک، نه کار زمانبندیشده،
+// نه مهاجرت/seed روی دیتابیس واقعی. در این محیط، DbContextها و کش را خودِ آزمون با
+// نسخهی in-memory جایگزین میکند و کارهای پسزمینه اصلاً شروع نمیشوند.
+var isAutomatedTest = builder.Environment.IsEnvironment("Testing");
+
 // ✅ Data Protection - ذخیره کلیدها در فایل سیستم
 var dataProtectionPath = Path.Combine(builder.Environment.ContentRootPath, "DataProtectionKeys");
 Directory.CreateDirectory(dataProtectionPath);
@@ -113,7 +119,9 @@ builder.Services.AddHangfire(config => config
     .UseSimpleAssemblyNameTypeSerializer()
     .UseRecommendedSerializerSettings()
     .UseSqlServerStorage(connectionString));
-builder.Services.AddHangfireServer();
+// ⛔ در محیط آزمون، سرور Hangfire بالا نمیآید تا هیچ وظیفهی زمانبندیشدهای (پیامک/پاکسازی) اجرا نشود
+if (!isAutomatedTest)
+    builder.Services.AddHangfireServer();
 
 builder.Services.AddScoped<IWebScraperService, WebScraperService>();
 builder.Services.AddScoped<IContentParserService, ContentParserService>();
@@ -159,7 +167,9 @@ builder.Services.AddScoped<SugarShop.Web.Services.SmsLinkReportService>();
 builder.Services.AddScoped<SmsJobs>();
 // کار شبانه پاک‌سازی جدول‌های موقت (توکن صورت‌حساب، لاگ پیامک، صف، OTP و سشنهای منقضی)
 builder.Services.AddScoped<SugarShop.Web.Services.MaintenanceJobs>();
-builder.Services.AddHostedService<SmsProcessor>();
+// ⛔ پردازش صف پیامک در محیط آزمون خاموش است تا هیچ پیامک واقعی ارسال نشود
+if (!isAutomatedTest)
+    builder.Services.AddHostedService<SmsProcessor>();
 
 // تأیید ایمیل قابل تنظیم است (Identity:RequireConfirmedEmail). پیش‌فرض "false" است تا وقتی SMTP تنظیم نشده
 // ورود کاربران فعلی قفل نشود؛ برای روشن‌کردن، مقدار را در appsettings به true تغییر دهید.
@@ -256,6 +266,8 @@ builder.Services.AddControllersWithViews(options =>
 var app = builder.Build();
 
 // ✅ ایجاد جدول Session در دیتابیس
+// ⛔ در محیط آزمون لازم نیست: کش سشن در آزمون حافظه‌ای است و هیچ ارتباطی با SQL Server برقرار نمی‌شود.
+if (!isAutomatedTest)
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -290,6 +302,8 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+// ⛔ در محیط آزمون مهاجرت/seed اجرا نمیشود (دیتابیس آزمون in-memory و خارج از این مسیر ساخته میشود)
+if (!isAutomatedTest)
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -323,6 +337,8 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+// ⛔ در محیط آزمون هیچ کار زمانبندیای ثبت نمیشود (از جمله زمانبند محتوا)
+if (!isAutomatedTest)
 try
 {
     using (var scope = app.Services.CreateScope())
@@ -338,6 +354,7 @@ catch (Exception ex)
 }
 
 // ── وظایف زمان‌بندی‌شده سامانه پیامکی (یادآوری تولد / بازگشت مشتری / هشدار موجودی) ──
+if (!isAutomatedTest)
 try
 {
     using (var scope = app.Services.CreateScope())
@@ -359,6 +376,7 @@ catch (Exception ex)
 }
 
 // ── کار شبانه نگهداری دیتابیس (پاک‌سازی ردیف‌های منقضی و لاگ‌های قدیمی) ──
+if (!isAutomatedTest)
 try
 {
     // ۳ بامداد به وقت ایران = ۲۳:۳۰ UTC روز قبل
@@ -409,6 +427,12 @@ app.UseStaticFiles(new StaticFileOptions
 // بدون این هدر، مرورگر یا CDN نسخه قدیمی صفحه را نشان می‌داد و تغییرات اعمال‌نشده به نظر می‌رسیدند
 app.Use(async (context, next) =>
 {
+    // 🧹 کوکی قدیمی «appmode» نسخه‌های قبلی حذف می‌شود: تشخیص «داخل اپ» فقط از User-Agent
+    // انجام می‌شود؛ اگر این کوکی از نسخه‌های قدیمی روی مرورگر مانده باشد، مرورگر وب هم
+    // می‌توانست صفحه اپ را بگیرد (علت «بعد از چاپ/پرداخت، صفحه حالت اپ بود»).
+    if (context.Request.Cookies.ContainsKey("appmode"))
+        context.Response.Cookies.Delete("appmode");
+
     context.Response.OnStarting(() =>
     {
         var response = context.Response;
@@ -575,3 +599,10 @@ public class HangfireDashboardAuthorizationFilter : IDashboardAuthorizationFilte
             && (httpContext.User.IsInRole("Admin") || httpContext.User.IsInRole("Owner"));
     }
 }
+
+/// <summary>
+/// نقطه‌ی ورود برنامه به‌صورت عمومی اعلام می‌شود تا پروژه‌ی آزمون بتواند با
+/// <c>WebApplicationFactory&lt;Program&gt;</c> کل خط لوله‌ی واقعی (کنترلرها، Razor، میان‌افزار)
+/// را در حافظه اجرا کند. بدون این اعلان، کلاس تولیدشده‌ی top-level statements داخلی است.
+/// </summary>
+public partial class Program { }

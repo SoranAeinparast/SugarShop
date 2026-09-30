@@ -35,3 +35,17 @@ twa/app-release-signed.apk
 
 # Local/dev log files (never commit)
 *.log
+
+# خروجی تست‌های دستی با curl در ریشه‌ی مخزن
+# ⚠️ cookies.txt کوکی ورود (نشست زنده) دارد و نباید هرگز کامیت شود
+/cookies.txt
+/login.html
+/reg.html
+/orders.html
+/orders_app.html
+/sm.err
+/tools/uitest.ps1
+
+# فایل‌های پیش‌نمایش موقت (صفحه‌های HTML آزمون چیدمان)
+**/wwwroot/_preview_*.html
+/_preview_*.html

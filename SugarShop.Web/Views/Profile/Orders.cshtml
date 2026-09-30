@@ -4,6 +4,23 @@
 @using MD.PersianDateTime
 @{
     ViewData["Title"] = "سفارشات من";
+
+    // همه‌ی این مقادیر از سرور می‌آیند؛ لیست فقط یک صفحه است و شمارش‌ها در SQL حساب شده‌اند
+    var currentStatus = ViewBag.CurrentStatus as string ?? "all";
+    var search = ViewBag.Search as string ?? "";
+    var statusCounts = ViewBag.StatusCounts as Dictionary<string, int> ?? new Dictionary<string, int>();
+    int currentPage = ViewBag.CurrentPage is int cp ? cp : 1;
+    int totalPages = ViewBag.TotalPages is int tp ? tp : 1;
+    int pageSize = ViewBag.PageSize is int ps ? ps : 10;
+    int totalCount = ViewBag.TotalCount is int tc ? tc : Model.Count;
+
+    int CountOf(string key) => statusCounts.TryGetValue(key, out var c) ? c : 0;
+    string TabUrl(string status) => Url.Action("Orders", new { status, search }) ?? "#";
+    string PageUrl(int page) => Url.Action("Orders", new { status = currentStatus, search, page }) ?? "#";
+    bool hasFilter = currentStatus != "all" || !string.IsNullOrEmpty(search);
+
+    int firstRow = totalCount == 0 ? 0 : ((currentPage - 1) * pageSize) + 1;
+    int lastRow = Math.Min(currentPage * pageSize, totalCount);
 }
 <div class="container mt-4 mb-5">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -26,11 +43,67 @@
         </div>
     }
 
-    @if (Model.Count == 0)
+    @* 🔍 جست‌وجوی سمت سرور: کد سفارش (فروشگاه) یا کد/طعم کیک سفارشی *@
+    <form method="get" asp-action="Orders" class="card card-body mb-3">
+        <input type="hidden" name="status" value="@currentStatus" />
+        <div class="row g-2 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label">🔍 جست‌وجو</label>
+                <input type="text" name="search" value="@search" class="form-control"
+                       placeholder="کد سفارش (مثل ORD-... یا CAKE-0012) یا طعم کیک..." />
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary">جست‌وجو</button>
+                @if (!string.IsNullOrEmpty(search))
+                {
+                    <a href="@TabUrl(currentStatus)" class="btn btn-outline-secondary">پاک کردن</a>
+                }
+            </div>
+        </div>
+    </form>
+
+    @* تب‌های وضعیت: شمارنده‌ها روی کل سفارش‌های منطبق با جست‌وجو حساب شده‌اند (نه فقط صفحه جاری) *@
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <a class="nav-link @(currentStatus == "all" ? "active" : "")" href="@TabUrl("all")">
+                همه <span class="badge bg-secondary">@CountOf("all").ToPersianNumber()</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(currentStatus == "unpaid" ? "active" : "")" href="@TabUrl("unpaid")">
+                در انتظار پرداخت <span class="badge bg-warning text-dark">@CountOf("unpaid").ToPersianNumber()</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(currentStatus == "active" ? "active" : "")" href="@TabUrl("active")">
+                در حال آماده‌سازی <span class="badge bg-info text-dark">@CountOf("active").ToPersianNumber()</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(currentStatus == "done" ? "active" : "")" href="@TabUrl("done")">
+                تحویل‌شده <span class="badge bg-success">@CountOf("done").ToPersianNumber()</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(currentStatus == "canceled" ? "active" : "")" href="@TabUrl("canceled")">
+                لغو‌شده <span class="badge bg-danger">@CountOf("canceled").ToPersianNumber()</span>
+            </a>
+        </li>
+    </ul>
+
+    @if (totalCount == 0)
     {
         <div class="bg-white rounded-4 shadow-sm p-5 text-center">
-            <div class="alert alert-info border-0 mb-0">شما هنوز سفارشی ثبت نکرده‌اید.</div>
-            <a href="/Home/Index" class="btn btn-primary mt-3">شروع خرید</a>
+            @if (hasFilter)
+            {
+                <div class="alert alert-info border-0 mb-0">سفارشی با این فیلتر پیدا نشد.</div>
+                <a href="@Url.Action("Orders", "Profile")" class="btn btn-outline-secondary mt-3">نمایش همه سفارش‌ها</a>
+            }
+            else
+            {
+                <div class="alert alert-info border-0 mb-0">شما هنوز سفارشی ثبت نکرده‌اید.</div>
+                <a href="/Home/Index" class="btn btn-primary mt-3">شروع خرید</a>
+            }
         </div>
     }
     else
@@ -169,6 +242,41 @@
                     </tbody>
                 </table>
             </div>
+
+            <div class="text-muted small mt-3">
+                نمایش @firstRow.ToPersianNumber() تا @lastRow.ToPersianNumber() از @totalCount.ToPersianNumber() سفارش
+                @if (!string.IsNullOrEmpty(search))
+                {
+                    <span>— نتیجه جست‌وجوی «@search»</span>
+                }
+            </div>
+
+            @if (totalPages > 1)
+            {
+                <nav>
+                    <ul class="pagination justify-content-center mt-2">
+                        <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                            <a class="page-link" href="@PageUrl(currentPage - 1)">قبلی</a>
+                        </li>
+                        @for (int i = 1; i <= totalPages; i++)
+                        {
+                            if (i == 1 || i == totalPages || Math.Abs(i - currentPage) <= 2)
+                            {
+                                <li class="page-item @(i == currentPage ? "active" : "")">
+                                    <a class="page-link" href="@PageUrl(i)">@i.ToPersianNumber()</a>
+                                </li>
+                            }
+                            else if (Math.Abs(i - currentPage) == 3)
+                            {
+                                <li class="page-item disabled"><span class="page-link">…</span></li>
+                            }
+                        }
+                        <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                            <a class="page-link" href="@PageUrl(currentPage + 1)">بعدی</a>
+                        </li>
+                    </ul>
+                </nav>
+            }
         </div>
     }
 </div>

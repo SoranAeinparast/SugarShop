@@ -96,10 +96,19 @@ namespace SugarShop.Infrastructure.Persistence.Sales
                     .HasForeignKey(x => x.CustomerAddressId)
                     .OnDelete(DeleteBehavior.Restrict);
                 e.HasIndex(x => new { x.UserId, x.CreatedAt });
+                // ستون نشانگر «سفارش داخلی» (شارژ کیف پول / سفارش موقت کیک). مقدارش همیشه در
+                // خود مدل از Notes ساخته می‌شود و در همه فیلترها جای مقایسه‌ی متنی Notes را می‌گیرد.
+                e.Property(x => x.IsInternal).HasDefaultValue(false);
                 // ایندکس‌های لیست سفارش‌های پنل ادمین: مرتب‌سازی زمانی و فیلتر وضعیت هر دو سمت سرور
                 // انجام می‌شوند، پس بدون این دو ایندکس با زیاد شدن سفارش‌ها هر صفحه اسکن کامل می‌خواست.
                 e.HasIndex(x => x.CreatedAt);
                 e.HasIndex(x => new { x.OrderStatus, x.CreatedAt });
+                // 📊 ایندکس پوشای آمار لیست سفارش‌ها: شمارش و جمع مبلغ هر وضعیت (تب‌های پنل ادمین)
+                // با یک پیمایش باریک روی همین ایندکس حساب می‌شوند و نه با خواندن جدول پهن
+                // (که ستون Notes از نوع max و آدرس/یادداشت‌ها را هم در خود دارد).
+                e.HasIndex(x => new { x.IsInternal, x.OrderStatus })
+                    .HasDatabaseName("IX_Orders_IsInternal_OrderStatus")
+                    .IncludeProperties(x => new { x.FinalTotalAmount, x.TotalAmountSnapshot });
                 e.Property(x => x.CreatedAt).HasColumnType("datetime2");
                 e.Property(x => x.UpdatedAt).HasColumnType("datetime2");
                 e.Property(x => x.InventoryDeductedAt).HasColumnType("datetime2");

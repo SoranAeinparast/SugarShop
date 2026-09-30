@@ -11,27 +11,87 @@
     --pwa-ink: #4E342E;
 }
 
-/* ── حالت standalone (اپ نصب‌شده روی گوشی) ── */
+/* ── حالت standalone (PWA نصب‌شده روی گوشی یا دسکتاپ) ──
+   ⚠️ این حالت «وب» است، نه اپ: دقیقاً همان چیدمان مرورگر (هدر و فوتر سایت) را نشان می‌دهد،
+   فقط بدون نوار آدرس. پس هرگز نباید فاصله‌ی بالای صفحه را بازنویسی کند: اگر هدر Fixed است،
+   مقدار دقیق از _Layout می‌آید (calc با متغیر --header-h + لبه‌ی ناامن دستگاه).
+   باگ قبلی: همین‌جا با !important مقدار صفر تحمیل می‌شد (چون !important بر استایل درون‌خطی
+   مقدم است) و در PWA نصب‌شده ابتدای هر صفحه زیر هدر می‌رفت. */
 @media all and (display-mode: standalone) {
-    /* نوار آدرس مرورگر وجود ندارد؛ لبه‌های ناامن دستگاه رعایت شود */
-    body {
-        padding-top: env(safe-area-inset-top) !important;
+    /* صفحه‌های بدون هدر Fixed: فقط لبه‌ی ناامن بالای دستگاه جبران می‌شود */
+    html:not(.header-fixed) body {
+        padding-top: env(safe-area-inset-top);
     }
-    /* در حالت اپ، فوتر سایت برای فضای بیشتر جمع می‌شود (ناوبری اصلی پایین است) */
+    /* هدر Fixed هم به اندازه‌ی لبه‌ی ناامن پایین می‌آید تا زیر نوار وضعیت/بریدگی نرود */
+    html.header-fixed header.site-header {
+        top: env(safe-area-inset-top) !important;
+    }
+    /* نوار آدرس مرورگر وجود ندارد؛ فوتر کمی از نوار پایین فاصله می‌گیرد */
     footer.site-footer {
         padding-bottom: calc(var(--pwa-nav-h) + env(safe-area-inset-bottom) + 12px) !important;
     }
 }
 
 /* ═══════════════ حالت داخل اپلیکیشن ═══════════════
-   صفت data-app-mode را wwwroot/js/app-mode.js روی <html> می‌گذارد.
-   داخل اپ، سایت هدر و فوتر خودش را جمع می‌کند تا شبیه یک اپ بومی باشد و
-   نوار پایین، ناوبری اصلی است (همان اجزای نوار PWA، ولی با آیتم‌های اپ‌محور). */
-html[data-app-mode="inapp"] header.site-header,
+   صفت data-app-mode را سمت سرور (AppClient، بر اساس User-Agent پوسته اندرویدی) و اسکریپت
+   wwwroot/js/app-mode.js روی <html> می‌گذارند؛ هر دو از یک نشانه تغذیه می‌شوند، پس چیدمان
+   وب هرگز به چیدمان اپ تبدیل نمی‌شود و برعکس.
+
+   داخل اپ، سایت فقط پوسته‌ی اپ را نشان می‌دهد:
+     • هدر = نوار باریک چسبان بالای صفحه (همان منوی سایت با دکمه‌ی همبرگری و لینک‌های حساب)
+       تا هیچ صفحه‌ای «لخت» نماند و کاربر هیچ‌وقت لینک‌های حساب/خروج را گم نکند،
+     • فوتر جمع می‌شود؛ ناوبری اصلی، نوار پایین اپ است (خانه، سبد، سفارش‌ها، پروفایل). */
 html[data-app-mode="inapp"] footer.site-footer,
 html[data-app-mode="inapp"] .app-download-chip,
 html[data-app-mode="inapp"] .pwa-install-banner {
     display: none !important;
+}
+
+/* ── نوار بالای اپ: باریک، چسبان و در همه‌ی عرض‌ها آکاردئونی ── */
+html[data-app-mode="inapp"] header.site-header {
+    position: sticky !important;
+    top: 0 !important;
+    left: auto !important;
+    right: auto !important;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, .12);
+}
+html[data-app-mode="inapp"] header.site-header .navbar {
+    padding-top: .28rem;
+    padding-bottom: .28rem;
+}
+html[data-app-mode="inapp"] header.site-header .container-fluid {
+    padding-right: .6rem;
+    padding-left: .6rem;
+}
+html[data-app-mode="inapp"] header.site-header .navbar-brand {
+    padding-left: .25rem;
+    gap: 6px;
+}
+html[data-app-mode="inapp"] header.site-header .site-logo {
+    height: 30px;
+}
+html[data-app-mode="inapp"] header.site-header .site-title {
+    font-size: .98rem;
+    border-left: 0;
+    padding-left: 0;
+}
+/* دکمه‌ی منو و پنل آکاردئونی در همه‌ی عرض‌ها (حتی تبلت) مثل یک اپ رفتار می‌کنند */
+html[data-app-mode="inapp"] header.site-header .navbar-toggler {
+    display: inline-block !important;
+}
+html[data-app-mode="inapp"] header.site-header .navbar-collapse {
+    display: none !important;
+}
+html[data-app-mode="inapp"] header.site-header .navbar-collapse.show {
+    display: block !important;
+    max-height: calc(100vh - 64px);
+    overflow-y: auto;
+    border-radius: 0 0 14px 14px;
+}
+html[data-app-mode="inapp"] header.site-header .navbar-nav .nav-link {
+    font-size: .95rem;
+    padding-top: .5rem;
+    padding-bottom: .5rem;
 }
 
 /* داخل اپ، نوار پایین در همه‌ی عرض‌ها (حتی تبلت) ناوبری اصلی است */

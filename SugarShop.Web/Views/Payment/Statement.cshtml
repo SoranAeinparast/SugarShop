@@ -7,21 +7,21 @@
     bool hasPendingBoxes = Model.Boxes.Any(b => !b.IsFinalized);
     bool isFirstStage = !hasFinalizedBoxes && hasPendingBoxes;
 
-    // حالت «لینک اختصاصی»: مشتری از پیامک آمده و وارد حساب نشده، پس دکمه‌های دانلود باید از توکن استفاده کنند
+// حالت «لینک اختصاصی»: مشتری از پیامک آمده و وارد حساب نشده، پس دکمه دانلود باید از توکن استفاده کند
     bool isPublicLink = !string.IsNullOrWhiteSpace(Model.PublicToken);
+    // حالت «داخل اپ / مرورگر» را همین‌جا سمت سرور از User-Agent می‌گیریم (AppClient) تا سند
+    // بدون هیچ پرشی و بدون تکیه بر اجرای جاوااسکریپت درست رندر شود — دقیقاً مثل بقیه صفحات.
+    bool isAppRequest = SugarShop.Web.Helpers.AppClient.IsAppRequest(Context);
     string? pdfUrl = isPublicLink
         ? Url.Action("PublicStatementPdf", "Payment", new { token = Model.PublicToken })
         : Url.Action("StatementPdf", "Payment", new { orderId = Model.OrderId });
-    string? excelUrl = isPublicLink
-        ? Url.Action("PublicStatementExcel", "Payment", new { token = Model.PublicToken })
-        : Url.Action("StatementExcel", "Payment", new { orderId = Model.OrderId });
     string stageTitle = isFirstStage
         ? "صورت‌حساب پرداخت مرحله اول (بخش قیمت‌ثابت)"
         : (hasPendingBoxes ? "صورت‌حساب پرداخت مرحله دوم (بخشی از جعبه‌ها)" : "صورت‌حساب پرداخت مرحله دوم (جعبه‌های وزن‌کشی‌شده)");
 
 }
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="fa" dir="rtl" data-app-mode="@(isAppRequest ? "inapp" : "browser")">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -172,12 +172,11 @@
     <div class="toolbar no-print">
         <div>
             <strong>🧾 صورت‌حساب پرداخت سفارش @Model.OrderCode</strong>
-            <span style="color:#666;font-size:12px;">— قابل چاپ و ذخیره به‌صورت PDF</span>
+            <span style="color:#666;font-size:12px;">— سند رسمی این سفارش، فایل PDF آن قابل نگهداری و چاپ است</span>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            @* تنها راه دریافت سند: فایل PDF (نسخه چاپی HTML و اکسل حذف شد) *@
             <a class="primary" href="@pdfUrl">⬇️ دانلود PDF</a>
-            <button type="button" onclick="window.print()">🖨️ چاپ</button>
-            <a href="@excelUrl">⬇️ دانلود اکسل</a>
             @if (!isPublicLink)
             {
                 <a href="@Url.Action("Confirm", "Payment", new { orderId = Model.OrderId })">🔙 بازگشت به صفحه پرداخت</a>
@@ -194,11 +193,15 @@
                 <span>این لینک تا <strong>@Model.LinkExpiresAtText</strong> معتبر است.</span>
             }
             @* حالت مرورگر: دعوت به ورود برای دیدن همیشگی سفارش‌ها.
-               داخل اپ این خط پنهان می‌شود (data-app-mode توسط کامپوننت زیر تعیین می‌شود). *@
-            <span class="browser-only">
-                برای دیدن همیشگی سفارش‌ها و صورت‌حساب‌ها
-                <a href="@Url.Action("Login", "Account", new { returnUrl = Url.Action("PublicStatement", "Payment", new { token = Model.PublicToken }) })">وارد حساب خود شوید</a>.
-            </span>
+               داخل اپ این خط اصلاً رندر نمی‌شود (به‌جای پنهان‌کردن با CSS) تا HTML هر حالت
+               دقیقاً همان چیزی باشد که کاربر می‌بیند — قرارداد data-ui-scope="web". *@
+            @if (!isAppRequest)
+            {
+                <span class="browser-only" data-ui-scope="web">
+                    برای دیدن همیشگی سفارش‌ها و صورت‌حساب‌ها
+                    <a href="@Url.Action("Login", "Account", new { returnUrl = Url.Action("PublicStatement", "Payment", new { token = Model.PublicToken }) })">وارد حساب خود شوید</a>.
+                </span>
+            }
 
             @* دکمه «باز کردن در اپلیکیشن» (مرورگر اندرویدی) و راهنمای داخل‌اپ: همان کامپوننت صفحات دیگر *@
             <vc:app-link-bar order-id="@Model.OrderId" />
@@ -260,7 +263,13 @@
         </div>
 
         <div class="meta">
-            <div><span>مشتری:</span> @(string.IsNullOrWhiteSpace(Model.CustomerName) ? "-" : Model.CustomerName)</div>
+            <div>
+                <span>مشتری:</span> @(string.IsNullOrWhiteSpace(Model.CustomerName) ? "-" : Model.CustomerName)
+                @if (!string.IsNullOrWhiteSpace(Model.ReceiverName) && Model.ReceiverName != Model.CustomerName)
+                {
+                    <span class="text-muted">— گیرنده: @Model.ReceiverName</span>
+                }
+            </div>
             <div><span>تاریخ سفارش:</span> @Model.OrderDate.ToPersianNumber()</div>
             <div><span>شیوه تحویل:</span> @Model.DeliveryMethodText</div>
             <div><span>تاریخ صدور سند:</span> @Model.PrintDate.ToPersianNumber()</div>
@@ -311,7 +320,9 @@
                         {
                             <tr>
                                 <td colspan="3" class="name">⚖️ وزن نهایی و 💰 مبلغ نهایی این جعبه (مبنای پرداخت)</td>
-                                <td>@(box.FinalWeightGrams ?? 0).ToPersianNumber() گرم</td>
+                                @* ⚠️ پرانتز باید دور کل عبارت باشد؛ وگرنه Razor فقط @( ... ) را ارزیابی می‌کند و
+                                   «.ToPersianNumber()» به‌صورت متن خام چاپ می‌شود. *@
+                                <td>@((box.FinalWeightGrams ?? 0).ToPersianNumber()) گرم</td>
                                 <td>@Toman(box.FinalPrice ?? 0)</td>
                             </tr>
                         }

@@ -1,5 +1,8 @@
 @{
     Layout = null;
+    // همان قاعده‌ی بقیه‌ی صفحه‌ها: حالت «داخل اپ / مرورگر» را سمت سرور و از User-Agent تعیین می‌کنیم
+    // (AppClient) تا صفت data-app-mode در همان اولین رندر درست باشد و با اجرای جاوااسکریپت جابه‌جا نشود.
+    var isAppRequest = SugarShop.Web.Helpers.AppClient.IsAppRequest(Context);
     var storeName = (string)(ViewBag.StoreName ?? "شیرینی سرا");
     var logoPath = (string)(ViewBag.LogoPath ?? "/Pwa/Icon?size=192");
     var apkVersion = (string)(ViewBag.ApkVersion ?? "1.4.1");
@@ -13,7 +16,7 @@
     if (!string.IsNullOrEmpty(appBase)) { qrUrl = appBase + "/App/Qr"; }
 }
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="fa" dir="rtl" data-app-mode="@(isAppRequest ? "inapp" : "browser")">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

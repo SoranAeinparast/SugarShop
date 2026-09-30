@@ -97,9 +97,7 @@ namespace SugarShop.Web.ViewComponents
             {
                 // همان فیلتر صفحه «سفارش‌های من»: شارژ کیف پول و سفارش موقت کیک سفارشی جزو سفارش‌ها نیستند
                 var orders = await _salesDb.Orders.AsNoTracking()
-                    .Where(o => o.UserId == user.Id
-                        && o.Notes != "WalletRecharge"
-                        && (o.Notes == null || !o.Notes.StartsWith("CustomCakeOrder_")))
+                    .Where(o => o.UserId == user.Id && !o.IsInternal)
                     .OrderByDescending(o => o.CreatedAt)
                     .Take(orderCount)
                     .Select(o => new AppHomeOrderVm

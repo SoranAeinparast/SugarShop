@@ -3,7 +3,7 @@
 @using SugarShop.Web.Helpers
 @using SugarShop.Web.ViewModels
 @using MD.PersianDateTime
-@model List<Order>
+@model List<AdminOrderListItemViewModel>
 @{
     ViewData["Title"] = "مدیریت سفارشات";
     var currentStatus = ViewBag.CurrentStatus as string ?? "all";
@@ -81,6 +81,14 @@
         <li class="nav-item">
             <a class="nav-link @(currentStatus == "delivered" ? "active" : "")" href="@TabUrl("delivered")">تحویل شده
             <span class="badge bg-success">@CountOf(OrderStatus.Delivered)</span></a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(currentStatus == "shipped" ? "active" : "")" href="@TabUrl("shipped")">ارسال شده
+            <span class="badge bg-dark">@CountOf(OrderStatus.Shipped)</span></a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(currentStatus == "cancelled" ? "active" : "")" href="@TabUrl("cancelled")">لغو شده
+            <span class="badge bg-danger">@CountOf(OrderStatus.Cancelled)</span></a>
         </li>
     </ul>
 

@@ -69,7 +69,35 @@ namespace SugarShop.Domain.Entities.Sales
         public Address? CustomerAddress { get; set; }
         public DateTime? DeliveryDate { get; set; }
         public TimeSpan? DeliveryTime { get; set; }
-        public string? Notes { get; set; }
+
+        private string? _notes;
+
+        /// <summary>
+        /// یادداشت سفارش.
+        ///
+        /// ⚠️ نشانه‌های داخلی (شارژ کیف پول / سفارش موقت کیک سفارشی) در همین ستون ذخیره می‌شوند؛
+        /// برای اینکه این دو هرگز از هم جدا نشوند، هر نوشتن روی این ویژگی نشانگر
+        /// <see cref="IsInternal"/> را هم به‌روز می‌کند.
+        /// </summary>
+        public string? Notes
+        {
+            get => _notes;
+            set
+            {
+                _notes = value;
+                IsInternal = OrderNotes.IsInternalNotes(value);
+            }
+        }
+
+        /// <summary>
+        /// نشانگر «سفارش داخلی»: سفارش موقتِ شارژ کیف پول یا سفارش موقتِ پرداخت کیک سفارشی.
+        ///
+        /// این سفارش‌ها در لیست سفارش‌های پنل مدیریت، در «سفارش‌های من»، در آمار داشبورد و در
+        /// API نمایش داده نمی‌شوند. تشخیص آن‌ها قبلاً با خودِ ستون <see cref="Notes"/> (نوع max)
+        /// انجام می‌شد؛ یعنی هر فیلتر یا جمع مبلغ باید کل جدول پهن را می‌خواند. این ستون کوچک
+        /// و ایندکس‌پذیر است و مقدارش همیشه با قاعده‌ی <see cref="OrderNotes.IsInternalNotes"/> می‌آید.
+        /// </summary>
+        public bool IsInternal { get; private set; }
 
         // ✅ فیلد جدید: روش تحویل
         public DeliveryMethod DeliveryMethod { get; set; } = DeliveryMethod.Pickup;

@@ -176,10 +176,11 @@ namespace SugarShop.Web.Controllers
         /// </summary>
         private async Task<IQueryable<Order>> BuildAdminOrdersQueryAsync(string? search)
         {
+            // فیلتر «سفارش داخلی» با ستون نشانگر کوچک و ایندکس‌شده انجام می‌شود، نه با مقایسه‌ی
+            // متن ستون Notes (که نوعش max است و هر ترجمه‌ی LINQ را به خواندن جدول پهن می‌کشاند).
             var query = _salesDb.Orders
                 .AsNoTracking()
-                .Where(o => o.Notes != OrderNotes.WalletRecharge
-                            && (o.Notes == null || !o.Notes.StartsWith(OrderNotes.CustomCakeOrderPrefix)));
+                .Where(o => !o.IsInternal);
 
             var term = search?.Trim();
             if (string.IsNullOrWhiteSpace(term)) return query;
@@ -204,28 +205,36 @@ namespace SugarShop.Web.Controllers
                                     || (o.UserId != null && matchedUserIds.Contains(o.UserId)));
         }
 
+        /// <summary>
+        /// نگاشت یک‌جای پارامتر «تب وضعیت» به وضعیت واقعی سفارش.
+        /// هم فیلتر SQL، هم انتخاب ردیف‌های تجمیعی و هم اعتبارسنجی پارامتر ورودی از همین متد
+        /// استفاده می‌کنند تا هرگز بین «تب انتخاب‌شده» و «عددی که جمع بسته می‌شود» اختلاف نیفتد
+        /// (و مقدار نامعتبر هرگز به دیتابیس نرسد).
+        /// </summary>
+        private static OrderStatus? AdminOrderStatusOf(string? status) => status switch
+        {
+            "awaiting" => OrderStatus.AwaitingReview,
+            "pending" => OrderStatus.PendingPayment,
+            "paid" => OrderStatus.Paid,
+            "preparing" => OrderStatus.Preparing,
+            "shipped" => OrderStatus.Shipped,
+            "delivered" => OrderStatus.Delivered,
+            "cancelled" => OrderStatus.Cancelled,
+            _ => null
+        };
+
         private static IQueryable<Order> ApplyAdminOrderStatusFilter(IQueryable<Order> query, string? status)
         {
-            return status switch
-            {
-                "awaiting" => query.Where(o => o.OrderStatus == OrderStatus.AwaitingReview),
-                "pending" => query.Where(o => o.OrderStatus == OrderStatus.PendingPayment),
-                "paid" => query.Where(o => o.OrderStatus == OrderStatus.Paid),
-                "preparing" => query.Where(o => o.OrderStatus == OrderStatus.Preparing),
-                "delivered" => query.Where(o => o.OrderStatus == OrderStatus.Delivered),
-                _ => query
-            };
+            var wanted = AdminOrderStatusOf(status);
+            return wanted is null ? query : query.Where(o => o.OrderStatus == wanted.Value);
         }
 
         /// <summary>سقف ردیف‌های خروجی اکسل تا صادر کردن کل جدول، سرور را از پا نیندازد.</summary>
         private const int MaxExcelExportRows = 20000;
 
         /// <summary>فقط وضعیت‌های شناخته‌شده پذیرفته می‌شوند (این مقدار در نام فایل خروجی هم استفاده می‌شود).</summary>
-        private static string NormalizeAdminOrderStatus(string? status) => status switch
-        {
-            "awaiting" or "pending" or "paid" or "preparing" or "delivered" => status,
-            _ => "all"
-        };
+        private static string NormalizeAdminOrderStatus(string? status)
+            => AdminOrderStatusOf(status) is null ? "all" : status!;
 
         [Authorize(Roles = "Admin,OrderManager,Owner")]
         [HttpGet]
@@ -236,21 +245,54 @@ namespace SugarShop.Web.Controllers
 
             // کوئری پایه (بدون فیلتر وضعیت) تا شمارنده تب‌ها با همان عبارت جست‌وجو محاسبه شود
             var baseQuery = await BuildAdminOrdersQueryAsync(search);
-            var query = ApplyAdminOrderStatusFilter(baseQuery, status);
 
-            // تعداد و جمع مبلغ با یک کوئری تجمیعی در SQL محاسبه می‌شوند (نه با بارگذاری ردیف‌ها)
-            var totalOrders = await query.CountAsync();
-            var totalPayments = await query
-                .SumAsync(o => (decimal?)(o.FinalTotalAmount ?? o.TotalAmountSnapshot)) ?? 0m;
+            // ── 📊 همه شمارش‌ها و جمع‌ها در «یک» کوئری تجمیعی ──
+            // تعداد و جمع مبلغ هر وضعیت با یک GROUP BY می‌آید؛ پس تب‌ها، شمارش کل و
+            // جمع کل پرداخت‌ها هر سه از یک پیمایش دیتابیس ساخته می‌شوند.
+            // (قبلاً سه کوئری جدا اجرا می‌شد: Count، Sum و GroupBy روی همان مجموعه)
+            var statusAggregates = await baseQuery
+                .GroupBy(o => o.OrderStatus)
+                .Select(g => new
+                {
+                    Status = g.Key,
+                    Count = g.Count(),
+                    Amount = g.Sum(o => o.FinalTotalAmount ?? o.TotalAmountSnapshot)
+                })
+                .ToListAsync();
+
+            var statusCounts = statusAggregates.ToDictionary(a => a.Status, a => a.Count);
+
+            // تب «همه» جمع همه وضعیت‌هاست؛ بقیه تب‌ها فقط وضعیت خودشان
+            var wantedStatus = AdminOrderStatusOf(status);
+            var visibleAggregates = wantedStatus is null
+                ? statusAggregates
+                : statusAggregates.Where(a => a.Status == wantedStatus.Value).ToList();
+
+            var totalOrders = visibleAggregates.Sum(a => a.Count);
+            var totalPayments = visibleAggregates.Sum(a => a.Amount);
 
             var totalPages = Math.Max(1, (int)Math.Ceiling(totalOrders / (double)pageSize));
             var currentPage = Math.Clamp(page, 1, totalPages);
 
-            // ✅ فقط یک صفحه خوانده می‌شود (قبلاً همه سفارش‌ها همراه ردیف‌هایشان لود می‌شد)
-            var orders = await query
+            // ✅ فقط یک صفحه خوانده می‌شود — و فقط ستون‌هایی که جدول نمایش می‌دهد
+            // (به‌جای مادیت کل موجودیت Order با تمام ستون‌های سنگینش).
+            // ترتیب دوم (Id) تضمین می‌کند سفارش‌های هم‌زمان بین صفحه‌ها جابه‌جا نشوند.
+            var orders = await ApplyAdminOrderStatusFilter(baseQuery, status)
                 .OrderByDescending(o => o.CreatedAt)
+                .ThenByDescending(o => o.Id)
                 .Skip((currentPage - 1) * pageSize)
                 .Take(pageSize)
+                .Select(o => new AdminOrderListItemViewModel
+                {
+                    Id = o.Id,
+                    OrderCode = o.OrderCode,
+                    UserId = o.UserId,
+                    CustomerName = o.CustomerName,
+                    OrderStatus = o.OrderStatus,
+                    FinalTotalAmount = o.FinalTotalAmount,
+                    FinalTotalWeightGrams = o.FinalTotalWeightGrams,
+                    CreatedAt = o.CreatedAt
+                })
                 .ToListAsync();
 
             // نام کاربران فقط برای سفارش‌های همین صفحه از Identity خوانده می‌شود
@@ -266,11 +308,6 @@ namespace SugarShop.Web.Controllers
                     .Where(u => userIds.Contains(u.Id))
                     .ToDictionaryAsync(u => u.Id, u => u.UserName ?? u.Email ?? "نامشخص");
             }
-
-            var statusCounts = await baseQuery
-                .GroupBy(o => o.OrderStatus)
-                .Select(g => new { Status = g.Key, Count = g.Count() })
-                .ToDictionaryAsync(x => x.Status, x => x.Count);
 
             ViewBag.UserNames = users;
             ViewBag.StatusCounts = statusCounts;
@@ -550,14 +587,11 @@ namespace SugarShop.Web.Controllers
             // ۱) وزن تک‌تک ردیف‌های شیرینی جعبه‌ها ثبت می‌شود (وزن‌کشی واقعی توسط ادمین)
             await ApplyRowWeightsAsync(order, itemWeightId, itemWeight);
 
-            // ⛔ کنترل ظرفیت: اگر جمع وزن ردیف‌های یک جعبه از ظرفیت نوع آن جعبه بیشتر باشد،
-            // هیچ تغییری ذخیره نمی‌شود (فقط در حافظه اعمال شده و ذخیره‌سازی انجام نمی‌گیرد).
-            var capacityError = await FindBoxCapacityViolationAsync(order, boxTitle, finalWeightGrams);
-            if (capacityError != null)
-            {
-                TempData["ErrorMessage"] = capacityError;
-                return RedirectToAction("OrderDetails", new { id = orderId });
-            }
+            // ⚖️ اطلاع‌رسانی ظرفیت: اگر جمع وزن ردیف‌های یک جعبه از ظرفیت نوع آن جعبه بیشتر باشد،
+            // فقط هشدار نشان داده می‌شود و ثبت وزن ادامه پیدا می‌کند (چند گرم اختلاف در وزن‌کشی
+            // طبیعی است و نباید مانع ثبت شود).
+            var capacityWarning = await FindBoxCapacityWarningAsync(order, boxTitle, finalWeightGrams);
+            if (capacityWarning != null) TempData["WarningMessage"] = capacityWarning;
 
             // ۲) وزن/قیمت نهایی جعبه‌هایی که ادمین دستی وارد نکرده، از روی وزن ردیف‌ها محاسبه می‌شود
             var computedTotals = await ComputeBoxTotalsFromRowsAsync(order);
@@ -661,11 +695,12 @@ namespace SugarShop.Web.Controllers
         }
 
         /// <summary>
-        /// کنترل ظرفیت جعبه‌ها پیش از ثبت وزن.
+        /// هشدار ظرفیت جعبه‌ها (غیرمسدودکننده).
         /// اگر جمع وزن ردیف‌های یک جعبه (با وزن‌های ارسالی همین درخواست) یا وزن نهایی واردشده ادمین،
-        /// از ظرفیت نوع همان جعبه بیشتر باشد، پیام خطای فارسی برگردانده می‌شود و هیچ چیزی ذخیره نمی‌شود.
+        /// از ظرفیت اسمی نوع همان جعبه بیشتر باشد، پیام هشدار فارسی برگردانده می‌شود؛
+        /// اما ثبت وزن انجام می‌شود، چون چند گرم اختلاف در وزنکشی طبیعی است.
         /// </summary>
-        private async Task<string?> FindBoxCapacityViolationAsync(Order order, string[]? boxTitles, int[]? submittedFinalWeights)
+        private async Task<string?> FindBoxCapacityWarningAsync(Order order, string[]? boxTitles, int[]? submittedFinalWeights)
         {
             var capacities = await GetBoxCapacitiesAsync(order);
             if (capacities.Count == 0) return null; // جعبه‌های قدیمی که نوع جعبه‌شان ثبت نشده، کنترل نمی‌شوند
@@ -702,8 +737,8 @@ namespace SugarShop.Web.Controllers
 
             if (violations.Count == 0) return null;
 
-            return "⛔ ثبت وزن انجام نشد؛ وزن از ظرفیت جعبه بیشتر است. " + string.Join(" | ", violations) +
-                   ". برای ادامه، وزن ردیف‌ها را اصلاح کنید یا با نوع جعبه بزرگ‌تر (یا جعبه بیشتر) سفارش را وزن‌کشی کنید.";
+            return "⚠️ توجه: " + string.Join(" | ", violations) +
+                   ". ثبت وزن انجام شد؛ اگر اختلاف زیاد است وزن ردیف‌ها را اصلاح کنید یا با نوع جعبه بزرگ‌تر (یا جعبه بیشتر) سفارش را وزن‌کشی کنید.";
         }
 
         [Authorize(Roles = "Admin,OrderManager,Owner")]
@@ -795,13 +830,10 @@ namespace SugarShop.Web.Controllers
 
             await ApplyRowWeightsAsync(order, itemWeightId, itemWeight);
 
-            // ⛔ کنترل ظرفیت: وزن بیشتر از ظرفیت نوع جعبه ذخیره نمی‌شود
-            var capacityError = await FindBoxCapacityViolationAsync(order, boxTitle, finalWeightGrams);
-            if (capacityError != null)
-            {
-                TempData["ErrorMessage"] = capacityError;
-                return RedirectToAction("OrderDetails", new { id = orderId });
-            }
+            // ⚖️ هشدار ظرفیت (غیرمسدودکننده): وزن بیش از ظرفیت اسمی جعبه ثبت می‌شود،
+            // فقط پیام اطلاع‌رسانی نمایش داده می‌شود.
+            var capacityWarning = await FindBoxCapacityWarningAsync(order, boxTitle, finalWeightGrams);
+            if (capacityWarning != null) TempData["WarningMessage"] = capacityWarning;
 
             var computedTotals = await ComputeBoxTotalsFromRowsAsync(order);
             await UpsertBoxFinalInfosAsync(order, boxTitle, finalWeightGrams, finalPrice, adminNotes, computedTotals);
@@ -1032,12 +1064,23 @@ namespace SugarShop.Web.Controllers
 
             var store = await _salesDb.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
 
+            // 👤 نام مشتری (صاحب حساب سفارش) — جدا از نام گیرنده که ممکن است شخص دیگری باشد
+            var customerAccountName = "";
+            if (!string.IsNullOrEmpty(order.UserId))
+            {
+                var customerUser = await _userManager.FindByIdAsync(order.UserId!);
+                customerAccountName = !string.IsNullOrWhiteSpace(customerUser?.FullName)
+                    ? customerUser!.FullName
+                    : (customerUser?.UserName ?? "");
+            }
+
             var vm = new BoxLabelViewModel
             {
                 StoreName = string.IsNullOrWhiteSpace(store?.SiteTitle) ? "شیرینی سرای تک" : store!.SiteTitle!,
                 StorePhone = store?.Phone ?? "",
                 OrderId = order.Id,
                 OrderCode = order.OrderCode,
+                CustomerAccountName = customerAccountName,
                 CustomerName = order.CustomerName,
                 CustomerPhone = order.CustomerPhone,
                 OrderDate = new PersianDateTime(order.CreatedAt).ToString("yyyy/MM/dd"),
@@ -1056,9 +1099,8 @@ namespace SugarShop.Web.Controllers
                     sweetById.TryGetValue(row.SweetItemId ?? 0, out var sweet);
                     var pricePerKg = sweet?.PricePerKg ?? 0m;
                     var quantity = row.Quantity < 1 ? 1 : row.Quantity;
-                    var weighed = row.WeightSnapshotGrams ?? 0;
-                    // ردیفی که هنوز وزن‌کشی نشده، وزن تقریبی همان شیرینی را نشان می‌دهد و برچسب «تقریبی» می‌گیرد
-                    var weight = weighed > 0 ? weighed : (sweet?.ApproxWeightGrams ?? 0);
+                    // فقط وزن واقعیِ ثبت‌شده چاپ می‌شود؛ هیچ وزن تقریبی/پیش‌فرضی روی برچسب نمی‌آید.
+                    var weight = row.WeightSnapshotGrams ?? 0;
                     var rowPrice = (weight / 1000m) * pricePerKg * quantity;
 
                     rowsWeight += weight;
@@ -1068,7 +1110,7 @@ namespace SugarShop.Web.Controllers
                         Name = sweet?.TitleFa ?? $"شیرینی (شناسه {row.SweetItemId})",
                         Quantity = quantity,
                         WeightGrams = weight,
-                        IsApproximate = weighed <= 0,
+                        IsApproximate = weight <= 0,
                         PricePerKg = pricePerKg,
                         RowPrice = rowPrice
                     });
@@ -1088,7 +1130,7 @@ namespace SugarShop.Web.Controllers
                     RowsPrice = rowsPrice,
                     FinalWeightGrams = finalWeight,
                     FinalPrice = info?.FinalPrice ?? rowsPrice,
-                    IsFinalized = info != null,
+                    IsFinalized = info != null && info.FinalWeightGrams > 0,
                     Notes = info?.AdminNotes,
                     QrPayload = $"{order.OrderCode}|{title}|{finalWeight}g"
                 });
@@ -1180,14 +1222,10 @@ namespace SugarShop.Web.Controllers
             var order = await _salesDb.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == orderId);
             if (order == null) return NotFound();
 
-            // ⛔ کنترل ظرفیت جعبه‌ها در همین مسیر منسوخ هم انجام می‌شود تا راهی برای دورزدن
-            // کنترل وزن جعبه‌ها و فعال‌کردن پرداخت باقی نماند.
-            var capacityError = await FindBoxCapacityViolationAsync(order, null, null);
-            if (capacityError != null)
-            {
-                TempData["ErrorMessage"] = capacityError;
-                return RedirectToAction("OrderDetails", new { id = orderId });
-            }
+            // ⚖️ هشدار ظرفیت در این مسیر منسوخ هم مثل مسیر اصلی غیرمسدودکننده است؛
+            // فقط پیام اطلاع‌رسانی ثبت می‌شود و فعال‌کردن پرداخت ادامه پیدا می‌کند.
+            var capacityWarning = await FindBoxCapacityWarningAsync(order, null, null);
+            if (capacityWarning != null) TempData["WarningMessage"] = capacityWarning;
 
             // ⚠️ ثبت «قیمت نهایی دستی» منسوخ شده است: مبلغی که از مشتری گرفته میشود از منبع واحد
             // محاسبه مبلغ میآید (محصولات + وزنهای تأییدشده + پیک − تخفیف)، پس قیمت دستی در

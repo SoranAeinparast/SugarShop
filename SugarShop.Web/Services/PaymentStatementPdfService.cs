@@ -100,7 +100,16 @@ namespace SugarShop.Web.Services
                         text.Span(value).SemiBold();
                     });
 
-                Cell("مشتری:", string.IsNullOrWhiteSpace(model.CustomerName) ? "-" : Txt(model.CustomerName));
+                row.RelativeItem().Text(text =>
+                {
+                    text.Span($"مشتری: ").FontColor(Colors.Grey.Darken2);
+                    text.Span(string.IsNullOrWhiteSpace(model.CustomerName) ? "-" : Txt(model.CustomerName)).SemiBold();
+                    if (!string.IsNullOrWhiteSpace(model.ReceiverName) && model.ReceiverName != model.CustomerName)
+                    {
+                        text.Span(" — گیرنده: ").FontColor(Colors.Grey.Darken2);
+                        text.Span(Txt(model.ReceiverName)).SemiBold();
+                    }
+                });
                 Cell("تاریخ سفارش:", model.OrderDate.ToPersianNumber());
                 Cell("شیوه تحویل:", Txt(model.DeliveryMethodText));
                 Cell("تاریخ صدور سند:", model.PrintDate.ToPersianNumber());

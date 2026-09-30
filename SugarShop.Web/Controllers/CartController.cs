@@ -81,7 +81,7 @@ namespace SugarShop.Web.Controllers
             return Json(new { success = true, title = "افزوده شد", message = $"{product.TitleFa} با موفقیت به سبد خرید اضافه شد.", type = "success" });
         }
 
-        [HttpPost]
+[HttpPost]
         [ValidateAntiForgeryToken]
         public IActionResult RemoveProduct(int productId)
         {
@@ -89,6 +89,40 @@ namespace SugarShop.Web.Controllers
             cartState.RemoveProduct(productId);
             HttpContext.Session.SetCartSessionState(cartState);
             return RedirectToAction("Index");
+        }
+
+        /// <summary>افزایش/کاهش تعداد یک محصول در سبد خرید (استپر +/−).</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateProductQuantity(int productId, int change)
+        {
+            var cartState = HttpContext.Session.GetCartSessionState();
+            var line = cartState.Products.FirstOrDefault(p => p.ProductId == productId);
+            if (line == null)
+                return Json(new { success = false, message = "محصول در سبد خرید یافت نشد." });
+
+            var product = await _catalogDb.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == productId && p.IsActive);
+            if (product == null)
+                return Json(new { success = false, message = "محصول نامعتبر یا غیرفعال است." });
+
+            var newQty = line.Quantity + change;
+            if (newQty < 1) newQty = 1;
+            if (newQty > MaxQuantityPerProduct) newQty = MaxQuantityPerProduct;
+
+            // موجودی: تعداد صفر/منفی با «-» پذیرفته نمی‌شود و ردیف حذف می‌گردد
+            if (change < 0 && line.Quantity + change <= 0)
+            {
+                cartState.RemoveProduct(productId);
+            }
+            else
+            {
+                if (newQty > product.Inventory)
+                    return Json(new { success = false, message = $"موجودی کافی نیست. موجودی فعلی: {product.Inventory}" });
+                line.Quantity = newQty;
+            }
+
+            HttpContext.Session.SetCartSessionState(cartState);
+            return Json(new { success = true });
         }
 
         [HttpGet]
@@ -107,6 +141,27 @@ namespace SugarShop.Web.Controllers
             HttpContext.Session.SetCartSessionState(cartState);
             TempData["SuccessMessage"] = "آیتم با موفقیت حذف شد.";
             return RedirectToAction("Index");
+        }
+
+        /// <summary>ویرایش ردیف‌های یک جعبه‌ی شیرینی داخل سبد خرید (بارگذاری دوباره در صفحه چینش جعبه).</summary>
+        [HttpGet]
+        public IActionResult EditBoxItem(string id)
+        {
+            var cartState = HttpContext.Session.GetCartSessionState();
+            var boxItem = cartState.Items.FirstOrDefault(x => x.Id == id);
+            if (boxItem == null)
+            {
+                TempData["Error"] = "جعبه یافت نشد.";
+                return RedirectToAction("Index");
+            }
+
+            var boxState = new BoxSessionState
+            {
+                SelectedBoxTypeId = boxItem.BoxTypeId,
+                Items = boxItem.Items
+            };
+            HttpContext.Session.SetBoxSessionState(boxState);
+            return RedirectToAction("Status", "Box");
         }
 
         [HttpPost]

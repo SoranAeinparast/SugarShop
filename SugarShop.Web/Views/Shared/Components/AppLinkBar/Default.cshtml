@@ -12,10 +12,15 @@
     صفحه‌های مستقل مثل صورتحساب پیامکی خودشان صدا می‌زنند).
 *@
 <div id="appLinkBar" style="display:none;margin-bottom:12px;font-size:13px;line-height:2;">
-    <a id="appLinkOpenBtn" href="@Model.IntentUrl" style="display:none;font-weight:700;">📱 باز کردن در اپلیکیشن</a>
-    @if (Model.OrderId.HasValue)
+    @* دکمه‌ی intent فقط در مرورگر معنا دارد (و آن‌جا هم اسکریپت تشخیص می‌دهد آیا لازم است) *@
+    @if (!Model.IsAppRequest)
     {
-        <span id="appLinkInApp" style="display:none;">
+        <a id="appLinkOpenBtn" href="@Model.IntentUrl" style="display:none;font-weight:700;" data-ui-scope="web">📱 باز کردن در اپلیکیشن</a>
+    }
+    @* پیام «داخل اپ هستید» فقط در همان حالت رندر می‌شود *@
+    @if (Model.IsAppRequest && Model.OrderId.HasValue)
+    {
+        <span id="appLinkInApp" style="display:none;" data-ui-scope="app">
             این صفحه داخل <strong>اپلیکیشن</strong> باز شده است؛
             <a href="@Url.Action("OrderDetails", "Profile", new { id = Model.OrderId.Value })">بازگشت به سفارش من</a>
             یا
@@ -28,6 +33,8 @@
     (function () {
         // حالت صفحه را اسکریپت مشترک /js/app-mode.js تعیین می‌کند
         // (پوسته اندرویدی سایت، PWA نصب‌شده یا مرورگر) — اینجا فقط همان نتیجه استفاده می‌شود.
+        // سرور بخش‌های اپ‌محور/وب‌محور این نوار را از قبل بر اساس همان User-Agent انتخاب کرده
+        // (فقط عناصر مربوط به همین حالت در HTML هستند)؛ این‌جا فقط نمایش نهایی تنظیم می‌شود.
         var mode = (window.appMode && window.appMode.mode)
             || document.documentElement.getAttribute('data-app-mode')
             || 'browser';
@@ -40,6 +47,6 @@
 
         if (openBtn) openBtn.style.display = canUseIntent ? 'inline-block' : 'none';
         if (inAppHint) inAppHint.style.display = inApp ? 'inline' : 'none';
-        if (bar) bar.style.display = (inApp || canUseIntent) ? '' : 'none';
+        if (bar) bar.style.display = (inAppHint || canUseIntent) ? '' : 'none';
     })();
 </script>

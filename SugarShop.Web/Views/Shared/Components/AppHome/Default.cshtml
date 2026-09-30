@@ -8,8 +8,10 @@
     string DateFa(DateTime utc) => new PersianDateTime(utc.Add(SugarShop.Web.Helpers.IranClock.Offset)).ToString("yyyy/MM/dd");
 }
 
-@* ── سربرگ اپ: سلام و احوال‌پرسی ── *@
-<section class="app-home">
+@* ── سربرگ اپ: سلام و احوال‌پرسی ──
+   data-ui-scope="app" قرارداد ماشین‌خوان جداسازی اپ/وب است: این بلوک فقط در حالت داخل اپ
+   رندر می‌شود (Home/Index) و آزمون خودکار AppModeSeparationTests آن را بررسی می‌کند. *@
+<section class="app-home" data-ui-scope="app">
     <div class="app-hero">
         <div class="app-hero__text">
             @if (Model.IsSignedIn)

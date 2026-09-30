@@ -73,9 +73,7 @@ namespace SugarShop.Web.Controllers
             var user = await _userManager.FindByIdAsync(userId!) as ApplicationUser;
 
             var orders = await _salesDb.Orders
-                .Where(o => o.UserId == userId
-                    && o.Notes != "WalletRecharge"
-                    && (o.Notes == null || !o.Notes.StartsWith("CustomCakeOrder_")))
+                .Where(o => o.UserId == userId && !o.IsInternal)
                 .ToListAsync();
 
             // سفارش‌های کیک سفارشی هم در آمار داشبورد لحاظ می‌شوند
@@ -96,9 +94,7 @@ namespace SugarShop.Web.Controllers
                 .CountAsync();
 
             var lastOrder = await _salesDb.Orders
-                .Where(o => o.UserId == userId
-                    && o.Notes != "WalletRecharge"
-                    && (o.Notes == null || !o.Notes.StartsWith("CustomCakeOrder_")))
+                .Where(o => o.UserId == userId && !o.IsInternal)
                 .OrderByDescending(o => o.CreatedAt)
                 .FirstOrDefaultAsync();
 
@@ -223,76 +219,259 @@ namespace SugarShop.Web.Controllers
             ViewBag.DefaultAvatars = GetDefaultAvatars();
             return View(model);
         }
-        public async Task<IActionResult> Orders()
+
+        /// <summary>
+        /// ردیف خام لیست سفارش‌های مشتری. هر دو منبع (سفارش فروشگاه و کیک سفارشی) به همین شکل
+        /// پروجکت می‌شوند تا فیلتر، جست‌وجو، شمارش و صفحه‌بندی همه در SQL انجام شود و هیچ‌وقت
+        /// کل تاریخچه سفارش‌های مشتری (همراه ردیف‌های کالا) بارگذاری نشود.
+        /// </summary>
+        /// <remarks>
+        /// ⚠️ عمداً یک کلاس با مقداردهی اولیه (object initializer) است و نه record با سازنده:
+        /// EF Core پروجکشن‌های سازنده‌ای را پروجکشن کلاینتی می‌داند و آنگاه «UNION ALL» دو منبع
+        /// ترجمه نمی‌شود؛ با مقداردهی اولیه، کل پروجکشن در SQL اجرا می‌شود.
+        /// </remarks>
+        private sealed class CustomerOrderRow
         {
-            var userId = _userManager.GetUserId(User);
-            var orders = await _salesDb.Orders
-                .Where(o => o.UserId == userId
-                    && o.Notes != "WalletRecharge"
-                    && (o.Notes == null || !o.Notes.StartsWith("CustomCakeOrder_")))
-                .Include(o => o.Items)
-                .OrderByDescending(o => o.CreatedAt)
-                .ToListAsync();
+            public bool IsCustomCake { get; init; }
+            public int Id { get; init; }
+            public string OrderCode { get; init; } = "";
+            public DateTime CreatedAt { get; init; }
+            public OrderStatus? Status { get; init; }
+            public PaymentStatus PaymentStatus { get; init; }
+            public bool IsPaymentEnabled { get; init; }
+            public bool IsDeletable { get; init; }
+            public CustomCakeOrderStatus? CakeStatus { get; init; }
+            public string? CakeFlavor { get; init; }
+            public decimal? CakeFinalPrice { get; init; }
+            public decimal? CakeDeliveryFee { get; init; }
+            public DeliveryMethod? CakeDeliveryMethod { get; init; }
+        }
 
-            var result = new List<OrderListItemViewModel>();
-            foreach (var order in orders)
+        /// <summary>تب‌های لیست «سفارشات من» — همان دسته‌بندی معنادار برای هر دو نوع سفارش.</summary>
+        private static readonly string[] CustomerOrderTabs = { "all", "unpaid", "active", "done", "canceled" };
+
+        private static string NormalizeCustomerOrderStatus(string? status)
+            => !string.IsNullOrWhiteSpace(status) && CustomerOrderTabs.Contains(status) ? status : "all";
+
+        /// <summary>سفارش‌های فروشگاه مشتری (بدون شارژ کیف پول و بدون سفارش موقتِ کیک) + فیلتر وضعیت و جست‌وجو — همه در SQL.</summary>
+        private IQueryable<Order> BuildShopOrdersQuery(string userId, string term, string status)
+        {
+            // فیلتر سفارش‌های داخلی با نشانگر ایندکس‌شده انجام می‌شود (به‌جای مقایسه‌ی متن Notes)
+            var query = _salesDb.Orders.AsNoTracking()
+                .Where(o => o.UserId == userId && !o.IsInternal);
+
+            query = status switch
             {
-                // مبلغ نمایش‌داده‌شده از همان منبعی می‌آید که مبلغ دریافتی درگاه را تعیین می‌کند
-                // (تخفیف، هزینه پیک، ارسال رایگان و فقط جعبه‌های وزن‌کشی‌شده)
-                var pricing = await _pricingService.ComputeAsync(order, includePayments: false);
-                bool isDeletable = order.OrderStatus == OrderStatus.AwaitingReview;
+                "unpaid" => query.Where(o => o.PaymentStatus == PaymentStatus.Unpaid),
+                "active" => query.Where(o => o.OrderStatus == OrderStatus.Paid
+                    || o.OrderStatus == OrderStatus.Preparing
+                    || o.OrderStatus == OrderStatus.Shipped),
+                "done" => query.Where(o => o.OrderStatus == OrderStatus.Delivered),
+                "canceled" => query.Where(o => o.OrderStatus == OrderStatus.Cancelled),
+                _ => query
+            };
 
-                result.Add(new OrderListItemViewModel
+            if (!string.IsNullOrWhiteSpace(term))
+                query = query.Where(o => o.OrderCode.Contains(term));
+
+            return query;
+        }
+
+        /// <summary>سفارش‌های کیک سفارشی مشتری + فیلتر وضعیت و جست‌وجو — همه در SQL.</summary>
+        private IQueryable<CustomCakeOrder> BuildCakeOrdersQuery(string userId, string term, string status)
+        {
+            var query = _salesDb.CustomCakeOrders.AsNoTracking().Where(o => o.UserId == userId);
+
+            query = status switch
+            {
+                // کیک پرداخت‌نشده یعنی هنوز تسویه نشده (مستقل از مرحله تولید)
+                "unpaid" => query.Where(o => !o.IsPaid),
+                "active" => query.Where(o => o.Status == CustomCakeOrderStatus.Accepted
+                    || o.Status == CustomCakeOrderStatus.InProduction
+                    || o.Status == CustomCakeOrderStatus.Ready),
+                "done" => query.Where(o => o.Status == CustomCakeOrderStatus.Completed),
+                "canceled" => query.Where(o => o.Status == CustomCakeOrderStatus.Rejected),
+                _ => query
+            };
+
+            if (!string.IsNullOrWhiteSpace(term))
+            {
+                // کد کیک در حافظه ساخته می‌شود (CAKE-0012)، پس همان عدد یا طعم/سفارش‌دهنده جست‌وجو می‌شود
+                var digits = new string(term.Where(char.IsDigit).ToArray());
+                if (int.TryParse(digits, out var cakeId))
                 {
-                    Id = order.Id,
-                    OrderCode = order.OrderCode,
-                    OrderStatus = order.OrderStatus,
-                    PaymentStatus = order.PaymentStatus,
-                    CreatedAt = order.CreatedAt,
-                    TotalFinalPrice = pricing.GrandTotal,
-                    IsPaymentEnabled = order.IsPaymentEnabled,
-                    IsDeletable = isDeletable
-                });
+                    var capturedId = cakeId;
+                    query = query.Where(o => o.Id == capturedId
+                        || (o.Flavor != null && o.Flavor.Contains(term)));
+                }
+                else
+                {
+                    query = query.Where(o => o.Flavor != null && o.Flavor.Contains(term));
+                }
             }
 
-            // ✅ افزودن سفارش‌های کیک سفارشی به همان لیست «سفارشات من»
-            var cakeOrders = await _salesDb.CustomCakeOrders
-                .Where(o => o.UserId == userId)
+            return query;
+        }
+
+        private static IQueryable<CustomerOrderRow> ProjectShopOrders(IQueryable<Order> query) => query.Select(o => new CustomerOrderRow
+        {
+            IsCustomCake = false,
+            Id = o.Id,
+            OrderCode = o.OrderCode,
+            CreatedAt = o.CreatedAt,
+            Status = o.OrderStatus,
+            PaymentStatus = o.PaymentStatus,
+            IsPaymentEnabled = o.IsPaymentEnabled,
+            IsDeletable = o.OrderStatus == OrderStatus.AwaitingReview,
+            CakeStatus = (CustomCakeOrderStatus?)null,
+            CakeFlavor = (string?)null,
+            CakeFinalPrice = (decimal?)null,
+            CakeDeliveryFee = (decimal?)null,
+            CakeDeliveryMethod = (DeliveryMethod?)null
+        });
+
+        private static IQueryable<CustomerOrderRow> ProjectCakeOrders(IQueryable<CustomCakeOrder> query) => query.Select(o => new CustomerOrderRow
+        {
+            IsCustomCake = true,
+            Id = o.Id,
+            OrderCode = "", // کد نمایشی (CAKE-XXXX) در حافظه ساخته می‌شود
+            CreatedAt = o.CreatedAt,
+            Status = (OrderStatus?)null,
+            PaymentStatus = o.IsPaid ? PaymentStatus.Succeeded : PaymentStatus.Unpaid,
+            IsPaymentEnabled = o.Status == CustomCakeOrderStatus.Accepted && !o.IsPaid && o.FinalPrice != null,
+            IsDeletable = o.Status == CustomCakeOrderStatus.Pending,
+            CakeStatus = o.Status,
+            CakeFlavor = o.Flavor,
+            CakeFinalPrice = o.FinalPrice,
+            CakeDeliveryFee = o.DeliveryFee,
+            CakeDeliveryMethod = o.DeliveryMethod
+        });
+
+        /// <summary>
+        /// لیست «سفارشات من» — صفحه‌بندی، جست‌وجو، شمارنده تب‌ها و شمارش کل، همه سمت سرور (SQL).
+        ///
+        /// قبلاً همه سفارش‌ها همراه ردیف‌های کالا لود می‌شد و برای هر سفارش یک کوئری جداگانه مبلغ
+        /// محاسبه می‌کرد (N+1)؛ حالا فقط یک صفحه خوانده می‌شود و مبلغ همان صفحه با یک کوئری گروهی
+        /// (بدون تکرار ریاضیات پول) از تنها منبع مبلغ می‌آید.
+        /// </summary>
+        public async Task<IActionResult> Orders(string status = "all", string? search = null, int page = 1)
+        {
+            const int pageSize = 10;
+
+            var userId = _userManager.GetUserId(User);
+            if (string.IsNullOrEmpty(userId)) return Challenge();
+
+            status = NormalizeCustomerOrderStatus(status);
+            var term = search?.Trim() ?? string.Empty;
+
+            // ── شمارنده تب‌ها: دو کوئری تجمیعی (GROUP BY) روی کل سفارش‌های منطبق با جست‌وجو،
+            //    نه با بارگذاری ردیف‌ها و نه فقط صفحه جاری ──
+            var shopCounts = await BuildShopOrdersQuery(userId, term, "all")
+                .GroupBy(o => new { o.PaymentStatus, o.OrderStatus })
+                .Select(g => new { g.Key.PaymentStatus, g.Key.OrderStatus, Count = g.Count() })
+                .ToListAsync();
+            var cakeCounts = await BuildCakeOrdersQuery(userId, term, "all")
+                .GroupBy(o => new { o.IsPaid, o.Status })
+                .Select(g => new { g.Key.IsPaid, g.Key.Status, Count = g.Count() })
                 .ToListAsync();
 
-            // سیاست ارسال رایگان باید در نمایش سفارش کیک هم اعمال شود تا با مبلغ دریافتی یکی بماند
+            int CountShop(Func<OrderStatus, bool> predicate) => shopCounts.Where(x => predicate(x.OrderStatus)).Sum(x => x.Count);
+            int CountCake(Func<CustomCakeOrderStatus, bool> predicate) => cakeCounts.Where(x => predicate(x.Status)).Sum(x => x.Count);
+
+            var statusCounts = new Dictionary<string, int>
+            {
+                ["all"] = shopCounts.Sum(x => x.Count) + cakeCounts.Sum(x => x.Count),
+                ["unpaid"] = shopCounts.Where(x => x.PaymentStatus == PaymentStatus.Unpaid).Sum(x => x.Count)
+                           + cakeCounts.Where(x => !x.IsPaid).Sum(x => x.Count),
+                ["active"] = CountShop(s => s == OrderStatus.Paid || s == OrderStatus.Preparing || s == OrderStatus.Shipped)
+                           + CountCake(s => s == CustomCakeOrderStatus.Accepted || s == CustomCakeOrderStatus.InProduction || s == CustomCakeOrderStatus.Ready),
+                ["done"] = CountShop(s => s == OrderStatus.Delivered) + CountCake(s => s == CustomCakeOrderStatus.Completed),
+                ["canceled"] = CountShop(s => s == OrderStatus.Cancelled) + CountCake(s => s == CustomCakeOrderStatus.Rejected)
+            };
+
+            // ── یک صفحه از هر دو منبع با یک کوئری (UNION ALL در SQL) و مرتب‌سازی/صفحه‌بندی در دیتابیس ──
+            var union = ProjectShopOrders(BuildShopOrdersQuery(userId, term, status))
+                .Concat(ProjectCakeOrders(BuildCakeOrdersQuery(userId, term, status)));
+
+            var totalCount = await union.CountAsync();
+            var totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
+            var currentPage = Math.Clamp(page, 1, totalPages);
+
+            var rows = await union
+                .OrderByDescending(r => r.CreatedAt)
+                .ThenByDescending(r => r.Id)
+                .Skip((currentPage - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            // ── فقط سفارش‌های همین صفحه (با ردیف‌های کالا) بارگذاری می‌شوند ──
+            var shopIds = rows.Where(r => !r.IsCustomCake).Select(r => r.Id).ToList();
+            var shopOrders = shopIds.Count == 0
+                ? new List<Order>()
+                : await _salesDb.Orders.Where(o => shopIds.Contains(o.Id)).Include(o => o.Items).ToListAsync();
+
+            // مبلغ همان صفحه با یک کوئری گروهی از تنها منبع مبلغ (بدون N+1 و بدون محاسبه دستی)
+            var pricingById = await _pricingService.ComputeManyAsync(shopOrders, includePayments: false);
+
+            // سیاست ارسال رایگان برای نمایش مبلغ سفارش کیک هم باید همان باشد که در پرداخت اعمال می‌شود
             var freeDeliveryThreshold = await _salesDb.SiteSettings.AsNoTracking()
                 .Select(s => (decimal?)s.FreeDeliveryThreshold).FirstOrDefaultAsync() ?? 0m;
 
-            foreach (var cake in cakeOrders)
+            var result = new List<OrderListItemViewModel>(rows.Count);
+            foreach (var row in rows) // ترتیب سرور (تازه‌ترین اول) حفظ می‌شود
             {
-                decimal cakeGoods = cake.FinalPrice ?? 0;
-                decimal cakeDeliveryFee = cake.DeliveryMethod == DeliveryMethod.Delivery ? (cake.DeliveryFee ?? 0) : 0;
-                if (freeDeliveryThreshold > 0 && cakeGoods >= freeDeliveryThreshold)
-                    cakeDeliveryFee = 0;
-
-                decimal cakePrice = cakeGoods + cakeDeliveryFee;
-                result.Add(new OrderListItemViewModel
+                if (row.IsCustomCake)
                 {
-                    IsCustomCake = true,
-                    CustomCakeOrderId = cake.Id,
-                    OrderCode = $"CAKE-{cake.Id:D4}",
-                    CreatedAt = cake.CreatedAt,
-                    TotalFinalPrice = cakePrice,
-                    PaymentStatus = cake.IsPaid ? PaymentStatus.Succeeded : PaymentStatus.Unpaid,
-                    CakeStatus = cake.Status,
-                    CakeIsPaid = cake.IsPaid,
-                    CakeFlavor = cake.Flavor,
-                    CakeDeliveryFee = cake.DeliveryFee,
-                    CakeDeliveryMethod = cake.DeliveryMethod,
-                    IsPaymentEnabled = cake.Status == CustomCakeOrderStatus.Accepted
-                        && !cake.IsPaid && cake.FinalPrice.HasValue,
-                    IsDeletable = cake.Status == CustomCakeOrderStatus.Pending
-                });
+                    decimal cakeGoods = row.CakeFinalPrice ?? 0m;
+                    decimal cakeDeliveryFee = row.CakeDeliveryMethod == DeliveryMethod.Delivery
+                        ? (row.CakeDeliveryFee ?? 0m) : 0m;
+                    if (freeDeliveryThreshold > 0 && cakeGoods >= freeDeliveryThreshold)
+                        cakeDeliveryFee = 0m;
+
+                    result.Add(new OrderListItemViewModel
+                    {
+                        IsCustomCake = true,
+                        CustomCakeOrderId = row.Id,
+                        OrderCode = $"CAKE-{row.Id:D4}",
+                        CreatedAt = row.CreatedAt,
+                        TotalFinalPrice = cakeGoods + cakeDeliveryFee,
+                        PaymentStatus = row.PaymentStatus,
+                        CakeStatus = row.CakeStatus,
+                        CakeIsPaid = row.PaymentStatus == PaymentStatus.Succeeded,
+                        CakeFlavor = row.CakeFlavor,
+                        CakeDeliveryFee = row.CakeDeliveryFee,
+                        CakeDeliveryMethod = row.CakeDeliveryMethod,
+                        IsPaymentEnabled = row.IsPaymentEnabled,
+                        IsDeletable = row.IsDeletable
+                    });
+                }
+                else
+                {
+                    result.Add(new OrderListItemViewModel
+                    {
+                        Id = row.Id,
+                        OrderCode = row.OrderCode,
+                        OrderStatus = row.Status ?? OrderStatus.AwaitingReview,
+                        PaymentStatus = row.PaymentStatus,
+                        CreatedAt = row.CreatedAt,
+                        TotalFinalPrice = pricingById.GetValueOrDefault(row.Id)?.GrandTotal ?? 0m,
+                        IsPaymentEnabled = row.IsPaymentEnabled,
+                        IsDeletable = row.IsDeletable
+                    });
+                }
             }
 
-            return View(result.OrderByDescending(r => r.CreatedAt).ToList());
+            ViewBag.CurrentStatus = status;
+            ViewBag.StatusCounts = statusCounts;
+            ViewBag.Search = term;
+            ViewBag.CurrentPage = currentPage;
+            ViewBag.TotalPages = totalPages;
+            ViewBag.PageSize = pageSize;
+            ViewBag.TotalCount = totalCount;
+
+            return View(result);
         }
+
         /// <summary>
         /// آدرس کوتاه <c>/o/{id}</c> مخصوص لینک داخل پیامک «سفارش شما آماده پرداخت است» —
         /// چون هر کاراکتر اضافه در آدرس، هزینه پیامک را بالا می‌برد. کاربر را به همان صفحه جزئیات

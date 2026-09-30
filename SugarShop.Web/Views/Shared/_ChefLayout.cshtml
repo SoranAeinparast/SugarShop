@@ -2,14 +2,26 @@
 @using SugarShop.Domain.Entities
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
+@{
+    // 📱 «این درخواست از داخل اپ آمده؟» — تنها منبع: User-Agent پوسته اندرویدی سایت.
+    // پنل سرآشپز هم داخل اپ همان پوسته‌ی اپ را می‌گیرد تا کاربر بین دو دنیا جابه‌جا نشود.
+    var isAppClient = SugarShop.Web.Helpers.AppClient.IsAppRequest(Context);
+}
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="fa" dir="rtl" data-app-mode="@(isAppClient ? "inapp" : "browser")">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - داشبورد سرآشپز</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.rtl.min.css" />
     <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+    @* رفع‌کننده‌ی حالت صفحه (اپ / مرورگر) — همان اسکریپت و همان منبع حقیقت در کل سایت *@
+    <script src="~/js/app-mode.js" asp-append-version="true"></script>
+    @if (isAppClient)
+    {
+        @* داخل اپ: پوسته‌ی اپ (نوار پایین) روی داشبورد سرآشپز هم اعمال می‌شود *@
+        <link rel="stylesheet" href="~/css/pwa.css" asp-append-version="true" />
+    }
     <style>
         html, body {
             background-color: #f8f9fa !important;
@@ -152,5 +164,10 @@
         });
     </script>
     @await RenderSectionAsync("Scripts", required: false)
+    @if (isAppClient)
+    {
+        @* ناوبری پایین اپ: کاربر داخل اپ همیشه به خانه/سبد/سفارش‌ها/پروفایل دسترسی دارد *@
+        <partial name="_PwaShell" />
+    }
 </body>
 </html>

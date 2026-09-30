@@ -4,44 +4,74 @@
    نتیجه روی <html> به‌صورت data-app-mode می‌نشیند تا CSS و بقیه اسکریپت‌ها
    از یک منبع واحد استفاده کنند:
 
-     inapp            → داخل اپلیکیشن (پوسته اندرویدی سایت یا PWA نصب‌شده)
+     inapp            → فقط داخل پوسته‌ی اندرویدی سایت (User-Agent: SugarShopApp/)
      android-browser  → مرورگر عادی کروم روی اندروید (intent:// کار می‌کند)
-     browser          → حالت عادی وب
+     browser          → حالت عادی وب (شامل PWA نصب‌شده روی گوشی یا دسکتاپ)
 
-   این فایل باید در <head> و پیش از رندر بدنه اجرا شود تا پرش ظاهری (flash) نباشد.
-   در صفحه‌های بدون چیدمان سایت (مثل صورتحساب پیامکی) هم باید صریحاً صدا زده شود.
+   قاعده طلایی: «اپ» فقط یعنی پوسته‌ی اندرویدی سایت.
+   همین تصمیم در سمت سرور هم گرفته می‌شود (AppClient.IsAppRequest) و نتیجه‌اش همان اول
+   روی <html> نوشته می‌شود؛ این اسکریپت فقط آن را تأیید و دقیق‌تر می‌کند (کروم اندروید در مقابل
+   وب معمولی). پس چیدمان وب هرگز به چیدمان اپ تبدیل نمی‌شود و برعکس — بدون کوکی، بدون حافظه
+   و بدون کش HTML؛ هر درخواست، حالت خودش را دارد.
+
+   ⚠️ این فایل باید در <head> و پیش از رندر بدنه اجرا شود تا پرش ظاهری (flash) نباشد.
+   در صفحه‌های بدون چیدمان سایت (مثل صورت‌حساب پیامکی) هم باید صریحاً صدا زده شود.
 */
 (function () {
     'use strict';
 
+    var root = document.documentElement;
     var ua = navigator.userAgent || '';
 
     // پوسته اندرویدی سایت، خودش را به انتهای User-Agent اضافه می‌کند (MainActivity: SugarShopApp/1.4)
     var androidShell = /SugarShopApp\//.test(ua);
 
-    // PWA نصب‌شده روی گوشی (WebAPK/TWA) یا هر محیطی که حالت standalone را گزارش کند
+    // تصمیم سمت سرور (روی <html> نوشته شده)؛ در صفحه‌های مستقل ممکن است خالی باشد
+    var serverMode = root.getAttribute('data-app-mode');
+    var serverSaysApp = serverMode === 'inapp';
+
+    // حالت PWA نصب‌شده (WebAPK/TWA) دیگر «داخل اپلیکیشن» حساب نمی‌شود: پنجره‌ی اپ نصب‌شده همان
+    // وب‌سایت است و کاربر باید همان چیدمان مرورگر را ببیند (وگرنه با کلیک روی دکمه‌های چاپ/دانلود
+    // یا بازگشت از درگاه پرداخت، صفحه ناگهان به چیدمان اپ تغییر می‌کرد).
     var standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
         || window.navigator.standalone === true;
 
-    var inApp = androidShell || standalone;
+    // تنها منبع «اپ»: نشانه‌ی UA. محاسبه در همان لحظه و مخصوص همین درخواست.
+    var inApp = androidShell;
     var isAndroid = /Android/i.test(ua);
+
+    if (serverMode && serverSaysApp !== inApp && window.console) {
+        // ناهم‌خوانی سرور و کلاینت فقط از دستکاری UA ممکن است؛ برای تشخیص سریع لاگ می‌شود.
+        console.warn('[app-mode] server says inapp=' + serverSaysApp + ' but UA says inapp=' + inApp);
+    }
 
     // دکمه «باز کردن در اپلیکیشن» فقط در مرورگر عادی کروم معنا دارد؛
     // WebView داخل تلگرام/اینستاگرام (با نشانه ; wv) و داخل خود اپ، intent:// را اجرا نمی‌کند.
     var chromeAndroid = !inApp && isAndroid && /Chrome\//.test(ua) && !/;\s*wv\)/.test(ua);
 
-    var mode = inApp ? 'inapp' : (chromeAndroid ? 'android-browser' : 'browser');
-    document.documentElement.setAttribute('data-app-mode', mode);
+    // 🏳️ تصمیم نهایی:
+    // اگر سرور همین درخواست را «inapp» رندر کرده باشد، همان منبع حقیقت است — سرور و این
+    // اسکریپت هر دو از یک User-Agent خوانده‌اند، پس اگر اختلافی بود (حالت‌های لبه‌ای/خطا در
+    // خواندن UA) اعمال تغییر کلاینت به «browser» باعث می‌شد صفحه‌ای که داخل اپ لود شده به
+    // چیدمان وب برود و «روی هر دکمه از حالت اپ خارج شویم». تصمیم سرور را حفظ می‌کنیم.
+    // در غیر این صورت همان قاعده‌ی قبل: UA پوسته اندروید، سپس مرورگر کروم، وگرنه وب.
+    var mode = serverSaysApp
+        ? 'inapp'
+        : (inApp ? 'inapp' : (chromeAndroid ? 'android-browser' : 'browser'));
+    if (root.getAttribute('data-app-mode') !== mode) {
+        root.setAttribute('data-app-mode', mode);
+    }
 
-    // سرور نمی‌تواند حالت standalone را ببیند؛ این کوکی به او می‌گوید که این کاربر در اپ است
-    // تا بلوک‌های اپ‌محور (مثل صفحه اصلی اپ) از همان درخواست بعدی سمت سرور رندر شوند.
+    // 🧹 هیچ کوکی‌ای برای «حالت اپ» نوشته نمی‌شود.
+    // کوکی appmode نسخه‌های قبلی منبع اصلی به‌هم‌ریختگی بود: چون سرور از روی کوکی (نه UA)
+    // تصمیم می‌گرفت، یک مرورگر عادی هم می‌توانست صفحه اصلی اپ را بگیرد و بعد از چاپ/دانلود
+    // یک سند، با برگشتن به سایت، کاربر انگار به «دنیایی دیگر» برگشته باشد.
+    // اگر کوکی قدیمی روی مرورگر مانده باشد، اینجا بی‌اثر و پاک می‌شود.
     try {
-        if (inApp) {
-            document.cookie = 'appmode=1; path=/; max-age=2592000; samesite=lax';
-        } else if (document.cookie.indexOf('appmode=') !== -1) {
+        if (document.cookie.indexOf('appmode=') !== -1) {
             document.cookie = 'appmode=; path=/; max-age=0; samesite=lax';
         }
-    } catch (e) { /* بدون کوکی هم چه‌چیز خراب نمی‌شود */ }
+    } catch (e) { /* اگر کوکی خوانا نبود، مشکلی پیش نمی‌آید */ }
 
     // نقطه ورود مشترک برای اسکریپت‌های دیگر (مثل نوار «باز کردن در اپلیکیشن»)
     window.appMode = {

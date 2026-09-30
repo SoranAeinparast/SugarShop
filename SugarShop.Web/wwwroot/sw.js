@@ -1,12 +1,17 @@
 /* ── SugarShop PWA Service Worker ──
    استراتژی‌ها:
-   - صفحات (navigation): شبکه اول، در قطعی اینترنت صفحه آفلاین
+   - صفحات (navigation): فقط شبکه. اگر شبکه نبود، صفحه آفلاین. HTML هرگز کش نمی‌شود؛
+     چون صفحات سایت شخصی‌اند (سبد، سفارش، صورت‌حساب، داشبورد) و صفحهای که در «حالت اپ»
+     رندر شدهاند نباید بعداً برای کاربر وب بازپخش شوند — علت اصلی «بعد از برگشتن از چاپ،
+     صفحه حالت اپ بود».
    - استاتیک‌ها (css/js/img/font): کش اول — سرعت فوق‌العاده + کارکرد آفلاین
    - APIها: هرگز کش نمی‌شوند (داده باید همیشه تازه باشد)
-*/
-const VERSION = 'v1.0.0';
+ */
+// بامپ نسخه: کش‌های قبلی کامل پاک می‌شوند. v1.2.0 = صفحه‌بندی هدر در PWA نصب‌شده و
+// تفکیک قطعی حالت اپ/وب (نوار بالای اپ + اصلاح !important حالت standalone در pwa.css).
+// بدون این بامپ، استاتیک‌های کش‌شده (css/js) ممکن بود تا یک بار بارگذاری دیگر قدیمی بمانند.
+const VERSION = 'v1.2.0';
 const STATIC_CACHE = `sugarshop-static-${VERSION}`;
-const PAGES_CACHE = `sugarshop-pages-${VERSION}`;
 const OFFLINE_URL = '/Pwa/Offline';
 
 const PRECACHE = [
@@ -37,7 +42,7 @@ self.addEventListener('install', event => {
 
 self.addEventListener('activate', event => {
     event.waitUntil((async () => {
-        const keep = new Set([STATIC_CACHE, PAGES_CACHE]);
+        const keep = new Set([STATIC_CACHE]);
         const names = await caches.keys();
         await Promise.all(names.filter(n => !keep.has(n)).map(n => caches.delete(n)));
         await self.clients.claim();
@@ -56,22 +61,13 @@ self.addEventListener('fetch', event => {
     if (url.pathname.startsWith('/api/')) return;          // API همیشه زنده
     if (url.pathname.startsWith('/hangfire')) return;
 
-    // ۱) ناوبری صفحات: شبکه اول + صفحه آفلاین به‌عنوان جانشین
+    // ۱) ناوبری صفحات: همیشه از شبکه؛ در نبود شبکه فقط صفحه آفلاین.
+    //    (کش‌کردن HTML صفحات حذف شد؛ صفحات شخصی/اپ‌محور نباید بازپخش شوند)
     if (req.mode === 'navigate') {
-        event.respondWith((async () => {
-            try {
-                const fresh = await fetch(req);
-                const cache = await caches.open(PAGES_CACHE);
-                cache.put(req, fresh.clone());
-                return fresh;
-            } catch {
-                const cache = await caches.open(PAGES_CACHE);
-                const cached = await cache.match(req);
-                if (cached) return cached;
-                const offline = await cache.match(OFFLINE_URL);
-                return offline || Response.error();
-            }
-        })());
+        event.respondWith(fetch(req).catch(async () => {
+            const cache = await caches.open(STATIC_CACHE);
+            return (await cache.match(OFFLINE_URL)) || Response.error();
+        }));
         return;
     }
 

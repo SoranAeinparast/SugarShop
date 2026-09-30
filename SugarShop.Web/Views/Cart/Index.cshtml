@@ -41,7 +41,13 @@
                                         {
                                             <tr>
                                                 <td>@prod.Title</td>
-                                                <td>@prod.Quantity</td>
+                                                <td class="text-center">
+                                                    <div class="input-group input-group-sm qty-stepper" style="max-width:130px; margin:0 auto;">
+                                                        <button type="button" class="btn btn-outline-secondary qty-btn" data-product-id="@prod.ProductId" data-change="-1">−</button>
+                                                        <span class="form-control text-center qty-val" style="pointer-events:none;">@prod.Quantity</span>
+                                                        <button type="button" class="btn btn-outline-secondary qty-btn" data-product-id="@prod.ProductId" data-change="1">+</button>
+                                                    </div>
+                                                </td>
                                                 <td>@prod.Price.ToString("N0") تومان</td>
                                                 <td>@prod.TotalPrice.ToString("N0") تومان</td>
                                                 <td class="text-center">
@@ -98,6 +104,9 @@
                                                 }
                                             </div>
                                             <div class="col-md-4 text-end">
+                                                <a href="/Cart/EditBoxItem?id=@item.Id" class="btn btn-sm btn-outline-primary" title="ویرایش ردیف‌های جعبه">
+                                                    ✏️ ویرایش جعبه
+                                                </a>
                                                 <button type="button" class="btn btn-sm btn-danger remove-box-btn" data-item-id="@item.Id">
                                                     🗑️ حذف جعبه
                                                 </button>
@@ -318,6 +327,24 @@
                 form.submit();
             }
         });
+    });
+    $(document).on('click', '.qty-btn', function(e) {
+        var productId = $(this).data('product-id');
+        var change = $(this).data('change');
+        var $btn = $(this);
+        $btn.prop('disabled', true);
+        $.post('/Cart/UpdateProductQuantity', { productId: productId, change: change, __RequestVerificationToken: csrfToken })
+            .done(function(response) {
+                if (response.success) { window.location.reload()
+                } else {
+                Swal.fire({ icon: 'error', title: 'خطا', text: response.message || 'خطا در تغییر تعداد', confirmButtonText: 'باشه' });
+                $btn.prop('disabled', false);
+            }
+            })
+            .fail(function(xhr) {
+                Swal.fire({ icon: 'error', title: 'خطا', text: 'خطا در تغییر تعداد', confirmButtonText: 'باشه' });
+                $btn.prop('disabled', false);
+            });
     });
     $('#clearCartBtn').on('click', function() {
         Swal.fire({

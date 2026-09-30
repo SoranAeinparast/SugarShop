@@ -48,7 +48,10 @@ namespace SugarShop.Web.ViewComponents
             {
                 PackageName = packageName.Trim(),
                 IntentUrl = intentUrl,
-                OrderId = orderId
+                OrderId = orderId,
+                // همان منبع حقیقت سمت سرور (User-Agent پوسته اپ): بخش‌های اپ‌محور و وب‌محور این
+                // نوار هم مثل بقیه‌ی صفحه‌ها فقط در حالت خودشان رندر می‌شوند (نه با پنهان‌کردن CSS).
+                IsAppRequest = SugarShop.Web.Helpers.AppClient.IsAppRequest(ViewContext.HttpContext)
             });
         }
     }
@@ -58,5 +61,8 @@ namespace SugarShop.Web.ViewComponents
         public string PackageName { get; set; } = string.Empty;
         public string IntentUrl { get; set; } = string.Empty;
         public int? OrderId { get; set; }
+
+        /// <summary>درخواست از داخل اپلیکیشن (User-Agent پوسته) آمده است؟</summary>
+        public bool IsAppRequest { get; set; }
     }
 }

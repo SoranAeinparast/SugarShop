@@ -15,15 +15,9 @@
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <h2 class="mb-0">💳 تأیید و پرداخت سفارش @Model.OrderCode</h2>
         <div class="d-flex gap-2 flex-wrap">
-            @* دانلود PDF واقعی، نسخه چاپی و اکسل — مشتری می‌تواند سند مبلغ را نگه دارد *@
+            @* 📄 سند مشتری فقط PDF صورت‌حساب است (نسخه چاپی و اکسل حذف شد) *@
             <a asp-action="StatementPdf" asp-route-orderId="@Model.OrderId" class="btn btn-primary">
                 ⬇️ دانلود PDF صورت‌حساب
-            </a>
-            <a asp-action="Statement" asp-route-orderId="@Model.OrderId" target="_blank" rel="noopener" class="btn btn-outline-primary">
-                🖨️ نسخه چاپی
-            </a>
-            <a asp-action="StatementExcel" asp-route-orderId="@Model.OrderId" class="btn btn-outline-success">
-                ⬇️ دانلود اکسل
             </a>
             <a asp-controller="Profile" asp-action="OrderDetails" asp-route-id="@Model.OrderId" class="btn btn-outline-secondary">🔙 بازگشت به سفارش</a>
         </div>
@@ -310,17 +304,11 @@
                 💳 پرداخت @(Model.PayableNow.ToString("N0").ToPersianNumber()) تومان
             </button>
         </form>
-        <a asp-action="StatementPdf" asp-route-orderId="@Model.OrderId" class="btn btn-primary btn-lg">
-            ⬇️ دانلود PDF صورت‌حساب
-        </a>
-        <a asp-action="Statement" asp-route-orderId="@Model.OrderId" target="_blank" rel="noopener" class="btn btn-outline-primary btn-lg">
-            🖨️ نسخه چاپی
-        </a>
-        <a asp-action="StatementExcel" asp-route-orderId="@Model.OrderId" class="btn btn-outline-success btn-lg">
-            ⬇️ دانلود اکسل
-        </a>
-        <a asp-controller="Profile" asp-action="OrderDetails" asp-route-id="@Model.OrderId" class="btn btn-outline-secondary btn-lg">
-            انصراف و بازگشت به سفارش
-        </a>
+        <div class="d-flex gap-2 flex-wrap">
+            @* سند PDF در بالای همین صفحه موجود است؛ اینجا فقط مسیر پرداخت و انصراف *@
+            <a asp-controller="Profile" asp-action="OrderDetails" asp-route-id="@Model.OrderId" class="btn btn-outline-secondary btn-lg">
+                انصراف و بازگشت به سفارش
+            </a>
+        </div>
     </div>
 </div>

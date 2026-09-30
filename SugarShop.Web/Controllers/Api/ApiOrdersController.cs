@@ -40,9 +40,7 @@ namespace SugarShop.Web.Controllers.Api
 
             var q = _sales.Orders.AsNoTracking()
                 .Include(o => o.Items)
-                .Where(o => o.UserId == userId
-                    && o.Notes != "WalletRecharge"
-                    && (o.Notes == null || !o.Notes.StartsWith("CustomCakeOrder_")))
+                .Where(o => o.UserId == userId && !o.IsInternal)
                 .OrderByDescending(o => o.CreatedAt);
 
             var total = await q.CountAsync();
@@ -57,7 +55,7 @@ namespace SugarShop.Web.Controllers.Api
                 paymentStatus = o.PaymentStatus.ToString(),
                 total = o.FinalTotalAmount > 0
                     ? o.FinalTotalAmount
-                    : o.Items.Where(i => i.ItemType == OrderItemType.Product).Sum(i => i.TotalPriceSnapshot),
+                    : o.Items.Sum(i => i.TotalPriceSnapshot),
                 itemsCount = o.Items.Count
             });
 

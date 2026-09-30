@@ -176,6 +176,7 @@
             </div>
 
             <div class="meta">
+                <div><span>مشتری:</span> @(string.IsNullOrWhiteSpace(Model.CustomerAccountName) ? "-" : Model.CustomerAccountName)</div>
                 <div><span>گیرنده:</span> @(string.IsNullOrWhiteSpace(Model.CustomerName) ? "-" : Model.CustomerName)</div>
                 <div><span>تلفن:</span> @(string.IsNullOrWhiteSpace(Model.CustomerPhone) ? "-" : Model.CustomerPhone.ToPersianNumber())</div>
                 <div><span>تاریخ سفارش:</span> @Model.OrderDate.ToPersianNumber()</div>
@@ -199,7 +200,7 @@
                     <tr>
                         <th style="width:10%;">ردیف</th>
                         <th>🍪 شیرینی</th>
-                        <th style="width:12%;">تعداد</th>
+                        <th style="width:12%;">تعداد ردیف</th>
                         <th style="width:22%;">⚖️ وزن ردیف (گرم)</th>
                     </tr>
                 </thead>
@@ -212,7 +213,7 @@
                             <td class="name">@row.Name</td>
                             <td>@row.Quantity.ToPersianNumber()</td>
                             <td class="@(row.IsApproximate ? "approx" : "")">
-                                @row.WeightGrams.ToPersianNumber()@(row.IsApproximate ? " (تقریبی)" : "")
+                                @(row.WeightGrams > 0 ? row.WeightGrams.ToPersianNumber() : "—")
                             </td>
                         </tr>
                         rowIndex++;
@@ -248,7 +249,7 @@
             }
             @if (!box.IsFinalized)
             {
-                <div class="warn-text">این جعبه هنوز در پنل «ثبت» نشده؛ اعداد بالا با وزن تقریبی محاسبه شده‌اند و پس از وزن‌کشی باید برچسب جدید چاپ شود.</div>
+                <div class="warn-text">این جعبه هنوز در پنل «ثبت» نشده؛ ردیف‌های وزن‌کشی‌نشده با «—» نشان داده شده‌اند و پس از وزن‌کشی باید برچسب جدید چاپ شود.</div>
             }
 
             @if (!string.IsNullOrWhiteSpace(box.Notes))

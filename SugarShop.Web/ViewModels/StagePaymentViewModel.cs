@@ -17,6 +17,9 @@ namespace SugarShop.Web.ViewModels
         public string StoreName { get; set; } = "";
         public string StorePhone { get; set; } = "";
         public string CustomerName { get; set; } = "";
+        /// <summary>نام دریافت‌کننده‌ی سفارش (ممکن است با دارنده‌ی حساب فرق کند).</summary>
+        public string ReceiverName { get; set; } = "";
+        public string ReceiverPhone { get; set; } = "";
         public string PrintDate { get; set; } = "";
 
         /// <summary>جعبه‌های شیرینی سفارش (ریز وزن و قیمت ردیف‌ها).</summary>

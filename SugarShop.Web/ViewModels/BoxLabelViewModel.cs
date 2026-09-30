@@ -10,6 +10,11 @@ namespace SugarShop.Web.ViewModels
         public string StorePhone { get; set; } = "";
         public int OrderId { get; set; }
         public string OrderCode { get; set; } = "";
+
+        /// <summary>نام مشتری (صاحب حساب سفارش) — ممکن است با نام گیرنده یکی نباشد.</summary>
+        public string CustomerAccountName { get; set; } = "";
+
+        /// <summary>نام گیرنده سفارش.</summary>
         public string CustomerName { get; set; } = "";
         public string CustomerPhone { get; set; } = "";
         public string OrderDate { get; set; } = "";

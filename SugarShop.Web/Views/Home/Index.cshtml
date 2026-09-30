@@ -93,7 +93,9 @@
     }
     @if (!isAppClient)
     {
-        @* در حالت داخل اپ این ویترین تکراری است؛ ردیف میان‌بر ابتدای صفحه همان دسته‌بندی‌ها را می‌دهد. *@
+        @* در حالت داخل اپ این ویترین تکراری است؛ ردیف میان‌بر ابتدای صفحه همان دسته‌بندی‌ها را می‌دهد.
+           data-ui-scope="web" قرارداد ماشین‌خوان جداسازی اپ/وب است (آزمون خودکار AppModeSeparationTests). *@
+    <div data-ui-scope="web">
     <h3 class="mt-5 mb-4 text-center">ویترین فروشگاه</h3>
     @if (Model.Categories == null || !Model.Categories.Any())
     {
@@ -118,6 +120,7 @@
             }
         </div>
     }
+    </div>
     }
     @if (Model.SiteSetting != null && Model.SiteSetting.PromoEnabled)
     {

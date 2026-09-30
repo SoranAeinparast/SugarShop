@@ -71,9 +71,67 @@ namespace SugarShop.Web.Services
         /// </param>
         public async Task<OrderPricing> ComputeAsync(Order order, bool includePayments = true)
         {
+            var boxInfos = (await LoadBoxInfosAsync(new[] { order })).GetValueOrDefault(order.Id)
+                ?? new List<BoxFinalInfo>();
+            var threshold = await GetFreeDeliveryThresholdAsync();
+
+            decimal paidTotal = 0;
+            if (includePayments)
+                paidTotal = (await LoadPaidTotalsAsync(new[] { order.Id })).GetValueOrDefault(order.Id);
+
+            return BuildPricing(order, boxInfos, threshold, paidTotal);
+        }
+
+        /// <summary>
+        /// محاسبه مبلغ چند سفارش با یک کوئری (بدون N+1) — برای لیست‌های صفحه‌بندی‌شده.
+        /// اعداد دقیقاً از همان ریاضیِ <see cref="ComputeAsync"/> می‌آیند، پس مبلغ نمایش‌داده‌شده
+        /// در لیست هرگز با مبلغی که از درگاه گرفته می‌شود مغایرت ندارد.
+        /// سفارش‌ها باید با <c>Include(o =&gt; o.Items)</c> بارگذاری شده باشند.
+        /// </summary>
+        /// <param name="includePayments">
+        /// اگر مبلغ باقی‌مانده (PayableNow) لازم باشد true بدهید؛ با false دو کوئری جمع پرداخت‌ها حذف می‌شود.
+        /// </param>
+        public async Task<Dictionary<int, OrderPricing>> ComputeManyAsync(
+            IReadOnlyCollection<Order> orders,
+            bool includePayments = false)
+        {
+            var result = new Dictionary<int, OrderPricing>();
+            if (orders == null || orders.Count == 0) return result;
+
+            // ۱) وزن/قیمت نهایی جعبه‌های همه سفارش‌های این صفحه: یک کوئری
+            var boxInfos = await LoadBoxInfosAsync(orders);
+            // ۲) آستانه ارسال رایگان: یک کوئری (و بعد از آن کش می‌شود)
+            var threshold = await GetFreeDeliveryThresholdAsync();
+            // ۳) جمع پرداخت‌های قبلی (فقط اگر لازم باشد): دو کوئری تجمیعی برای کل صفحه
+            var paidTotals = includePayments
+                ? await LoadPaidTotalsAsync(orders.Select(o => o.Id).ToList())
+                : new Dictionary<int, decimal>();
+
+            foreach (var order in orders)
+            {
+                result[order.Id] = BuildPricing(
+                    order,
+                    boxInfos.GetValueOrDefault(order.Id) ?? new List<BoxFinalInfo>(),
+                    threshold,
+                    paidTotals.GetValueOrDefault(order.Id));
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// ریاضیِ خالص مبلغ سفارش — تک‌منبع حقیقت برای همه مسیرها (تک‌سفارشی و گروهی).
+        /// ورودی‌ها از قبل خوانده شده‌اند تا هیچ کوئری‌ای داخل محاسبه انجام نشود.
+        /// </summary>
+        private static OrderPricing BuildPricing(
+            Order order,
+            IReadOnlyList<BoxFinalInfo> boxInfosOfOrder,
+            decimal freeDeliveryThreshold,
+            decimal paidTotal)
+        {
             var items = order.Items ?? new List<OrderItem>();
 
-            decimal productTotal = 0;
+            decimal productTotal;
             decimal finalizedBoxTotal = 0;
             int finalizedBoxWeight = 0;
             bool hasUnfinalizedBoxes = false;
@@ -98,12 +156,9 @@ namespace SugarShop.Web.Services
 
                 if (boxTitles.Count > 0)
                 {
-                    var boxInfos = await _salesDb.BoxFinalInfos.AsNoTracking()
-                        .Where(b => b.OrderId == order.Id && boxTitles.Contains(b.BoxTitle))
-                        .ToListAsync();
-
                     // اگر ردیف تکراری برای یک جعبه ثبت شده باشد، فقط جدیدترین ردیف حساب می‌شود
-                    var latestPerBox = boxInfos
+                    var latestPerBox = boxInfosOfOrder
+                        .Where(b => boxTitles.Contains(b.BoxTitle))
                         .GroupBy(b => b.BoxTitle)
                         .Select(g => g.OrderByDescending(b => b.UpdatedAt).ThenByDescending(b => b.Id).First())
                         .ToList();
@@ -117,9 +172,8 @@ namespace SugarShop.Web.Services
             var goodsTotal = productTotal + finalizedBoxTotal;
 
             // سیاست ارسال رایگان: عبور از آستانه، هزینه پیک را صفر می‌کند (آستانه ۰ = غیرفعال)
-            var threshold = await GetFreeDeliveryThresholdAsync();
             var deliveryFee = order.DeliveryFeeSnapshot;
-            if (threshold > 0 && goodsTotal >= threshold)
+            if (freeDeliveryThreshold > 0 && goodsTotal >= freeDeliveryThreshold)
                 deliveryFee = 0;
 
             var discount = Math.Min(order.DiscountAmountSnapshot ?? 0, goodsTotal + deliveryFee);
@@ -127,20 +181,6 @@ namespace SugarShop.Web.Services
 
             var grandTotal = goodsTotal + deliveryFee - discount;
             if (grandTotal < 0) grandTotal = 0;
-
-            decimal paidTotal = 0;
-            if (includePayments)
-            {
-                var gatewayPaid = await _salesDb.Payments.AsNoTracking()
-                    .Where(p => p.OrderId == order.Id && p.PaymentStatus == PaymentStatus.Succeeded)
-                    .SumAsync(p => (decimal?)p.Amount) ?? 0m;
-
-                var walletPaid = await _salesDb.WalletTransactions.AsNoTracking()
-                    .Where(t => t.OrderId == order.Id && t.Type == "Purchase" && t.Amount < 0)
-                    .SumAsync(t => (decimal?)(-t.Amount)) ?? 0m;
-
-                paidTotal = gatewayPaid + walletPaid;
-            }
 
             return new OrderPricing
             {
@@ -155,6 +195,56 @@ namespace SugarShop.Web.Services
                 HasUnfinalizedBoxes = hasUnfinalizedBoxes,
                 FinalizedBoxWeightGrams = finalizedBoxWeight
             };
+        }
+
+        /// <summary>وزن/قیمت نهایی جعبه‌ها برای مجموعه‌ای از سفارش‌ها با یک کوئری (کلید = شناسه سفارش).</summary>
+        private async Task<Dictionary<int, List<BoxFinalInfo>>> LoadBoxInfosAsync(IEnumerable<Order> orders)
+        {
+            var result = new Dictionary<int, List<BoxFinalInfo>>();
+
+            var needing = orders
+                .Where(o => (o.Items ?? new List<OrderItem>())
+                    .Any(i => i.ItemType == OrderItemType.SweetItem && !string.IsNullOrEmpty(i.BoxTitle)))
+                .Select(o => o.Id)
+                .Distinct()
+                .ToList();
+            if (needing.Count == 0) return result;
+
+            var rows = await _salesDb.BoxFinalInfos.AsNoTracking()
+                .Where(b => needing.Contains(b.OrderId))
+                .ToListAsync();
+
+            foreach (var group in rows.GroupBy(b => b.OrderId))
+                result[group.Key] = group.ToList();
+
+            return result;
+        }
+
+        /// <summary>جمع پرداخت‌های انجام‌شده (درگاه موفق + اعتبار کیف پول) برای چند سفارش با دو کوئری تجمیعی.</summary>
+        private async Task<Dictionary<int, decimal>> LoadPaidTotalsAsync(IReadOnlyCollection<int> orderIds)
+        {
+            var ids = orderIds.Distinct().ToList();
+            if (ids.Count == 0) return new Dictionary<int, decimal>();
+
+            var gateway = await _salesDb.Payments.AsNoTracking()
+                .Where(p => ids.Contains(p.OrderId) && p.PaymentStatus == PaymentStatus.Succeeded)
+                .GroupBy(p => p.OrderId)
+                .Select(g => new { OrderId = g.Key, Total = g.Sum(p => p.Amount) })
+                .ToDictionaryAsync(x => x.OrderId, x => x.Total);
+
+            var wallet = await _salesDb.WalletTransactions.AsNoTracking()
+                .Where(t => t.OrderId != null && ids.Contains(t.OrderId.Value) && t.Type == "Purchase" && t.Amount < 0)
+                .GroupBy(t => t.OrderId!.Value)
+                .Select(g => new { OrderId = g.Key, Total = g.Sum(t => -t.Amount) })
+                .ToDictionaryAsync(x => x.OrderId, x => x.Total);
+
+            var result = new Dictionary<int, decimal>();
+            foreach (var id in ids)
+            {
+                result[id] = gateway.GetValueOrDefault(id) + wallet.GetValueOrDefault(id);
+            }
+
+            return result;
         }
 
         /// <summary>

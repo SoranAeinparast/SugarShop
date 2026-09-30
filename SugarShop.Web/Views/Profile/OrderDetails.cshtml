@@ -26,15 +26,25 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2>📦 سفارش @Model.OrderCode</h2>
         <div class="d-flex gap-2 flex-wrap">
+@* 📄 سند مشتری فقط یک است: PDF صورت‌حساب (سرورساخت، چاپ‌پذیر، در همه دستگاه‌ها یکسان).
+               نسخه چاپی/اکسل/فاکتور HTML حذف شد تا تب و پنجره اضافه ساخته نشود و حالت صفحه هم عوض نشود.
+               ⬇️ دانلود فقط پس از تأیید سفارش فعال است؛ تا وقتی جعبه‌ای وزن‌کشی/تأیید نشده، نباید
+               صورتحسابی صادر شود که مبلغش بعداً عوض می‌شود. *@
             @if (hasBoxes || hasProducts)
             {
-                @* ریز وزن و قیمت هر ردیف جعبه + جمع‌بندی مبلغ: دانلود PDF واقعی، نسخه چاپی و اکسل *@
-                <a asp-controller="Payment" asp-action="StatementPdf" asp-route-orderId="@Model.Id"
-                   class="btn btn-dark">⬇️ دانلود PDF صورت‌حساب</a>
-                <a asp-controller="Payment" asp-action="Statement" asp-route-orderId="@Model.Id" target="_blank" rel="noopener"
-                   class="btn btn-outline-dark">🖨️ نسخه چاپی صورت‌حساب</a>
+                @if (anyBoxPending)
+                {
+                    <button type="button" class="btn btn-dark" disabled
+                            title="پس از وزن‌کشی و تأیید سفارش توسط فروشگاه، صورت‌حساب فعال می‌شود.">
+                        ⬇️ دانلود PDF صورت‌حساب (پس از تأیید فروشگاه)
+                    </button>
+                }
+                else
+                {
+                    <a asp-controller="Payment" asp-action="StatementPdf" asp-route-orderId="@Model.Id"
+                       class="btn btn-dark">⬇️ دانلود PDF صورت‌حساب</a>
+                }
             }
-            <a asp-action="Invoice" asp-route-orderId="@Model.Id" class="btn btn-outline-primary">🧾 دریافت فاکتور</a>
             <a asp-action="Orders" class="btn btn-secondary">بازگشت به لیست سفارشات</a>
         </div>
     </div>
@@ -231,8 +241,11 @@
                                 <tr>
                                     <th style="width: 70px;" class="text-center">ردیف</th>
                                     <th>🍪 شیرینی</th>
-                                    <th class="text-center" style="width: 22%;">⚖️ وزن این ردیف (گرم)</th>
-                                    <th class="text-center" style="width: 24%;">💰 قیمت این ردیف</th>
+                                    @if (rowWeightsAreFinal)
+                                    {
+                                        <th class="text-center" style="width: 22%;">⚖️ وزن این ردیف (گرم)</th>
+                                        <th class="text-center" style="width: 24%;">💰 قیمت این ردیف</th>
+                                    }
                                 </tr>
                             </thead>
                             <tbody>
@@ -245,46 +258,44 @@
                                     <tr>
                                         <td class="align-middle text-center">@boxRowNo.ToPersianNumber()</td>
                                         <td class="align-middle"><strong>@rowName</strong></td>
-                                        <td class="align-middle text-center">
-                                            @if (boxRow.WeightSnapshotGrams.HasValue && boxRow.WeightSnapshotGrams.Value > 0)
-                                            {
-                                                <span>@(boxRow.WeightSnapshotGrams.Value.ToPersianNumber()) گرم</span>
-                                                @if (!rowWeightsAreFinal)
+                                        @if (rowWeightsAreFinal)
+                                        {
+                                            <td class="align-middle text-center">
+                                                @if (boxRow.WeightSnapshotGrams.HasValue && boxRow.WeightSnapshotGrams.Value > 0)
                                                 {
-                                                    <small class="text-muted">(تقریبی)</small>
+                                                    <span>@(boxRow.WeightSnapshotGrams.Value.ToPersianNumber()) گرم</span>
                                                 }
-                                            }
-                                            else
-                                            {
-                                                <span class="text-muted">-</span>
-                                            }
-                                        </td>
-                                        <td class="align-middle text-center">
-                                            @boxRow.TotalPriceSnapshot.ToString("N0").ToPersianNumber() تومان
-                                            @if (!rowWeightsAreFinal)
-                                            {
-                                                <small class="text-muted d-block">(تقریبی)</small>
-                                            }
-                                        </td>
+                                                else
+                                                {
+                                                    <span class="text-muted">-</span>
+                                                }
+                                            </td>
+                                            <td class="align-middle text-center">
+                                                @boxRow.TotalPriceSnapshot.ToString("N0").ToPersianNumber() تومان
+                                            </td>
+                                        }
                                     </tr>
                                     boxRowNo++;
                                 }
                             </tbody>
-                            <tfoot class="table-secondary">
-                                <tr>
-                                    <td colspan="2" class="text-end">
-                                        <strong>جمع ردیف‌ها@(rowWeightsAreFinal ? "" : " (تقریبی)"):</strong>
-                                    </td>
-                                    <td class="text-center"><strong>@rowsWeightSum.ToPersianNumber() گرم</strong></td>
-                                    <td class="text-center"><strong>@rowsPriceSum.ToString("N0").ToPersianNumber() تومان</strong></td>
-                                </tr>
-                            </tfoot>
+                            @if (rowWeightsAreFinal)
+                            {
+                                <tfoot class="table-secondary">
+                                    <tr>
+                                        <td colspan="2" class="text-end">
+                                            <strong>جمع ردیف‌ها:</strong>
+                                        </td>
+                                        <td class="text-center"><strong>@rowsWeightSum.ToPersianNumber() گرم</strong></td>
+                                        <td class="text-center"><strong>@rowsPriceSum.ToString("N0").ToPersianNumber() تومان</strong></td>
+                                    </tr>
+                                </tfoot>
+                            }
                         </table>
                     </div>
-                    @if (!rowWeightsAreFinal && rowsWeightSum > 0)
+                    @if (!rowWeightsAreFinal)
                     {
                         <small class="text-muted d-block mt-2">
-                            وزن‌های بالا تقریبی هستند؛ پس از وزن‌کشی توسط فروشگاه، وزن و قیمت نهایی همین جعبه در همین کارت نمایش داده می‌شود.
+                            وزن و قیمت هر ردیف، پس از وزن‌کشی و تأیید این جعبه توسط فروشگاه نمایش داده می‌شود؛ وزن و قیمت نهایی جعبه در همان کارت اعلام می‌شود.
                         </small>
                     }
                     @if (boxInfo != null)

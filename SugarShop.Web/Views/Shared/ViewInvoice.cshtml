@@ -41,7 +41,8 @@
 }
 @functions {
     string Rial(decimal toman) => (toman * 10).ToString("N0").ToPersianNumber();
-    string WeightKg(int? grams) => grams.HasValue ? (grams.Value / 1000m).ToString("0.###").ToPersianNumber() : "-";
+    // ⚖️ وزن دقیق ثبت‌شده پس از وزن‌کشی جعبه (گرم) — مبنای نمایش در ستون «وزن دقیق سفارش»
+    string WeightGrams(int? grams) => grams.HasValue ? (grams.Value.ToString("N0").ToPersianNumber() + " گرم") : "-";
 }
 <div class="container my-4">
     <div class="d-flex justify-content-between align-items-center mb-3 no-print">
@@ -107,7 +108,7 @@
                     <th style="border: 1px solid #000; padding: 5px;">شرح کالا</th>
                     <th style="border: 1px solid #000; padding: 5px; width: 8%;">واحد</th>
                     <th style="border: 1px solid #000; padding: 5px; width: 7%;">تعداد</th>
-                    <th style="border: 1px solid #000; padding: 5px; width: 9%;">وزن (کیلوگرم)</th>
+                    <th style="border: 1px solid #000; padding: 5px; width: 12%;">وزن دقیق سفارش (گرم)</th>
                     <th style="border: 1px solid #000; padding: 5px; width: 14%;">قیمت جزء (ریال)</th>
                     <th style="border: 1px solid #000; padding: 5px; width: 14%;">قیمت کل (ریال)</th>
                 </tr>
@@ -121,7 +122,7 @@
                         <td style="border: 1px solid #000; padding: 5px; white-space: pre-line;">@item.ItemName</td>
                         <td style="border: 1px solid #000; padding: 5px; text-align: center;">@(string.IsNullOrEmpty(item.BoxTitle) ? "عدد" : "جعبه")</td>
                         <td style="border: 1px solid #000; padding: 5px; text-align: center;">@item.Quantity.ToPersianNumber()</td>
-                        <td style="border: 1px solid #000; padding: 5px; text-align: center;">@WeightKg(item.WeightGrams)</td>
+                        <td style="border: 1px solid #000; padding: 5px; text-align: center;">@WeightGrams(item.WeightGrams)</td>
                         <td style="border: 1px solid #000; padding: 5px; text-align: center;">@Rial(item.UnitPrice)</td>
                         <td style="border: 1px solid #000; padding: 5px; text-align: center;">@Rial(item.TotalPrice)</td>
                     </tr>

@@ -12,7 +12,6 @@ using SugarShop.Web.ViewModels;
 using SugarShop.Web.Helpers;
 using SugarShop.Web.Extensions;
 using MD.PersianDateTime;
-using ClosedXML.Excel;
 using SugarShop.Infrastructure.Services;
 
 namespace SugarShop.Web.Controllers
@@ -223,6 +222,17 @@ namespace SugarShop.Web.Controllers
 
             var store = await _context.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
 
+            // نام دارنده‌ی حساب (مشتری) و نام گیرنده‌ی سفارش را جدا نگه می‌داریم تا در سند
+            // «مشتری» و «گیرنده» هر دو همانی باشند که واقعاً هستند — قبلاً فقط نام گیرنده
+            // (order.CustomerName = نام آدرس تحویل) به‌عنوان «مشتری» چاپ می‌شد.
+            string buyerName = order.CustomerName;
+            if (!string.IsNullOrWhiteSpace(order.UserId))
+            {
+                var buyer = await _userManager.FindByIdAsync(order.UserId!);
+                if (buyer != null && !string.IsNullOrWhiteSpace(buyer.FullName))
+                    buyerName = buyer.FullName;
+            }
+
             var vm = new StagePaymentViewModel
             {
                 OrderId = order.Id,
@@ -230,7 +240,9 @@ namespace SugarShop.Web.Controllers
                 OrderDate = new PersianDateTime(order.CreatedAt).ToString("yyyy/MM/dd"),
                 StoreName = string.IsNullOrWhiteSpace(store?.SiteTitle) ? "شیرینی سرای تک" : store!.SiteTitle!,
                 StorePhone = store?.Phone ?? "",
-                CustomerName = order.CustomerName,
+                CustomerName = buyerName,
+                ReceiverName = order.CustomerName,
+                ReceiverPhone = order.CustomerPhone,
                 PrintDate = new PersianDateTime(IranClock.Now).ToString("yyyy/MM/dd HH:mm"),
                 DeliveryMethodText = order.DeliveryMethod == DeliveryMethod.Pickup ? "🏪 دریافت در محل" : "🛵 ارسال با پیک",
                 ProductTotal = pricing.ProductTotal,
@@ -428,21 +440,6 @@ namespace SugarShop.Web.Controllers
             return pdf == null ? PublicLinkProblem() : pdf;
         }
 
-        /// <summary>دانلود اکسل صورت‌حساب با همان لینک اختصاصی پیامکی (بدون ورود).</summary>
-        [AllowAnonymous]
-        [HttpGet("/s/{token}/xlsx")]
-        public async Task<IActionResult> PublicStatementExcel(string token)
-        {
-            var (order, link) = await LoadPublicStatementAsync(token);
-            if (order == null || link == null) return PublicLinkProblem();
-
-            var pricing = await GetPricingAsync(order);
-            var vm = await BuildStagePaymentAsync(order, pricing);
-
-            NoStore();
-            return StatementExcelFile(vm);
-        }
-
         /// <summary>
         /// صحت توکن را می‌سنجد و سفارش متناظرش را بدون تغییر مسیر بازدید می‌کند؛
         /// هر بازدید در جدول StatementLinks ثبت می‌شود (برای سنجش اثر پیامک).
@@ -496,8 +493,8 @@ namespace SugarShop.Web.Controllers
 
         /// <summary>
         /// دانلود صورت‌حساب مرحله پرداخت به‌شكل فایل PDF واقعی (بدون نیاز به پنجره چاپ مرورگر).
-        /// محتوا دقیقاً از همان <see cref="BuildStagePaymentAsync"/> می‌آید که صفحه تأیید، نسخه چاپی
-        /// و خروجی اکسل را می‌سازد؛ پس هر چهار سند یک عدد نشان می‌دهند.
+        /// محتوا دقیقاً از همان <see cref="BuildStagePaymentAsync"/> می‌آید که صفحه تأیید می‌سازد؛
+        /// پس صفحه و PDF یک عدد نشان می‌دهند.
         /// </summary>
         [HttpGet]
         public async Task<IActionResult> StatementPdf(int orderId)
@@ -511,8 +508,7 @@ namespace SugarShop.Web.Controllers
             var pdf = StatementPdfFile(vm);
             if (pdf == null)
             {
-                // اگر تولید PDF به هر دلیلی ناموفق بود، نسخه چاپی مرورگر همچنان در دسترس است
-                TempData["Error"] = "تولید فایل PDF ناموفق بود؛ از دکمه «نسخه چاپی» استفاده کنید.";
+                TempData["Error"] = "تولید فایل PDF ناموفق بود؛ لطفاً دوباره تلاش کنید.";
                 return RedirectToAction("OrderDetails", "Profile", new { id = order.Id });
             }
 
@@ -541,153 +537,6 @@ namespace SugarShop.Web.Controllers
             if (string.IsNullOrEmpty(safeCode)) safeCode = vm.OrderId.ToString();
 
             return File(pdf, "application/pdf", $"Statement_{safeCode}_{IranClock.Now:yyyyMMdd_HHmm}.pdf");
-        }
-
-        /// <summary>
-        /// دانلود صورت‌حساب مرحله پرداخت به شکل اکسل (.xlsx) — همان ریز ردیف‌ها و جمع‌بندی سند چاپی و PDF.
-        /// </summary>
-        [HttpGet]
-        public async Task<IActionResult> StatementExcel(int orderId)
-        {
-            var (order, error) = await LoadOwnStatementOrderAsync(orderId);
-            if (order == null) return error!;
-
-            var pricing = await GetPricingAsync(order);
-            var vm = await BuildStagePaymentAsync(order, pricing);
-            return StatementExcelFile(vm);
-        }
-
-        /// <summary>
-        /// ساخت فایل اکسل صورت‌حساب از یک ریز مبلغ آماده — مشترک بین مسیر وروددار و مسیر
-        /// لینک اختصاصی پیامکی.
-        /// </summary>
-        private FileContentResult StatementExcelFile(StagePaymentViewModel vm)
-        {
-            using var workbook = new XLWorkbook();
-            var sheet = workbook.AddWorksheet("صورت‌حساب");
-            sheet.RightToLeft = true;
-
-            int row = 1;
-            sheet.Cell(row, 1).Value = ExcelSafeText.Clean($"{vm.StoreName} — صورت‌حساب پرداخت سفارش {vm.OrderCode}");
-            sheet.Range(row, 1, row, 6).Merge().Style.Font.SetBold().Font.SetFontSize(14);
-            row += 2;
-
-            sheet.Cell(row, 1).Value = ExcelSafeText.Clean($"مشتری: {vm.CustomerName}");
-            sheet.Cell(row, 4).Value = ExcelSafeText.Clean($"تاریخ سفارش: {vm.OrderDate.ToPersianNumber()}");
-            row++;
-            sheet.Cell(row, 1).Value = ExcelSafeText.Clean($"شیوه تحویل: {vm.DeliveryMethodText}");
-            sheet.Cell(row, 4).Value = ExcelSafeText.Clean($"تاریخ صدور سند: {vm.PrintDate.ToPersianNumber()}");
-            row += 2;
-
-            int headerRow = row;
-            string[] headers = { "گروه", "شرح", "تعداد", "وزن (گرم)", "قیمت واحد (تومان)", "جمع (تومان)" };
-            for (int i = 0; i < headers.Length; i++)
-                sheet.Cell(headerRow, i + 1).Value = headers[i];
-
-            var headerRange = sheet.Range(headerRow, 1, headerRow, headers.Length);
-            headerRange.Style.Font.Bold = true;
-            headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#F2F2F2");
-            headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-            row++;
-
-            // ردیف‌های جعبه‌ها (ریز وزن و قیمت هر ردیف)
-            foreach (var box in vm.Boxes)
-            {
-                sheet.Cell(row, 1).Value = ExcelSafeText.Clean($"جعبه {box.BoxNumber} از {box.BoxCount}");
-                sheet.Cell(row, 2).Value = ExcelSafeText.Clean(box.BoxTitle);
-                sheet.Cell(row, 6).Value = ExcelSafeText.Clean(box.IsFinalized ? $"وزن نهایی: {box.FinalWeightGrams ?? 0} گرم" : "در انتظار وزن‌کشی");
-                sheet.Range(row, 1, row, 6).Style.Font.Bold = true;
-                row++;
-
-                foreach (var line in box.Rows)
-                {
-                    sheet.Cell(row, 2).Value = ExcelSafeText.Clean(line.Name);
-                    sheet.Cell(row, 3).Value = line.Quantity;
-                    if (line.WeightGrams.HasValue)
-                    {
-                        sheet.Cell(row, 4).Value = line.WeightGrams.Value;
-                        sheet.Cell(row, 4).Style.NumberFormat.Format = "#,##0";
-                    }
-                    sheet.Cell(row, 5).Value = (double)line.UnitPrice;
-                    sheet.Cell(row, 5).Style.NumberFormat.Format = "#,##0";
-                    sheet.Cell(row, 6).Value = (double)line.TotalPrice;
-                    sheet.Cell(row, 6).Style.NumberFormat.Format = "#,##0";
-                    row++;
-                }
-
-                sheet.Cell(row, 2).Value = "جمع ردیف‌ها";
-                sheet.Cell(row, 4).Value = box.RowsWeightGrams;
-                sheet.Cell(row, 4).Style.NumberFormat.Format = "#,##0";
-                sheet.Cell(row, 6).Value = (double)box.RowsPrice;
-                sheet.Cell(row, 6).Style.NumberFormat.Format = "#,##0";
-                if (box.IsFinalized && box.FinalPrice.HasValue)
-                {
-                    sheet.Cell(row, 2).Value = "مبلغ نهایی این جعبه (مبنای پرداخت)";
-                    sheet.Cell(row, 6).Value = (double)box.FinalPrice.Value;
-                    sheet.Cell(row, 6).Style.NumberFormat.Format = "#,##0";
-                }
-                sheet.Range(row, 1, row, 6).Style.Fill.BackgroundColor = XLColor.FromHtml("#F7F7F7");
-                row += 2;
-            }
-
-            // محصولات قیمت‌ثابت
-            if (vm.Products.Any())
-            {
-                sheet.Cell(row, 1).Value = "محصولات قیمت‌ثابت";
-                sheet.Range(row, 1, row, 6).Style.Font.Bold = true;
-                row++;
-                foreach (var line in vm.Products)
-                {
-                    sheet.Cell(row, 2).Value = ExcelSafeText.Clean(line.Name);
-                    sheet.Cell(row, 3).Value = line.Quantity;
-                    sheet.Cell(row, 5).Value = (double)line.UnitPrice;
-                    sheet.Cell(row, 5).Style.NumberFormat.Format = "#,##0";
-                    sheet.Cell(row, 6).Value = (double)line.TotalPrice;
-                    sheet.Cell(row, 6).Style.NumberFormat.Format = "#,##0";
-                    row++;
-                }
-                row++;
-            }
-
-            // جمع‌بندی (همان منطق صفحه تأیید و درگاه)
-            void Summary(string title, decimal amount, bool bold = false, string? hex = null)
-            {
-                sheet.Cell(row, 1).Value = ExcelSafeText.Clean(title);
-                sheet.Cell(row, 2).Value = (double)amount;
-                sheet.Cell(row, 2).Style.NumberFormat.Format = "#,##0";
-                if (bold) sheet.Range(row, 1, row, 2).Style.Font.Bold = true;
-                if (hex != null) sheet.Range(row, 1, row, 2).Style.Fill.BackgroundColor = XLColor.FromHtml(hex);
-                row++;
-            }
-
-            if (vm.FinalizedBoxTotal > 0) Summary("جمع جعبه‌های وزن‌کشی‌شده", vm.FinalizedBoxTotal);
-            if (vm.Products.Any()) Summary("جمع محصولات قیمت‌ثابت", vm.ProductTotal);
-            Summary("جمع کالاها", vm.GoodsTotal, bold: true);
-            if (vm.DiscountAmount > 0) Summary("کد تخفیف", -vm.DiscountAmount);
-            Summary(vm.IsDeliveryFree ? "هزینه ارسال (ارسال رایگان)" : "هزینه ارسال با پیک", vm.DeliveryFee);
-            Summary("مبلغ کل سفارش تا این لحظه", vm.GrandTotal, bold: true);
-            if (vm.PaidTotal > 0) Summary("پرداخت‌های قبلی", -vm.PaidTotal);
-            Summary("مبلغ قابل پرداخت در این مرحله", vm.PayableNow, bold: true, hex: "#E6F4EA");
-
-            row++;
-            sheet.Cell(row, 1).Value = ExcelSafeText.Clean(vm.HasUnfinalizedBoxes
-                ? "تنها جعبه‌های وزن‌کشی‌شده در مبلغ این مرحله لحاظ شده‌اند؛ مبلغ جعبه‌های باقی‌مانده پس از وزن‌کشی دریافت می‌شود."
-                : "همه جعبه‌های این سفارش وزن‌کشی و در مبلغ لحاظ شده‌اند.");
-            sheet.Range(row, 1, row, 6).Merge().Style.Alignment.WrapText = true;
-
-            sheet.Columns(1, 6).AdjustToContents();
-            sheet.SheetView.FreezeRows(headerRow);
-
-            using var stream = new MemoryStream();
-            workbook.SaveAs(stream);
-
-            // کد سفارش در نام فایل فقط با حروف و ارقام انگلیسی نوشته می‌شود (امنیت نام فایل)
-            var safeCode = new string(vm.OrderCode.Where(char.IsLetterOrDigit).ToArray());
-            if (string.IsNullOrEmpty(safeCode)) safeCode = vm.OrderId.ToString();
-
-            return File(stream.ToArray(),
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                $"Statement_{safeCode}_{IranClock.Now:yyyyMMdd_HHmm}.xlsx");
         }
 
         /// <summary>
