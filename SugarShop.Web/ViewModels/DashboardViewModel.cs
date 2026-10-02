@@ -10,6 +10,7 @@ namespace SugarShop.Web.ViewModels
         public decimal WalletBalance { get; set; }
         public int OpenTickets { get; set; }
         public Order? LastOrder { get; set; }
+        public CustomCakeOrder? LastCakeOrder { get; set; }
         public string FullName { get; set; } = "";
         public string Email { get; set; } = "";
         public string PhoneNumber { get; set; } = "";

@@ -1,7 +1,10 @@
-﻿@using SugarShop.Web.ViewModels
+﻿@using SugarShop.Domain.Entities.Sales
+@using SugarShop.Web.ViewModels
 @model CheckoutViewModel
 @{
     ViewData["Title"] = "تسویه حساب";
+    ViewData["DeliveryTimeFieldName"] = "DeliveryTime";
+    ViewData["DeliveryTimeValue"] = Model.DeliveryTime?.ToString(@"hh\:mm") ?? "";
 }
 
 @section Styles {
@@ -10,6 +13,7 @@
 
 <div class="container mt-4">
     <h2 class="mb-4">✅ تسویه حساب</h2>
+    <a href="/Cart" class="btn btn-outline-secondary mb-3">🛒 بازگشت به سبد خرید</a>
     @if (TempData["ErrorMessage"] != null)
     {
         <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
@@ -26,7 +30,7 @@
                         <h5 class="mb-0">📍 اطلاعات ارسال</h5>
                     </div>
                     <div class="card-body">
-                        @if (User.Identity.IsAuthenticated)
+                        @if (User.Identity!.IsAuthenticated)
                         {
                             @if (Model.UserAddresses != null && Model.UserAddresses.Any())
                             {
@@ -103,7 +107,7 @@
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label class="form-label">ساعت تحویل (اختیاری)</label>
-                                    <input asp-for="DeliveryTime" type="time" class="form-control" />
+                                    <partial name="_DeliveryTimeSelect" />
                                 </div>
                             </div>
                         </div>
@@ -111,6 +115,34 @@
                             <label class="form-label">توضیحات (اختیاری)</label>
                             <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
                         </div>
+
+                        <hr />
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">🚚 روش دریافت سفارش</label>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check border rounded p-3 mb-2 @(Model.DeliveryMethod == DeliveryMethod.Pickup ? "bg-light" : "")">
+                                        <input class="form-check-input" type="radio" name="DeliveryMethod" value="1" 
+                                               id="deliveryPickup" @(Model.DeliveryMethod == DeliveryMethod.Pickup ? "checked" : "")>
+                                        <label class="form-check-label w-100" for="deliveryPickup">
+                                            <strong> دریافت در محل شیرینی‌سرا</strong><br />
+                                            <small class="text-muted">بدون هزینه ارسال</small>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check border rounded p-3 mb-2 @(Model.DeliveryMethod == DeliveryMethod.Delivery ? "bg-light" : "")">
+                                        <input class="form-check-input" type="radio" name="DeliveryMethod" value="2" 
+                                               id="deliveryCourier" @(Model.DeliveryMethod == DeliveryMethod.Delivery ? "checked" : "")>
+                                        <label class="form-check-label w-100" for="deliveryCourier">
+                                            <strong>🛵 ارسال با پیک موتوری</strong><br />
+                                            <small class="text-muted">هزینه پیک پس از تأیید سفارش اعلام می‌شود</small>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -123,9 +155,14 @@
                         <p><strong>تعداد سفارشات:</strong> @ViewBag.CartItemsCount</p>
                         @if (ViewBag.HasBoxes == true)
                         {
-                            <div class="alert alert-warning">
-                                <strong>⚠️ قیمت پس از وزن کشی دقیق توسط فروشگاه، در اسرع وقت اعلام میگردد.</strong>
+                            <div class="alert alert-info mb-2">
+                                <strong>🧾 روش پرداخت مرحله‌ای:</strong>
+                                <ul class="small mb-0 mt-1 ps-3">
+                                    <li>محصولات قیمت‌ثابت را همین حالا پرداخت می‌کنید.</li>
+                                    <li>مبلغ جعبه‌های نیازمند وزن‌کشی پس از اعلام قیمت فروشگاه، به‌صورت مرحله دوم دریافت می‌شود.</li>
+                                </ul>
                             </div>
+                            <p class="small text-muted">جمع تقریبی کل: @(ViewBag.CartTotal?.ToString("N0")) تومان</p>
                         }
                         else
                         {
@@ -160,5 +197,18 @@
                 document.querySelectorAll('input[name="SelectedAddressId"]').forEach(radio => radio.checked = false);
             }
         });
+    </script>
+    <script>
+    // تغییر استایل radio button های روش تحویل
+    document.querySelectorAll('input[name="DeliveryMethod"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            document.querySelectorAll('input[name="DeliveryMethod"]').forEach(r => {
+                r.closest('.form-check').classList.remove('bg-light');
+            });
+            if (this.checked) {
+                this.closest('.form-check').classList.add('bg-light');
+            }
+        });
+    });
     </script>
 }

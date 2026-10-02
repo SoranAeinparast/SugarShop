@@ -1,0 +1,154 @@
+@model SugarShop.Domain.Entities.EducationalHeaderSetting
+@{
+    ViewData["Title"] = "تنظیمات هدر صفحه آموزش";
+    Layout = "_AdminLayout";
+}
+<style>
+    .color-input-wrapper { display: flex; align-items: center; gap: 10px; }
+    .color-input-wrapper input[type="color"] { width: 50px; height: 40px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer; }
+    .bg-image-preview { max-height: 150px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #ddd; }
+    .edu-hero-preview { width: 100%; min-height: 220px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; padding: 20px; position: relative; overflow: hidden; border: 1px solid #eee; }
+</style>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>🎓 تنظیمات هدر صفحه آموزش</h2>
+    </div>
+    @if (TempData["Success"] != null) { <div class="alert alert-success alert-dismissible fade show">@TempData["Success"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div> }
+    @if (TempData["Error"] != null) { <div class="alert alert-danger alert-dismissible fade show">@TempData["Error"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div> }
+
+    <div class="row">
+        <div class="col-md-5">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white"><h5 class="mb-0">👁️ پیش‌نمایش زنده</h5></div>
+                <div class="card-body">
+                    <div id="headerPreview" class="edu-hero-preview" style="background: @(string.IsNullOrEmpty(Model.BackgroundImagePath) ? Model.BackgroundColor : $"url('{Model.BackgroundImagePath}') center/cover no-repeat, {Model.BackgroundColor}"); color: @Model.TextColor; min-height: @(Model.Height)px;">
+                        <h2 id="previewTitle" class="fw-bold mb-2">@(string.IsNullOrWhiteSpace(Model.Title) ? "آموزش‌های شیرینی‌پزی" : Model.Title)</h2>
+                        <p id="previewSubtitle" class="mb-0" style="opacity: 0.9;">@(Model.Subtitle ?? "")</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-7">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white"><h5 class="mb-0">⚙️ تنظیمات</h5></div>
+                <div class="card-body">
+                    <form asp-area="Admin" asp-controller="EducationalHeaderSettings" asp-action="Index" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="Id" />
+                        <input type="hidden" asp-for="BackgroundImagePath" id="bgImagePathHidden" />
+
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <input asp-for="IsEnabled" class="form-check-input" type="checkbox" />
+                                <label class="form-check-label fw-bold">نمایش هدر (هیرو)</label>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">عنوان اصلی</label>
+                            <input asp-for="Title" class="form-control" id="titleInput" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">زیرعنوان</label>
+                            <input asp-for="Subtitle" class="form-control" id="subtitleInput" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">رنگ پس‌زمینه (رنگ یا گرادیان CSS)</label>
+                            <div class="color-input-wrapper">
+                                <input type="color" id="bgColorPicker" value="#d4a056" />
+                                <input asp-for="BackgroundColor" class="form-control" id="bgColorInput" dir="ltr" />
+                            </div>
+                            <small class="text-muted">پیش‌فرض: linear-gradient(135deg, #f5e6d3 0%, #d4a056 100%)</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">رنگ متن</label>
+                            <div class="color-input-wrapper">
+                                <input type="color" id="textColorPicker" value="@((Model.TextColor.StartsWith("#") && Model.TextColor.Length == 7) ? Model.TextColor : "#3e2723")" />
+                                <input asp-for="TextColor" class="form-control" id="textColorInput" dir="ltr" style="max-width: 200px;" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">ارتفاع (پیکسل)</label>
+                            <input asp-for="Height" type="number" class="form-control" id="heightInput" min="100" max="600" />
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">تصویر پس‌زمینه (اختیاری — روی رنگ اولویت دارد)</label>
+                            @if (!string.IsNullOrEmpty(Model.BackgroundImagePath))
+                            {
+                                <img id="bgImagePreview" src="@Model.BackgroundImagePath" class="bg-image-preview d-block" />
+                            }
+                            else
+                            {
+                                <img id="bgImagePreview" src="" class="bg-image-preview d-block" style="display: none;" />
+                            }
+                            <div class="input-group">
+                                <input type="text" id="bgImagePathDisplay" class="form-control" readonly placeholder="مسیر تصویر..." value="@Model.BackgroundImagePath" />
+                                <button type="button" class="btn btn-outline-primary open-media-picker"
+                                        data-target="#bgImagePathHidden"
+                                        data-preview="#bgImagePreview"
+                                        data-display="#bgImagePathDisplay">
+                                    <i class="bi bi-image"></i> انتخاب از کتابخانه
+                                </button>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-success btn-lg w-100"><i class="bi bi-check-circle"></i> ذخیره تنظیمات</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const titleInput = document.getElementById('titleInput');
+    const subtitleInput = document.getElementById('subtitleInput');
+    const bgColorInput = document.getElementById('bgColorInput');
+    const bgColorPicker = document.getElementById('bgColorPicker');
+    const textColorInput = document.getElementById('textColorInput');
+    const textColorPicker = document.getElementById('textColorPicker');
+    const heightInput = document.getElementById('heightInput');
+    const preview = document.getElementById('headerPreview');
+    const previewTitle = document.getElementById('previewTitle');
+    const previewSubtitle = document.getElementById('previewSubtitle');
+    const bgImagePathHidden = document.getElementById('bgImagePathHidden');
+    const bgImagePreview = document.getElementById('bgImagePreview');
+    const bgImagePathDisplay = document.getElementById('bgImagePathDisplay');
+
+    if (titleInput) titleInput.addEventListener('input', function () { previewTitle.textContent = this.value || 'آموزش‌های شیرینی‌پزی'; });
+    if (subtitleInput) subtitleInput.addEventListener('input', function () { previewSubtitle.textContent = this.value || ''; });
+    if (bgColorInput && bgColorPicker) {
+        bgColorInput.addEventListener('input', function () { bgColorPicker.value = this.value.startsWith('#') ? this.value : '#d4a056'; applyBg(); });
+        bgColorPicker.addEventListener('input', function () { bgColorInput.value = this.value; applyBg(); });
+    }
+    if (textColorInput && textColorPicker) {
+        textColorInput.addEventListener('input', function () { preview.style.color = this.value; textColorPicker.value = this.value.startsWith('#') ? this.value : '#3e2723'; });
+        textColorPicker.addEventListener('input', function () { textColorInput.value = this.value; preview.style.color = this.value; });
+    }
+    if (heightInput) heightInput.addEventListener('input', function () { preview.style.minHeight = this.value + 'px'; });
+
+    function applyBg() {
+        const img = (bgImagePathHidden.value || '').trim();
+        if (bgImagePathDisplay) bgImagePathDisplay.value = img;
+        if (img) {
+            preview.style.background = `url('${img}') center/cover no-repeat, ${bgColorInput.value}`;
+            if (bgImagePreview) { bgImagePreview.src = img; bgImagePreview.style.display = 'block'; }
+        } else {
+            preview.style.background = bgColorInput.value;
+            if (bgImagePreview) bgImagePreview.style.display = 'none';
+        }
+    }
+
+    // ✅ انتخابگر رسانه مقدار را با jQuery .val() ست می‌کند (بدون رویداد change)
+    // بنابراین بعد از کلیک روی آیتم، پیش‌نمایش را با تأخیر کوتاه به‌روز می‌کنیم
+    if (window.jQuery) {
+        jQuery(document).on('click', '.media-picker-item', function () { setTimeout(applyBg, 80); });
+    }
+</script>
+}

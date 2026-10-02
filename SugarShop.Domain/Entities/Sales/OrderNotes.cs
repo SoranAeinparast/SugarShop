@@ -1,0 +1,46 @@
+namespace SugarShop.Domain.Entities.Sales
+{
+    /// <summary>
+    /// نشانه‌های داخلی که در ستون <see cref="Order.Notes"/> ذخیره می‌شوند و مسیر پردازش پرداخت
+    /// را تعیین می‌کنند (شارژ کیف پول / پرداخت سفارش کیک سفارشی).
+    /// این مقادیر هرگز نباید از ورودی آزاد مشتری پر شوند؛ در CheckoutController پاک‌سازی می‌شوند.
+    /// </summary>
+    public static class OrderNotes
+    {
+        /// <summary>سفارش موقتِ شارژ مستقیم کیف پول (بدون ردیف کالا).</summary>
+        public const string WalletRecharge = "WalletRecharge";
+
+        /// <summary>پیشوند سفارش موقتِ پرداخت کیک سفارشی؛ شناسه کیک پس از آن می‌آید.</summary>
+        public const string CustomCakeOrderPrefix = "CustomCakeOrder_";
+
+        public static string ForCustomCakeOrder(int cakeOrderId) => $"{CustomCakeOrderPrefix}{cakeOrderId}";
+
+        /// <summary>
+        /// آیا این مقدار <c>Notes</c> نشانه‌ی یک سفارش «داخلی» است (شارژ کیف پول یا سفارش موقت کیک)؟
+        ///
+        /// این تنها جایی است که قاعده‌ی «سفارش داخلی» تعریف می‌شود؛ ستون نشانگر
+        /// <see cref="Order.IsInternal"/> از همین متد پر می‌شود تا فیلترها و جمع‌های مبلغ
+        /// مجبور نباشند ستون پهن <c>Notes</c> (نوع max) را بخوانند.
+        ///
+        /// مقایسه بدون حساسیت به بزرگی/کوچکی حروف است، چون فیلترهای SQL پیشین هم با
+        /// Collation پیش‌فرض (غیرحساس به حروف) کار می‌کردند.
+        /// </summary>
+        public static bool IsInternalNotes(string? notes)
+        {
+            if (string.IsNullOrWhiteSpace(notes)) return false;
+
+            return notes.Equals(WalletRecharge, System.StringComparison.OrdinalIgnoreCase)
+                || notes.StartsWith(CustomCakeOrderPrefix, System.StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>شناسه کیک سفارشی را از مقدار Notes استخراج می‌کند (در صورت نامعتبر بودن، null).</summary>
+        public static int? TryParseCustomCakeOrderId(string? notes)
+        {
+            if (string.IsNullOrWhiteSpace(notes) || !notes.StartsWith(CustomCakeOrderPrefix, System.StringComparison.Ordinal))
+                return null;
+
+            var raw = notes.Substring(CustomCakeOrderPrefix.Length);
+            return int.TryParse(raw, out var id) ? id : null;
+        }
+    }
+}

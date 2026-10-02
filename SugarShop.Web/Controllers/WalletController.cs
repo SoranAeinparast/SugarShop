@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using SugarShop.Domain.Entities;
 using SugarShop.Domain.Entities.Sales;
 using SugarShop.Infrastructure.Persistence.Sales;
+using SugarShop.Web.Services;
 using SugarShop.Web.ViewModels;
 
 namespace SugarShop.Web.Controllers
@@ -20,15 +21,15 @@ namespace SugarShop.Web.Controllers
             _context = context;
             _userManager = userManager;
         }
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Owner")]
         public async Task<IActionResult> Index(string searchTerm)
         {
             var usersQuery = _userManager.Users.AsQueryable();
 
             if (!string.IsNullOrEmpty(searchTerm))
             {
-                usersQuery = usersQuery.Where(u => u.UserName.Contains(searchTerm) ||
-                                                    u.Email.Contains(searchTerm) ||
+                usersQuery = usersQuery.Where(u => (u.UserName != null && u.UserName.Contains(searchTerm)) ||
+                                                    (u.Email != null && u.Email.Contains(searchTerm)) ||
                                                     u.FullName.Contains(searchTerm));
             }
 
@@ -38,9 +39,9 @@ namespace SugarShop.Web.Controllers
             var model = users.Select(user => new UserWalletViewModel
             {
                 UserId = user.Id,
-                UserName = user.UserName,
+                UserName = user.UserName!,
                 FullName = user.FullName,
-                Email = user.Email,
+                Email = user.Email!,
                 Balance = wallets.ContainsKey(user.Id) ? wallets[user.Id].Balance : 0
             }).ToList();
 
@@ -48,7 +49,7 @@ namespace SugarShop.Web.Controllers
             return View(model);
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Owner")]
         public async Task<IActionResult> Details(string userId)
         {
             if (string.IsNullOrEmpty(userId))
@@ -58,13 +59,10 @@ namespace SugarShop.Web.Controllers
             if (user == null)
                 return NotFound();
 
-            var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
-            if (wallet == null)
-            {
-                wallet = new Wallet { UserId = userId, Balance = 0 };
-                _context.Wallets.Add(wallet);
-                await _context.SaveChangesAsync();
-            }
+            await using var walletTransaction = await _context.Database.BeginTransactionAsync();
+            var wallet = await WalletBalanceLock.GetOrCreateForUpdateAsync(_context, userId);
+            await _context.SaveChangesAsync();
+            await walletTransaction.CommitAsync();
 
             var transactions = await _context.WalletTransactions
                 .Where(t => t.UserId == userId)
@@ -76,7 +74,7 @@ namespace SugarShop.Web.Controllers
             return View(wallet);
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Owner")]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AdjustBalance(string userId, decimal amount, string description)
@@ -84,15 +82,12 @@ namespace SugarShop.Web.Controllers
             if (string.IsNullOrEmpty(userId))
                 return BadRequest();
 
-            var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
-            if (wallet == null)
-            {
-                wallet = new Wallet { UserId = userId, Balance = 0 };
-                _context.Wallets.Add(wallet);
-            }
+            await using var walletTransaction = await _context.Database.BeginTransactionAsync();
+            var wallet = await WalletBalanceLock.GetOrCreateForUpdateAsync(_context, userId);
 
             var settings = await GetWalletSettings();
-            if (amount > 0 && settings.MaxWalletBalance > 0 && wallet.Balance + amount > settings.MaxWalletBalance)
+            if (amount > 0 && settings.MaxWalletBalance > 0
+                && wallet.Balance + amount > settings.MaxWalletBalance)
             {
                 TempData["Error"] = $"موجودی کیف پول نمی‌تواند از {settings.MaxWalletBalance:N0} تومان بیشتر شود.";
                 return RedirectToAction("Details", new { userId });
@@ -112,18 +107,19 @@ namespace SugarShop.Web.Controllers
             _context.WalletTransactions.Add(transaction);
 
             await _context.SaveChangesAsync();
+            await walletTransaction.CommitAsync();
             TempData["Success"] = $"موجودی با موفقیت {(amount > 0 ? "افزایش" : "کسر")} یافت.";
             return RedirectToAction("Details", new { userId });
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Owner")]
         public async Task<IActionResult> Settings()
         {
             var settings = await GetWalletSettings();
             return View(settings);
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Owner")]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Settings(WalletSettings model)
@@ -203,6 +199,24 @@ namespace SugarShop.Web.Controllers
                     return RedirectToAction("Login", "Account");
                 }
 
+                await using var rechargeTransaction = await _context.Database.BeginTransactionAsync();
+                await WalletBalanceLock.GetOrCreateForUpdateAsync(_context, userId);
+                var existingRecharge = await _context.Orders.AsNoTracking()
+                    .Where(o => o.UserId == userId && o.Notes == OrderNotes.WalletRecharge
+                        && (o.PaymentStatus == PaymentStatus.Unpaid
+                            || o.PaymentStatus == PaymentStatus.Initiated
+                            || o.PaymentStatus == PaymentStatus.RefundRequired))
+                    .OrderByDescending(o => o.Id)
+                    .FirstOrDefaultAsync();
+                if (existingRecharge != null)
+                {
+                    await rechargeTransaction.RollbackAsync();
+                    TempData["Info"] = "برای این حساب یک شارژ در انتظار پرداخت یا بررسی وجود دارد؛ ابتدا همان را پیگیری کنید.";
+                    if (existingRecharge.PaymentStatus == PaymentStatus.RefundRequired)
+                        return RedirectToAction("Wallet", "Profile");
+                    return RedirectToAction("RequestPayment", "Payment", new { orderId = existingRecharge.Id });
+                }
+
                 var order = new Order
                 {
                     OrderCode = "WALLET-" + Guid.NewGuid().ToString().Substring(0, 8).ToUpper(),
@@ -215,10 +229,11 @@ namespace SugarShop.Web.Controllers
                     CustomerName = User.Identity?.Name ?? "کاربر مهمان",
                     CreatedAt = DateTime.UtcNow,
                     IsPaymentEnabled = true,
-                    Notes = "WalletRecharge"
+                    Notes = OrderNotes.WalletRecharge
                 };
                 _context.Orders.Add(order);
                 await _context.SaveChangesAsync();
+                await rechargeTransaction.CommitAsync();
                 return RedirectToAction("RequestPayment", "Payment", new { orderId = order.Id });
             }
             catch (Exception ex)

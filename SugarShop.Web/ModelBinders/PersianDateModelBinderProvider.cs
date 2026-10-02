@@ -10,7 +10,7 @@ namespace SugarShop.Web.ModelBinders
             if (modelType == typeof(DateTime) || modelType == typeof(DateTime?))
                 return new PersianDateModelBinder();
 
-            return null;
+            return null!; // returning null is the contract: "no binder for this type"
         }
     }
 }

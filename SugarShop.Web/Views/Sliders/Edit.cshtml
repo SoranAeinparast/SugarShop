@@ -42,12 +42,14 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">تاریخ شروع (اختیاری)</label>
-                        <input asp-for="StartAt" type="date" class="form-control" value="@(Model.StartAt?.ToString("yyyy-MM-dd"))" />
+                        <label class="form-label">تاریخ شروع (شمسی - اختیاری)</label>
+                        <persian-date asp-for="StartAt"></persian-date>
+                        <span asp-validation-for="StartAt" class="text-danger small"></span>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">تاریخ پایان (اختیاری)</label>
-                        <input asp-for="EndAt" type="date" class="form-control" value="@(Model.EndAt?.ToString("yyyy-MM-dd"))" />
+                        <label class="form-label">تاریخ پایان (شمسی - اختیاری)</label>
+                        <persian-date asp-for="EndAt"></persian-date>
+                        <span asp-validation-for="EndAt" class="text-danger small"></span>
                     </div>
                 </div>
             </div>
@@ -65,3 +67,23 @@
         </form>
     </div>
 </div>
+@section Scripts {
+    <script>
+        $(function () {
+            $("#StartAt").persianDatepicker({
+                format: 'YYYY/MM/DD',
+                autoClose: true,
+                initialValue: false,
+                observer: true,
+                calendar: { persian: { locale: 'fa' } }
+            });
+            $("#EndAt").persianDatepicker({
+                format: 'YYYY/MM/DD',
+                autoClose: true,
+                initialValue: false,
+                observer: true,
+                calendar: { persian: { locale: 'fa' } }
+            });
+        });
+    </script>
+}

@@ -3,6 +3,7 @@
     Layout = "_AdminLayout";
 }
 @model SugarShop.Domain.Entities.SiteSetting
+
 <div class="card">
     <div class="card-header">
         <h4>⚙️ تنظیمات سایت</h4>
@@ -24,7 +25,9 @@
                     <button class="nav-link" id="footer-tab" data-bs-toggle="tab" data-bs-target="#footerContent" type="button" role="tab">فوتر و محتوا</button>
                 </li>
             </ul>
+            
             <div class="tab-content mt-3">
+                <!-- تب تنظیمات عمومی -->
                 <div class="tab-pane fade show active" id="general" role="tabpanel">
                     <div class="row">
                         <div class="col-md-6">
@@ -41,55 +44,91 @@
                                 <textarea asp-for="Address" class="form-control" rows="2"></textarea>
                             </div>
                             <div class="mb-3">
+                                <label class="form-label">شماره اقتصادی (برای فاکتور)</label>
+                                <input asp-for="EconomicCode" class="form-control" placeholder="مثلاً ۱۲۳۴۵۶۷۸۹" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">کدپستی فروشگاه (برای فاکتور)</label>
+                                <input asp-for="PostalCode" class="form-control" placeholder="مثلاً ۳۲۵۴۲۱۴۵۵" />
+                            </div>
+                            <div class="mb-3">
                                 <label class="form-label">ساعات کاری</label>
                                 <input asp-for="WorkingHours" class="form-control" placeholder="مثال: شنبه تا چهارشنبه 9-18" />
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <!-- تب شبکه‌های اجتماعی -->
                 <div class="tab-pane fade" id="social" role="tabpanel">
                     <div class="row">
                         <div class="col-md-6">
                             <h5 class="mb-3">شبکه‌های اجتماعی</h5>
-                            <div class="mb-3">
-                                <label class="form-label">اینستاگرام</label>
-                                <input asp-for="InstagramUrl" class="form-control" placeholder="https://instagram.com/..." />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">تلگرام</label>
-                                <input asp-for="TelegramUrl" class="form-control" placeholder="https://t.me/..." />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">واتساپ</label>
-                                <input asp-for="WhatsAppUrl" class="form-control" placeholder="https://wa.me/..." />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">بله (Bale)</label>
-                                <input asp-for="baleUrl" class="form-control" placeholder="https://bale.ai/..." />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">روبیکا (Rubika)</label>
-                                <input asp-for="rubikaUrl" class="form-control" placeholder="https://rubika.ir/..." />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">ایتا (Eitaa)</label>
-                                <input asp-for="eitaaUrl" class="form-control" placeholder="https://eitaa.com/..." />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">سروش (Soroush)</label>
-                                <input asp-for="soroushUrl" class="form-control" placeholder="https://sapp.ir/..." />
-                            </div>
+                            <div class="mb-3"><label class="form-label">اینستاگرام</label><input asp-for="InstagramUrl" class="form-control" placeholder="https://instagram.com/..." /></div>
+                            <div class="mb-3"><label class="form-label">تلگرام</label><input asp-for="TelegramUrl" class="form-control" placeholder="https://t.me/..." /></div>
+                            <div class="mb-3"><label class="form-label">واتساپ</label><input asp-for="WhatsAppUrl" class="form-control" placeholder="https://wa.me/..." /></div>
+                            <div class="mb-3"><label class="form-label">بله (Bale)</label><input asp-for="baleUrl" class="form-control" placeholder="https://bale.ai/..." /></div>
+                            <div class="mb-3"><label class="form-label">روبیکا (Rubika)</label><input asp-for="rubikaUrl" class="form-control" placeholder="https://rubika.ir/..." /></div>
+                            <div class="mb-3"><label class="form-label">ایتا (Eitaa)</label><input asp-for="eitaaUrl" class="form-control" placeholder="https://eitaa.com/..." /></div>
+                            <div class="mb-3"><label class="form-label">سروش (Soroush)</label><input asp-for="soroushUrl" class="form-control" placeholder="https://sapp.ir/..." /></div>
                         </div>
                         <div class="col-md-6">
                             <h5 class="mb-3">گواهینامه‌ها (نمادها)</h5>
-                            <div class="mb-3">
-                                <label class="form-label">گواهینامه‌ها (JSON)</label>
-                                <textarea asp-for="CertificationsJson" class="form-control" rows="6" placeholder='[{"Title":"نماد اعتماد","ImagePath":"/images/eNamad.png","Link":"https://...","Alt":"enamad"}]'></textarea>
-                                <small class="text-muted">فرمت: آرایه‌ای از اشیاء با Title, ImagePath, Link (اختیاری), Alt</small>
+                            <small class="text-muted d-block mb-2">
+                                بدون نیاز به کدنویسی، نماد اعتماد و گواهینامه‌های فروشگاه را اضافه کنید؛
+                                این نمادها در فوتر سایت نمایش داده می‌شوند.
+                            </small>
+                            <div id="certificationsContainer">
+                                @{ var certifications = ViewBag.Certifications as List<SugarShop.Web.Areas.Admin.ViewModels.CertificationItem> ?? new List<SugarShop.Web.Areas.Admin.ViewModels.CertificationItem>(); }
+                                @for (int i = 0; i < certifications.Count; i++)
+                                {
+                                    var cert = certifications[i];
+                                    var alt = string.IsNullOrWhiteSpace(cert.Alt) ? cert.Title : cert.Alt;
+                                    <div class="card certification-item mb-3 shadow-sm">
+                                        <div class="card-header d-flex justify-content-between align-items-center py-2">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <i class="bi bi-arrows-move drag-handle text-muted" draggable="true" title="برای تغییر ترتیب بکشید"></i>
+                                                <img class="cert-preview img-thumbnail bg-white" src="@cert.ImagePath" alt="@alt" style="width: 40px; height: 40px; object-fit: contain; display: @(string.IsNullOrWhiteSpace(cert.ImagePath) ? "none" : "")" onerror="this.style.display='none'" />
+                                                <span class="fw-bold cert-title-preview">@(string.IsNullOrWhiteSpace(cert.Title) ? "بدون عنوان" : cert.Title)</span>
+                                            </div>
+                                            <button type="button" class="btn btn-sm btn-outline-danger cert-remove" title="حذف گواهینامه"><i class="bi bi-trash"></i></button>
+                                        </div>
+                                        <div class="card-body py-3">
+                                            <div class="row g-2">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">عنوان</label>
+                                                    <input type="text" class="form-control form-control-sm cert-title-input" name="Certifications[@i].Title" value="@cert.Title" placeholder="نماد اعتماد الکترونیکی" />
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">لینک (اختیاری)</label>
+                                                    <input type="url" class="form-control form-control-sm" name="Certifications[@i].Link" value="@cert.Link" placeholder="https://trustseal.enamad.ir/..." dir="ltr" />
+                                                </div>
+                                                <div class="col-12">
+                                                    <label class="form-label">تصویر نماد</label>
+                                                    <div class="d-flex gap-2">
+                                                        <input type="text" id="certImage_@i" class="form-control form-control-sm cert-image-input" name="Certifications[@i].ImagePath" value="@cert.ImagePath" placeholder="/images/eNamad.png" dir="ltr" />
+                                                        <button type="button" class="btn btn-sm btn-outline-primary text-nowrap open-media-picker" data-target="#certImage_@i" data-preview="#certPreview_@i">
+                                                            <i class="bi bi-image"></i> انتخاب
+                                                        </button>
+                                                        <img id="certPreview_@i" class="cert-preview-lg img-thumbnail bg-white" src="@cert.ImagePath" alt="@alt" style="width: 48px; height: 48px; object-fit: contain; display: @(string.IsNullOrWhiteSpace(cert.ImagePath) ? "none" : "")" onerror="this.style.display='none'" />
+                                                    </div>
+                                                    <small class="text-muted">تصویر نماد را از کتابخانه رسانه انتخاب کنید.</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
                             </div>
+
+                            <button type="button" id="addCertificationBtn" class="btn btn-outline-primary btn-sm mt-1">
+                                <i class="bi bi-plus-circle"></i> افزودن گواهینامه جدید
+                            </button>
+                            <small class="text-muted d-block mt-2">ترتیب نمایش را با کشیدن آیکون کنار هر کارت تغییر دهید.</small>
                         </div>
                     </div>
                 </div>
+
+                <!-- تب بنر پرومو -->
                 <div class="tab-pane fade" id="promo" role="tabpanel">
                     <div class="mb-3 form-check">
                         <input asp-for="PromoEnabled" class="form-check-input" />
@@ -101,36 +140,15 @@
                     </div>
                     <div class="row">
                         <div class="col-md-6">
-                            <div class="mb-3">
-                                <label>متن نشان (Badge)</label>
-                                <input asp-for="PromoBadgeText" class="form-control" />
-                            </div>
-                            <div class="mb-3">
-                                <label>عنوان بنر</label>
-                                <input asp-for="PromoTitle" class="form-control" />
-                            </div>
-                            <div class="mb-3">
-                                <label>متن توضیحی بنر</label>
-                                <textarea asp-for="PromoText" class="form-control" rows="3"></textarea>
-                            </div>
+                            <div class="mb-3"><label>متن نشان (Badge)</label><input asp-for="PromoBadgeText" class="form-control" /></div>
+                            <div class="mb-3"><label>عنوان بنر</label><input asp-for="PromoTitle" class="form-control" /></div>
+                            <div class="mb-3"><label>متن توضیحی بنر</label><textarea asp-for="PromoText" class="form-control" rows="3"></textarea></div>
                         </div>
                         <div class="col-md-6">
-                            <div class="mb-3">
-                                <label>متن دکمه اول</label>
-                                <input asp-for="PromoButton1Text" class="form-control" />
-                            </div>
-                            <div class="mb-3">
-                                <label>لینک دکمه اول</label>
-                                <input asp-for="PromoButton1Url" class="form-control" placeholder="/Products" />
-                            </div>
-                            <div class="mb-3">
-                                <label>متن دکمه دوم</label>
-                                <input asp-for="PromoButton2Text" class="form-control" />
-                            </div>
-                            <div class="mb-3">
-                                <label>لینک دکمه دوم</label>
-                                <input asp-for="PromoButton2Url" class="form-control" placeholder="/Category" />
-                            </div>
+                            <div class="mb-3"><label>متن دکمه اول</label><input asp-for="PromoButton1Text" class="form-control" /></div>
+                            <div class="mb-3"><label>لینک دکمه اول</label><input asp-for="PromoButton1Url" class="form-control" placeholder="/Products" /></div>
+                            <div class="mb-3"><label>متن دکمه دوم</label><input asp-for="PromoButton2Text" class="form-control" /></div>
+                            <div class="mb-3"><label>لینک دکمه دوم</label><input asp-for="PromoButton2Url" class="form-control" placeholder="/Category" /></div>
                         </div>
                     </div>
                     <div class="row mt-3">
@@ -149,77 +167,256 @@
                             <div class="mb-3"><label>متن دکمه دوم</label><input asp-for="PromoButton2TextColor" type="color" class="form-control form-control-color" /></div>
                         </div>
                     </div>
-                    <div class="mt-4">
-                        <h6>اسلایدر بنر (حداکثر ۳ تصویر یا ویدئو)</h6>
-                        <div id="promoSliderContainer">
-                            @{
-                                var sliderItems = string.IsNullOrEmpty(Model.PromoSliderImages) 
-                                    ? new List<string>() 
-                                    : System.Text.Json.JsonSerializer.Deserialize<List<string>>(Model.PromoSliderImages) ?? new List<string>();
-                            }
-                            @for (int i = 0; i < 3; i++)
-                            {
-                                var currentPath = i < sliderItems.Count ? sliderItems[i] : "";
-                                <div class="row mb-3 align-items-center" id="slideRow_@i">
-                                    <div class="col-7">
-                                        <label>اسلاید @(i+1)</label>
-                                        <input type="hidden" name="PromoSliderImage_@i" value="@currentPath" class="slide-path-input" id="slidePath_@i" />
-                                        <img id="slidePreview_@i" src="@currentPath" class="img-thumbnail mb-1" style="max-width: 100px; max-height: 60px; @(string.IsNullOrEmpty(currentPath) ? "display:none;" : "")" />
-                                        <button type="button" class="btn btn-sm btn-outline-primary open-media-picker" data-target="#slidePath_@i" data-preview="#slidePreview_@i"><i class="bi bi-image"></i> انتخاب از کتابخانه</button>
-                                    </div>
-                                    <div class="col-3">
-                                        <button type="button" class="btn btn-sm btn-danger delete-slide-btn" data-index="@i" style="margin-top: 32px;">
-                                            🗑️ حذف اسلاید
-                                        </button>
-                                    </div>
-                                </div>
-                            }
-                        </div>
-                        <p class="text-muted">برای تغییر هر اسلاید، فایل جدید را انتخاب کنید. برای حذف اسلاید، روی «حذف اسلاید» کلیک کنید.</p>
-                    </div>
+                    
+<div class="mt-4">
+    <h6>اسلایدر بنر (حداکثر ۳ تصویر یا ویدئو)</h6>
+    <div id="promoSliderContainer">
+        @{
+            var sliderItems = string.IsNullOrEmpty(Model.PromoSliderImages)
+                ? new List<string>()
+                : System.Text.Json.JsonSerializer.Deserialize<List<string>>(Model.PromoSliderImages) ?? new List<string>();
+        }
+        @for (int i = 0; i < 3; i++)
+        {
+            var currentPath = i < sliderItems.Count ? sliderItems[i] : "";
+            <div class="row mb-3 align-items-center" id="slideRow_@i">
+                <div class="col-7">
+                    <label>اسلاید @(i+1)</label>
+                    <input type="text" 
+                           name="PromoSliderImage_@i" 
+                           value="@currentPath" 
+                           class="form-control mb-1 slide-path-input" 
+                           id="slidePath_@i" 
+                           placeholder="آدرس تصویر یا ویدئو..." 
+                           readonly />
+                    <img id="slidePreview_@i" 
+                         src="@currentPath" 
+                         class="img-thumbnail mb-1" 
+                         style="max-width: 100px; max-height: 60px; @(string.IsNullOrEmpty(currentPath) ? "display:none;" : "")" />
+                    <button type="button" 
+                            class="btn btn-sm btn-outline-primary open-media-picker" 
+                            data-target="#slidePath_@i" 
+                            data-preview="#slidePreview_@i">
+                        <i class="bi bi-image"></i> انتخاب از کتابخانه
+                    </button>
                 </div>
-                <div class="tab-pane fade" id="footerContent" role="tabpanel">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">متن کوتاه درباره فروشگاه (برای فوتر)</label>
-                                <textarea asp-for="AboutShortText" class="form-control" rows="3"></textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">لینک‌های سریع (JSON)</label>
-                                <textarea asp-for="QuickLinksJson" class="form-control" rows="4" placeholder='[{"Title":"خانه","Url":"/Home"},{"Title":"محصولات","Url":"/Products"}]'></textarea>
-                                <small class="text-muted">فرمت: آرایه‌ای از اشیاء با Title و Url</small>
-                            </div>
-                            @* <div class="mb-3">
-                                <label class="form-label">متن کپی‌رایت فوتر</label>
-                                <input asp-for="FooterCopyrightText" class="form-control" />
-                            </div> *@
-                        </div>
-                    </div>
+                <div class="col-3">
+                    <button type="button" 
+                            class="btn btn-sm btn-danger delete-slide-btn" 
+                            data-index="@i" 
+                            style="margin-top: 32px;">
+                        🗑️ حذف اسلاید
+                    </button>
                 </div>
             </div>
+        }
+    </div>
+    <p class="text-muted">برای تغییر هر اسلاید، فایل جدید را انتخاب کنید. برای حذف اسلاید، روی «حذف اسلاید» کلیک کنید.</p>
+</div>
+</div>
+
+                <!-- تب فوتر -->
+<!-- تب فوتر و محتوا -->
+<div class="tab-pane fade" id="footerContent" role="tabpanel">
+    <div class="row">
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label class="form-label">متن کوتاه درباره فروشگاه (برای فوتر)</label>
+                <textarea asp-for="AboutShortText" class="form-control" rows="3"></textarea>
+            </div>
+            
+            {{-- ✅ بخش جدید: انتخاب لینک‌های سریع با چک‌باکس --}}
+            <div class="mb-3">
+                <label class="form-label fw-bold">لینک‌های سریع (فوتر)</label>
+                <div class="border rounded p-3 bg-light">
+                    <div class="row">
+                        @foreach (var link in (ViewBag.AvailableLinks as List<KeyValuePair<string, string>>)!)
+                        {
+                            var isChecked = (ViewBag.CurrentQuickLinks as List<string>)?.Contains(link.Value) ?? false;
+                            <div class="col-md-6 col-lg-4 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" 
+                                           type="checkbox" 
+                                           name="selectedQuickLinks" 
+                                           value="@link.Value" 
+                                           id="link_@link.Value.Replace("/", "_")" 
+                                           @(isChecked ? "checked" : "") />
+                                    <label class="form-check-label" for="link_@link.Value.Replace("/", "_")">
+                                        @link.Key
+                                    </label>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+                <small class="text-muted">صفحاتی که می‌خواهید در فوتر به عنوان لینک سریع نمایش داده شوند را تیک بزنید. (بدون نیاز به کدنویسی)</small>
+            </div>
+        </div>
+    </div>
+</div>            </div>
+            
             <div class="mt-4">
                 <button type="submit" class="btn btn-success">💾 ذخیره تنظیمات</button>
             </div>
         </form>
     </div>
 </div>
+
 @section Scripts {
-    <script>
-        document.querySelectorAll('.delete-slide-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const idx = this.dataset.index;
-                const hiddenInput = document.querySelector(`input[name="PromoSliderImage_${idx}"]`);
-                const previewImg = document.getElementById(`slidePreview_${idx}`);
-                if (hiddenInput) hiddenInput.value = '';
-                if (previewImg) { previewImg.src = ''; previewImg.style.display = 'none'; }
-                Swal.fire({
-                    icon: 'success',
-                    title: 'حذف شد',
-                    text: 'اسلاید با موفقیت حذف شد. پس از ذخیره، دیگر نمایش داده نخواهد شد.',
-                    confirmButtonText: 'باشه'
-                });
+<script>
+// ══════════════════════════════════════════════════════════
+// ✅ ویرایشگر بصری گواهینامه‌ها (بدون نیاز به کدنویسی)
+// ══════════════════════════════════════════════════════════
+(function () {
+    const container = document.getElementById('certificationsContainer');
+    const addBtn = document.getElementById('addCertificationBtn');
+    if (!container || !addBtn) return;
+
+    let counter = container.querySelectorAll('.certification-item').length;
+
+    // همگام‌سازی پیش‌نمایش کارت با مقادیر فعلی فیلدها
+    function syncCard(card) {
+        const titleInput = card.querySelector('.cert-title-input');
+        const imgInput = card.querySelector('.cert-image-input');
+        const preview = card.querySelector('.cert-title-preview');
+        const thumb = card.querySelector('.cert-preview');
+        if (preview) preview.textContent = (titleInput?.value.trim()) || 'بدون عنوان';
+        if (thumb && imgInput) {
+            const path = imgInput.value.trim();
+            thumb.src = path;
+            thumb.style.display = path ? '' : 'none';
+        }
+    }
+
+    // بازنویسی ایندکس فیلدها پس از حذف/جابه‌جایی تا در سرور درست خوانده شوند
+    // (شناسه‌ها و دکمه‌های انتخاب تصویر در هر کارت یکتا می‌مانند و نیازی به تغییر ندارند)
+    function reindex() {
+        container.querySelectorAll('.certification-item').forEach((item, i) => {
+            item.querySelectorAll('input').forEach(input => {
+                input.name = input.name.replace(/Certifications\[\d+\]\./, `Certifications[${i}].`);
             });
         });
-    </script>
+    }
+
+    function createItem() {
+        const idx = counter++;
+        const div = document.createElement('div');
+        div.className = 'card certification-item mb-3 shadow-sm';
+        div.innerHTML = `
+            <div class="card-header d-flex justify-content-between align-items-center py-2">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-arrows-move drag-handle text-muted" draggable="true" title="برای تغییر ترتیب بکشید"></i>
+                    <img class="cert-preview img-thumbnail bg-white" src="" alt="" style="width: 40px; height: 40px; object-fit: contain; display: none;" onerror="this.style.display='none'" />
+                    <span class="fw-bold cert-title-preview">بدون عنوان</span>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-danger cert-remove" title="حذف گواهینامه"><i class="bi bi-trash"></i></button>
+            </div>
+            <div class="card-body py-3">
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label">عنوان</label>
+                        <input type="text" class="form-control form-control-sm cert-title-input" name="Certifications[${idx}].Title" value="" placeholder="نماد اعتماد الکترونیکی" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">لینک (اختیاری)</label>
+                        <input type="url" class="form-control form-control-sm" name="Certifications[${idx}].Link" value="" placeholder="https://trustseal.enamad.ir/..." dir="ltr" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">تصویر نماد</label>
+                        <div class="d-flex gap-2">
+                            <input type="text" id="certImage_${idx}" class="form-control form-control-sm cert-image-input" name="Certifications[${idx}].ImagePath" value="" placeholder="/images/eNamad.png یا آدرس تصویر" dir="ltr" />
+                            <button type="button" class="btn btn-sm btn-outline-primary text-nowrap open-media-picker" data-target="#certImage_${idx}" data-preview="#certPreview_${idx}">
+                                <i class="bi bi-image"></i> انتخاب
+                            </button>
+                            <img id="certPreview_${idx}" class="cert-preview-lg img-thumbnail bg-white" src="" alt="" style="width: 48px; height: 48px; object-fit: contain; display: none;" onerror="this.style.display='none'" />
+                        </div>
+                        <small class="text-muted">از کتابخانه رسانه انتخاب کنید یا آدرس تصویر نماد (مثلاً enamad) را وارد کنید.</small>
+                    </div>
+                </div>
+            </div>
+        `;
+        return div;
+    }
+
+    addBtn.addEventListener('click', () => {
+        container.appendChild(createItem());
+        const newItem = container.lastElementChild;
+        newItem?.querySelector('.cert-title-input')?.focus();
+    });
+
+    container.addEventListener('input', (e) => {
+        const card = e.target.closest('.certification-item');
+        if (card) syncCard(card);
+    });
+
+    container.addEventListener('click', (e) => {
+        const removeBtn = e.target.closest('.cert-remove');
+        if (removeBtn) {
+            removeBtn.closest('.certification-item')?.remove();
+            reindex();
+        }
+    });
+
+    // پس از انتخاب تصویر از مودال کتابخانه رسانه، پیش‌نمایش‌ها را همگام کن
+    const modalEl = document.getElementById('mediaPickerModal');
+    if (modalEl) {
+        modalEl.addEventListener('hidden.bs.modal', () => {
+            container.querySelectorAll('.certification-item').forEach(syncCard);
+        });
+    }
+
+    // مرتب‌سازی با کشیدن (HTML5 drag & drop)
+    let dragging = null;
+    container.addEventListener('dragstart', (e) => {
+        const handle = e.target.closest('.drag-handle');
+        if (!handle) return;
+        dragging = handle.closest('.certification-item');
+        dragging.classList.add('opacity-50');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', ''); // برای عملکرد درگ در فایرفاکس
+    });
+    container.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const target = e.target.closest('.certification-item');
+        if (!target || !dragging || target === dragging) return;
+        const rect = target.getBoundingClientRect();
+        const before = e.clientY < rect.top + rect.height / 2;
+        container.insertBefore(dragging, before ? target : target.nextSibling);
+    });
+    container.addEventListener('dragend', () => {
+        if (dragging) { dragging.classList.remove('opacity-50'); dragging = null; }
+        reindex();
+    });
+})();
+
+// ══════════════════════════════════════════════════════════
+// باز شدن خودکار تب متناظر با hash آدرس (مثلاً /SiteSettings#social)
+// ══════════════════════════════════════════════════════════
+if (window.location.hash) {
+    const tabBtn = document.querySelector(`[data-bs-target="${window.location.hash}"]`);
+    if (tabBtn) bootstrap.Tab.getOrCreateInstance(tabBtn).show();
+}
+
+// ══════════════════════════════════════════════════════════
+// اسلایدر پرومو (کد قبلی)
+// ══════════════════════════════════════════════════════════
+document.querySelectorAll('.delete-slide-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const idx = this.dataset.index;
+        const targetInput = document.querySelector(`input[name="PromoSliderImage_${idx}"]`);
+        const previewImg = document.getElementById(`slidePreview_${idx}`);
+        if (targetInput) targetInput.value = '';
+        if (previewImg) { 
+            previewImg.src = ''; 
+            previewImg.style.display = 'none'; 
+        }
+        Swal.fire({
+            icon: 'success',
+            title: 'حذف شد',
+            text: 'اسلاید با موفقیت حذف شد. پس از کلیک روی دکمه ذخیره، تغییرات اعمال خواهد شد.',
+            confirmButtonText: 'باشه'
+        });
+    });
+});
+</script>
 }

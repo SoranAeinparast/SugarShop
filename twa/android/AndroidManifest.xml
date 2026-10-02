@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="ir.soransoftpro.pastry"
+          android:versionCode="10"
+          android:versionName="1.7.1">
+
+    <uses-sdk android:minSdkVersion="23" android:targetSdkVersion="35" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- بدون این مجوز، ConnectivityManager در isOnline() هنگام اجرا SecurityException می‌دهد
+         و اپ بلافاصله بعد از نصب بسته می‌شد — علت اصلی کرش راه‌اندازی -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- خواندن خودکار کد OTP از پیامک — فقط در حین صفحه‌ی ورود فعال می‌شود -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <!-- قفل بیومتریک اپ (اثر انگشت) -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+
+    <application
+        android:label="شیرینی سرای ایران"
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="false"
+        android:hardwareAccelerated="true"
+        android:theme="@style/AppTheme"
+        android:networkSecurityConfig="@xml/network_security_config">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
+            android:windowSoftInputMode="adjustResize"
+            android:supportsPictureInPicture="false">
+
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="sweets.soransoftpro.ir" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Android 12+ splash must point at a theme-level icon; standard TWA needs no meta-data. -->
+
+        <meta-data
+            android:name="asset_statements"
+            android:resource="@string/asset_statements" />
+    </application>
+</manifest>

@@ -48,7 +48,7 @@ namespace SugarShop.Web.Controllers
             if (ModelState.IsValid)
             {
                 var userId = _userManager.GetUserId(User);
-                model.UserId = userId;
+                model.UserId = userId!;
                 model.CreatedAt = DateTime.UtcNow;
                 model.UpdatedAt = DateTime.UtcNow;
 
@@ -112,6 +112,7 @@ namespace SugarShop.Web.Controllers
 
         // حذف آدرس
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)
         {
             var userId = _userManager.GetUserId(User);
@@ -135,6 +136,7 @@ namespace SugarShop.Web.Controllers
 
         // تنظیم آدرس به عنوان پیش‌فرض
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> SetDefault(int id)
         {
             var userId = _userManager.GetUserId(User);

@@ -3,18 +3,57 @@
 @{
     ViewData["Title"] = "مدیریت محصولات دارای قیمت مشخص";
     Layout = "_AdminLayout";
+
+    int totalPages   = ViewBag.TotalPages   is int tp ? tp : 1;
+    int currentPage  = ViewBag.CurrentPage  is int cp ? cp : 1;
+    int totalCount   = ViewBag.TotalCount   is int tc ? tc : 0;
+    string search    = ViewBag.Search as string ?? "";
+    int? categoryId  = ViewBag.CategoryId is int ci ? (int?)ci : null;
+    var categories   = ViewBag.Categories as IEnumerable<dynamic>;
 }
+
 <div class="card shadow-sm border-0">
     <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
-            <h4 class="mb-1">🍰 لیست محصولات دارای قیمت مشخص</h4>
+            <h4 class="mb-1">🍰 لیست محصولات دارای قیمت مشخص
+                <small class="text-muted ms-2">(@totalCount مورد)</small>
+            </h4>
             <p class="text-muted mb-0 small">کیک، دسر، شکلات و سایر محصولات عمومی</p>
         </div>
         <a href="@Url.Action("Create")" class="btn btn-primary">
             ➕ افزودن محصول جدید
         </a>
     </div>
+
     <div class="card-body">
+
+        @* 🔎 فرم جستجو و فیلتر دسته *@
+        <form method="get" class="row g-2 mb-3">
+            <div class="col-md-5">
+                <input type="text" name="search" value="@search"
+                       class="form-control" placeholder="🔍 جستجو بر اساس نام محصول..." />
+            </div>
+            <div class="col-md-4">
+                <select name="categoryId" class="form-select">
+                    <option value="">-- همه دسته‌ها --</option>
+                    @if (categories != null)
+                    {
+                        foreach (var c in categories)
+                        {
+                            int cId = (int)c.Id;
+                            string cTitle = (string)c.TitleFa;
+                            bool selected = categoryId.HasValue && categoryId.Value == cId;
+                            <option value="@cId" selected="@(selected ? "selected" : null)">@cTitle</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-success flex-fill">🔎 اعمال فیلتر</button>
+                <a href="@Url.Action("Index")" class="btn btn-outline-secondary" title="پاک‌سازی">✖️</a>
+            </div>
+        </form>
+
         @if (Model != null && Model.Any())
         {
             <div class="table-responsive">
@@ -106,13 +145,56 @@
                     </tbody>
                 </table>
             </div>
+
+            @* 📄 صفحه‌بندی کامل *@
+            @if (totalPages > 1)
+            {
+                <nav aria-label="صفحه‌بندی">
+                    <ul class="pagination justify-content-center mb-0">
+
+                        @* لینک قبلی *@
+                        @{
+                            bool prevDisabled = currentPage == 1;
+                        }
+                        <li class="page-item @(prevDisabled ? "disabled" : "")">
+                            <a class="page-link"
+                               href="@Url.Action("Index", new { page = currentPage - 1, search, categoryId })">
+                                « قبلی
+                            </a>
+                        </li>
+
+                        @* شماره صفحات *@
+                        @for (int i = 1; i <= totalPages; i++)
+                        {
+                            bool active = i == currentPage;
+                            <li class="page-item @(active ? "active" : "")">
+                                <a class="page-link"
+                                   href="@Url.Action("Index", new { page = i, search, categoryId })">
+                                    @i
+                                </a>
+                            </li>
+                        }
+
+                        @* لینک بعدی *@
+                        @{
+                            bool nextDisabled = currentPage == totalPages;
+                        }
+                        <li class="page-item @(nextDisabled ? "disabled" : "")">
+                            <a class="page-link"
+                               href="@Url.Action("Index", new { page = currentPage + 1, search, categoryId })">
+                                بعدی »
+                            </a>
+                        </li>
+
+                    </ul>
+                </nav>
+            }
         }
         else
         {
             <div class="alert alert-info mb-0">
-                هیچ محصولی برای نمایش وجود ندارد.
+                🫤 هیچ محصولی با این فیلترها یافت نشد.
             </div>
         }
     </div>
 </div>
-

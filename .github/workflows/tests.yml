@@ -1,0 +1,43 @@
+name: build-and-test
+
+# آزمون‌ها روی هر push/PR اجرا می‌شوند تا جداسازی «اپ/وب»، ریاضیات پول و یادآوری پیامکی
+# هیچ‌وقت بی‌سروصدا نشکنند. آزمون‌ها به SQL Server نیاز ندارند (همه‌چیز in-memory است).
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: نصب .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: بازیابی بسته‌ها
+        run: dotnet restore SugarShop.Web/SugarShop.Web.sln
+
+      - name: ساخت
+        run: dotnet build SugarShop.Web/SugarShop.Web.sln --no-restore --configuration Release
+
+      - name: اجرای آزمون‌ها
+        run: >
+          dotnet test SugarShop.Web/SugarShop.Web.sln
+          --no-build --configuration Release
+          --logger "console;verbosity=normal"
+          --results-directory ./test-results
+
+      - name: ذخیره خروجی آزمون‌ها
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ./test-results
+          if-no-files-found: ignore
+          retention-days: 7

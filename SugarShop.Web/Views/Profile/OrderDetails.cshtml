@@ -12,23 +12,58 @@
     var sweetNames = ViewBag.SweetNames as Dictionary<int, string> ?? new Dictionary<int, string>();
     var productNames = ViewBag.ProductNames as Dictionary<int, string> ?? new Dictionary<int, string>();
     var boxInfos = ViewBag.BoxInfos as Dictionary<string, BoxFinalInfo> ?? new Dictionary<string, BoxFinalInfo>();
-    string ToPersianNumber(string input) => input.ToPersianNumber();
     var hasProducts = productItems.Any();
     var hasBoxes = boxGroups.Any();
-    decimal productTotal = productItems.Sum(p => p.TotalPriceSnapshot);
-    bool anyBoxPending = hasBoxes && boxGroups.Any(bg => !boxInfos.ContainsKey(bg.Key));
-    bool allBoxesFinalized = hasBoxes && !anyBoxPending;
-    decimal boxTotalFinalized = allBoxesFinalized ? boxInfos.Values.Sum(b => b.FinalPrice) : 0;
-    decimal totalFinalPrice = productTotal + boxTotalFinalized;
+    decimal productTotal = (decimal)(ViewBag.ProductTotal ?? productItems.Sum(p => p.TotalPriceSnapshot));
+    decimal finalizedBoxTotal = (decimal)(ViewBag.FinalizedBoxTotal ?? 0m);
+    bool anyBoxPending = (bool)(ViewBag.HasUnfinalizedBoxes ?? (hasBoxes && boxGroups.Any(bg => !boxInfos.ContainsKey(bg.Key!))));
+    decimal paidSoFar = (decimal)(ViewBag.PaidSoFar ?? 0m);
+    decimal grandTotalSoFar = (decimal)(ViewBag.GrandTotalSoFar ?? (productTotal + finalizedBoxTotal + Model.DeliveryFeeSnapshot));
+    decimal payableNow = (decimal)(ViewBag.PayableNow ?? (grandTotalSoFar - paidSoFar));
+    var stagePayments = ViewBag.Payments as List<Payment> ?? new List<Payment>();
 }
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2>📦 سفارش @Model.OrderCode</h2>
-        <a asp-action="Orders" class="btn btn-secondary">بازگشت به لیست سفارشات</a>
+        <div class="d-flex gap-2 flex-wrap">
+@* 📄 سند مشتری فقط یک است: PDF صورت‌حساب (سرورساخت، چاپ‌پذیر، در همه دستگاه‌ها یکسان).
+               نسخه چاپی/اکسل/فاکتور HTML حذف شد تا تب و پنجره اضافه ساخته نشود و حالت صفحه هم عوض نشود.
+               ⬇️ دانلود فقط پس از تأیید سفارش فعال است؛ تا وقتی جعبه‌ای وزن‌کشی/تأیید نشده، نباید
+               صورتحسابی صادر شود که مبلغش بعداً عوض می‌شود. *@
+            @if (hasBoxes || hasProducts)
+            {
+                @if (anyBoxPending)
+                {
+                    <button type="button" class="btn btn-dark" disabled
+                            title="پس از وزن‌کشی و تأیید سفارش توسط فروشگاه، صورت‌حساب فعال می‌شود.">
+                        ⬇️ دانلود PDF صورت‌حساب (پس از تأیید فروشگاه)
+                    </button>
+                }
+                else
+                {
+                    <a asp-controller="Payment" asp-action="StatementPdf" asp-route-orderId="@Model.Id"
+                       class="btn btn-dark">⬇️ دانلود PDF صورت‌حساب</a>
+                }
+            }
+            <a asp-action="Orders" class="btn btn-secondary">بازگشت به لیست سفارشات</a>
+        </div>
     </div>
+
+    @* مقصد لینک پیامکی «سفارش شما آماده پرداخت است» (آدرس کوتاه /o/{id}):
+       اگر در مرورگر اندرویدی باز شده باشد، دکمه «باز کردن در اپلیکیشن» را نشان می‌دهد
+       (داخل خود اپ، نوار لازم نیست و پنهان می‌ماند). *@
+    <vc:app-link-bar />
     @if (TempData["SuccessMessage"] != null)
     {
         <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+    @if (TempData["Info"] != null)
+    {
+        <div class="alert alert-info">@TempData["Info"]</div>
     }
     <div class="row">
         <div class="col-md-6">
@@ -38,81 +73,118 @@
                     <p><strong>نام گیرنده:</strong> @Model.CustomerName</p>
                     <p><strong>تلفن:</strong> @Model.CustomerPhone.ToPersianNumber()</p>
                     <p><strong>آدرس:</strong> @Model.CustomerFullAddress</p>
-                    <p><strong>کد پستی:</strong> @Model.CustomerPostalCode.ToPersianNumber()</p>
-                    @if (Model.DeliveryDate.HasValue) { <p><strong>تاریخ تحویل:</strong> @Model.DeliveryDate.Value.ToString("yyyy/MM/dd").ToPersianNumber()</p> }
+                    <p><strong>کد پستی:</strong> @Model.CustomerPostalCode!.ToPersianNumber()</p>
+                    @if (Model.DeliveryDate.HasValue) { <p><strong>تاریخ تحویل:</strong> @(new PersianDateTime(Model.DeliveryDate.Value).ToString("yyyy/MM/dd").ToPersianNumber())</p> }
                     @if (Model.DeliveryTime.HasValue) { <p><strong>ساعت تحویل:</strong> @Model.DeliveryTime.Value.ToString(@"hh\:mm").ToPersianNumber()</p> }
                     @if (!string.IsNullOrEmpty(Model.Notes)) { <p><strong>توضیحات:</strong> @Model.Notes</p> }
+                    <hr />
+                    <div class="mb-2">
+                        <strong> روش تحویل:</strong>
+                        <span class="badge @(Model.DeliveryMethod == DeliveryMethod.Pickup ? "bg-success" : "bg-warning")">
+                            @(Model.DeliveryMethod == DeliveryMethod.Pickup ? "🏪 دریافت در محل" : "🛵 ارسال با پیک")
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-6">
-            <div class="card mb-3">
-                <div class="card-header"><h5>اطلاعات مالی</h5></div>
-                <div class="card-body">
-                    @if (!hasProducts && !hasBoxes)
-                    {
-                        <p class="text-muted">هیچ آیتمی در این سفارش وجود ندارد.</p>
-                    }
-                    else if (hasProducts && !hasBoxes)
-                    {
-                        <p><strong>قیمت نهایی کل:</strong> <span class="text-success fw-bold">@productTotal.ToString("N0").ToPersianNumber() تومان</span></p>
-                    }
-                    else if (!hasProducts && hasBoxes)
-                    {
-                        if (anyBoxPending)
+<div class="col-md-6">
+    <div class="card mb-3">
+        <div class="card-header"><h5>💰 اطلاعات مالی (پرداخت مرحله‌ای)</h5></div>
+        <div class="card-body">
+            @{
+                var deliveryFee = Model.DeliveryFeeSnapshot;
+                var hasDeliveryFee = deliveryFee > 0;
+            }
+
+            @if (hasProducts)
+            {
+                <p><strong>جمع محصولات (قیمت ثابت):</strong> <span>@productTotal.ToString("N0").ToPersianNumber() تومان</span></p>
+            }
+            @if (hasBoxes)
+            {
+                if (anyBoxPending)
+                {
+                    <p><strong>جمع جعبه‌ها:</strong> <span class="text-muted">بخش وزن‌کشی‌نشده پس از اعلام فروشگاه اضافه می‌شود.</span></p>
+                }
+                if (finalizedBoxTotal > 0)
+                {
+                    <p><strong>جمع جعبه‌های وزن‌کشی‌شده:</strong> <span>@finalizedBoxTotal.ToString("N0").ToPersianNumber() تومان</span></p>
+                }
+            }
+            @if (hasDeliveryFee)
+            {
+                <p><strong>هزینه پیک:</strong> <span class="text-info">@deliveryFee.ToString("N0").ToPersianNumber() تومان</span></p>
+            }
+            @if (paidSoFar > 0)
+            {
+                <p><strong>پرداخت‌شده تاکنون:</strong> <span class="text-success">@paidSoFar.ToString("N0").ToPersianNumber() تومان</span></p>
+                @if (stagePayments.Any())
+                {
+                    <small class="text-muted d-block mb-1">ریز پرداخت‌ها:</small>
+                    <ul class="small text-muted mb-2 ps-3">
+                        @foreach (var p in stagePayments)
                         {
-                            <p><strong>قیمت نهایی کل:</strong> <span class="text-muted">قیمت جعبه/جعبه‌های شیرینی، بعد از وزن کشی دقیق توسط فروشگاه اعلام خواهد شد.</span></p>
+                            <li>@p.Amount.ToString("N0").ToPersianNumber() تومان — @(new PersianDateTime(p.CreatedAt).ToString("yyyy/MM/dd HH:mm").ToPersianNumber())</li>
                         }
-                        else
-                        {
-                            <p><strong>قیمت نهایی کل:</strong> <span class="text-success fw-bold">@boxTotalFinalized.ToString("N0").ToPersianNumber() تومان</span></p>
-                        }
-                    }
-                    else if (hasProducts && hasBoxes)
-                    {
-                        if (anyBoxPending)
-                        {
-                            <p>
-                                <strong>قیمت نهایی کل:</strong>
-                                <span class="text-success fw-bold">@productTotal.ToString("N0").ToPersianNumber() تومان</span>
-                                <span class="text-muted"> + قیمت جعبه/جعبه‌های شیرینی، بعد از وزن کشی و اعلام توسط فروشگاه</span>
-                            </p>
-                        }
-                        else
-                        {
-                            <p><strong>قیمت نهایی کل:</strong> <span class="text-success fw-bold">@totalFinalPrice.ToString("N0").ToPersianNumber() تومان</span></p>
-                        }
-                    }
-                    <p><strong>وضعیت سفارش:</strong>
-                        <span class="badge bg-secondary">
-                            @(Model.OrderStatus switch {
-                                OrderStatus.AwaitingReview => "در انتظار بررسی",
-                                OrderStatus.PendingPayment => "در انتظار پرداخت",
-                                OrderStatus.Paid => "پرداخت شده",
-                                OrderStatus.Preparing => "در حال آماده‌سازی",
-                                OrderStatus.Shipped => "ارسال شده",
-                                OrderStatus.Delivered => "تحویل شده",
-                                OrderStatus.Cancelled => "لغو شده",
-                                _ => "نامشخص"
-                            })
-                        </span>
-                    </p>
-                    <p><strong>وضعیت پرداخت:</strong>
-                        <span class="badge bg-secondary">
-                            @(Model.PaymentStatus switch {
-                                PaymentStatus.Unpaid => "پرداخت نشده",
-                                PaymentStatus.Initiated => "در حال پرداخت",
-                                PaymentStatus.Succeeded => "پرداخت موفق",
-                                PaymentStatus.Failed => "پرداخت ناموفق",
-                                _ => "نامشخص"
-                            })
-                        </span>
-                    </p>
+                    </ul>
+                }
+            }
+            <hr />
+            @if (anyBoxPending && payableNow <= 0 && paidSoFar <= 0 && !hasProducts)
+            {
+                <p><strong>💰 مبلغ قابل پرداخت:</strong> <span class="text-muted fs-5">پس از وزن‌کشی و اعلام قیمت جعبه محاسبه می‌شود.</span></p>
+            }
+            else if (payableNow > 0)
+            {
+                <p><strong>💰 مبلغ قابل پرداخت الان:</strong> <span class="text-success fs-5 fw-bold">@payableNow.ToString("N0").ToPersianNumber() تومان</span></p>
+                @if (anyBoxPending)
+                {
+                    <small class="text-warning d-block">⚠️ مبلغ جعبه‌های وزن‌کشی‌نشده پس از اعلام فروشگاه به این سفارش اضافه خواهد شد.</small>
+                }
+            }
+            else if (!anyBoxPending)
+            {
+                <p class="text-success fw-bold">✅ این سفارش تسویه شده است.</p>
+            }
+
+            <hr />
+            <p><strong>وضعیت سفارش:</strong>
+                <span class="badge bg-secondary">
+                    @(Model.OrderStatus switch {
+                        OrderStatus.AwaitingReview => "در انتظار بررسی",
+                        OrderStatus.PendingPayment => "در انتظار پرداخت",
+                        OrderStatus.Paid => "پرداخت شده",
+                        OrderStatus.Preparing => "در حال آماده‌سازی",
+                        OrderStatus.Shipped => "ارسال شده",
+                        OrderStatus.Delivered => "تحویل شده",
+                        OrderStatus.Cancelled => "لغو شده",
+                        OrderStatus.PaymentReview => "نیازمند بررسی پرداخت",
+                        _ => "نامشخص"
+                    })
+                </span>
+            </p>
+            <p><strong>وضعیت پرداخت:</strong>
+                <span class="badge bg-secondary">
+                    @(Model.PaymentStatus switch {
+                        PaymentStatus.Unpaid => "پرداخت نشده",
+                        PaymentStatus.Initiated => "در حال پرداخت",
+                        PaymentStatus.Succeeded => "پرداخت موفق",
+                        PaymentStatus.Failed => "پرداخت ناموفق",
+                        PaymentStatus.RefundRequired => "نیازمند پیگیری/استرداد",
+                        PaymentStatus.Refunded => "مسترد شده",
+                        _ => "نامشخص"
+                    })
+                </span>
+            </p>
+            @if (Model.OrderStatus == OrderStatus.PaymentReview || Model.PaymentStatus == PaymentStatus.RefundRequired)
+            {
+                <div class="alert alert-danger mt-3" role="alert">
+                    پرداخت بانکی دریافت شده اما سفارش هنوز تأیید نشده است. لطفاً دوباره پرداخت نکنید؛ پشتیبانی برای تأمین کالا یا استرداد وجه پیگیری می‌کند.
                 </div>
-            </div>
+            }
         </div>
     </div>
-    @if (productItems.Any())
+</div>    @if (productItems.Any())
     {
         <div class="card mb-4">
             <div class="card-header bg-info text-white">
@@ -160,8 +232,13 @@
         foreach (var boxGroup in boxGroups)
         {
             var boxTitle = boxGroup.Key;
-            var sweetGroups = boxGroup.GroupBy(x => x.SweetItemId).ToList();
-            var boxInfo = boxInfos.ContainsKey(boxTitle) ? boxInfos[boxTitle] : null;
+            var boxRows = boxGroup.ToList();
+            var boxInfo = boxInfos.ContainsKey(boxTitle!) ? boxInfos[boxTitle!] : null;
+            // تا زمانی که فروشگاه جعبه را وزن‌کشی نکرده، وزن ردیف‌ها همان وزن تقریبی زمان سفارش است
+            var rowWeightsAreFinal = boxInfo != null;
+            var rowsWeightSum = boxRows.Sum(r => r.WeightSnapshotGrams ?? 0);
+            // جمع قیمت ثبت‌شده ردیف‌ها؛ مبلغ نهایی جعبه همان است که فروشگاه ثبت می‌کند
+            var rowsPriceSum = boxRows.Sum(r => r.TotalPriceSnapshot);
             <div class="card mb-4 border-primary">
                 <div class="card-header bg-primary text-white">
                     <h5 class="mb-0">📦 @boxTitle</h5>
@@ -171,37 +248,76 @@
                         <table class="table table-bordered">
                             <thead class="table-light">
                                 <tr>
+                                    <th style="width: 70px;" class="text-center">ردیف</th>
                                     <th>🍪 شیرینی</th>
-                                    <th class="text-center">🔢 تعداد ردیف</th>
+                                    @if (rowWeightsAreFinal)
+                                    {
+                                        <th class="text-center" style="width: 22%;">⚖️ وزن این ردیف (گرم)</th>
+                                        <th class="text-center" style="width: 24%;">💰 قیمت این ردیف</th>
+                                    }
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var sg in sweetGroups)
+                                @{ int boxRowNo = 1; }
+                                @foreach (var boxRow in boxRows)
                                 {
-                                    var first = sg.First();
-                                    var name = first.SweetItemId.HasValue && sweetNames.ContainsKey(first.SweetItemId.Value)
-                                        ? sweetNames[first.SweetItemId.Value]
-                                        : (first.SweetItemId.HasValue ? $"شیرینی (کد {first.SweetItemId})" : "نامشخص");
-                                    var rowCount = sg.Count();
+                                    var rowName = boxRow.SweetItemId.HasValue && sweetNames.ContainsKey(boxRow.SweetItemId.Value)
+                                        ? sweetNames[boxRow.SweetItemId.Value]
+                                        : (boxRow.SweetItemId.HasValue ? $"شیرینی (کد {boxRow.SweetItemId})" : "نامشخص");
                                     <tr>
-                                        <td class="align-middle"><strong>@name</strong></td>
-                                        <td class="align-middle text-center">@rowCount.ToPersianNumber() ردیف</td>
+                                        <td class="align-middle text-center">@boxRowNo.ToPersianNumber()</td>
+                                        <td class="align-middle"><strong>@rowName</strong></td>
+                                        @if (rowWeightsAreFinal)
+                                        {
+                                            <td class="align-middle text-center">
+                                                @if (boxRow.WeightSnapshotGrams.HasValue && boxRow.WeightSnapshotGrams.Value > 0)
+                                                {
+                                                    <span>@(boxRow.WeightSnapshotGrams.Value.ToPersianNumber()) گرم</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">-</span>
+                                                }
+                                            </td>
+                                            <td class="align-middle text-center">
+                                                @boxRow.TotalPriceSnapshot.ToString("N0").ToPersianNumber() تومان
+                                            </td>
+                                        }
                                     </tr>
+                                    boxRowNo++;
                                 }
                             </tbody>
-                            <tfoot class="table-secondary">
-                                <tr>
-                                    <td class="text-end"><strong>نوع شیرینی‌های انتخابی:</strong></td>
-                                    <td class="text-center"><strong>@sweetGroups.Count().ToPersianNumber() نوع شیرینی</strong></td>
-                                </tr>
-                            </tfoot>
+                            @if (rowWeightsAreFinal)
+                            {
+                                <tfoot class="table-secondary">
+                                    <tr>
+                                        <td colspan="2" class="text-end">
+                                            <strong>جمع ردیف‌ها:</strong>
+                                        </td>
+                                        <td class="text-center"><strong>@rowsWeightSum.ToPersianNumber() گرم</strong></td>
+                                        <td class="text-center"><strong>@rowsPriceSum.ToString("N0").ToPersianNumber() تومان</strong></td>
+                                    </tr>
+                                </tfoot>
+                            }
                         </table>
                     </div>
+                    @if (!rowWeightsAreFinal)
+                    {
+                        <small class="text-muted d-block mt-2">
+                            وزن و قیمت هر ردیف، پس از وزن‌کشی و تأیید این جعبه توسط فروشگاه نمایش داده می‌شود؛ وزن و قیمت نهایی جعبه در همان کارت اعلام می‌شود.
+                        </small>
+                    }
                     @if (boxInfo != null)
                     {
                         <div class="alert alert-success mt-3 mb-0">
                             <strong>⚖️ وزن نهایی جعبه:</strong> @boxInfo.FinalWeightGrams.ToPersianNumber() گرم &nbsp;|&nbsp;
                             <strong>💰 قیمت نهایی جعبه:</strong> @boxInfo.FinalPrice.ToString("N0").ToPersianNumber() تومان
+                            @if (rowsWeightSum > 0 && rowsWeightSum != boxInfo.FinalWeightGrams)
+                            {
+                                <small class="d-block mt-1 text-muted">
+                                    جمع وزن ردیف‌ها (@rowsWeightSum.ToPersianNumber() گرم) با وزن نهایی اعلام‌شده تفاوت دارد؛ مبنای قیمت، وزن نهایی جعبه است.
+                                </small>
+                            }
                         </div>
                     }
                     else
@@ -214,12 +330,25 @@
             </div>
         }
     }
-    @if (Model.IsPaymentEnabled && Model.PaymentStatus == PaymentStatus.Unpaid)
+    @if (Model.IsPaymentEnabled && Model.PaymentStatus == PaymentStatus.Unpaid && payableNow > 0)
     {
         <div class="mt-3">
             <form asp-action="PayOrder" method="post">
                 <input type="hidden" name="orderId" value="@Model.Id" />
-                <button type="submit" class="btn btn-success btn-lg">💳 پرداخت سفارش</button>
+                <button type="submit" class="btn btn-success btn-lg">
+                    💳 @(hasBoxes ? "بررسی و پرداخت" : "پرداخت") @(payableNow.ToString("N0").ToPersianNumber()) تومان
+                    @(anyBoxPending ? "(قسمت قیمت‌ثابت)" : "")
+                </button>
+                @if (hasBoxes)
+                {
+                    <small class="text-muted d-block mt-2">پیش از رفتن به درگاه، ریز وزن و قیمت هر ردیف جعبه و سهم هر بخش در مبلغ به شما نشان داده می‌شود.</small>
+                }
+                @if (anyBoxPending)
+                {
+                    <small class="text-muted d-block mt-2">
+                        مبلغ جعبه‌های نیازمند وزن‌کشی پس از اعلام فروشگاه به‌صورت مرحله دوم از شما دریافت می‌شود.
+                    </small>
+                }
             </form>
         </div>
     }

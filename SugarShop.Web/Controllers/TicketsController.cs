@@ -13,11 +13,14 @@ namespace SugarShop.Web.Controllers
     {
         private readonly SugarShopSalesDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly SugarShop.Web.Services.Sms.SmsService _sms;
 
-        public TicketsController(SugarShopSalesDbContext context, UserManager<ApplicationUser> userManager)
+        public TicketsController(SugarShopSalesDbContext context, UserManager<ApplicationUser> userManager,
+            SugarShop.Web.Services.Sms.SmsService sms)
         {
             _context = context;
             _userManager = userManager;
+            _sms = sms;
         }
         public async Task<IActionResult> Index(string status = "all")
         {
@@ -70,6 +73,9 @@ namespace SugarShop.Web.Controllers
             try
             {
                 await _context.SaveChangesAsync();
+                // ── پیامک «تیکت شما پاسخ داده شد» ──
+                try { await _sms.NotifyTicketAnsweredAsync(ticket.UserId, ticket.Id); }
+                catch { /* پیامک نباید پاسخ‌دهی را متوقف کند */ }
                 TempData["Success"] = "پاسخ با موفقیت ثبت شد.";
             }
             catch (Exception ex)
@@ -80,6 +86,7 @@ namespace SugarShop.Web.Controllers
             return RedirectToAction(nameof(Details), new { id });
         }
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> ChangeStatus(int id, TicketStatus status)
         {
             var ticket = await _context.Tickets.FindAsync(id);

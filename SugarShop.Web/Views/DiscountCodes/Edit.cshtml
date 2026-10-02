@@ -42,34 +42,14 @@
                 </div>
                 <div class="col-md-6">
                     <div class="mb-3">
-                        <label class="form-label">تاریخ شروع</label>
-                        <div class="input-group">
-                            <input type="text" 
-                                   id="StartDatePicker" 
-                                   name="StartDate" 
-                                   class="form-control persian-date-input" 
-                                   value="@Model.StartDate.ToString("yyyy/MM/dd")" 
-                                   autocomplete="off" 
-                                   required />
-                            <span class="input-group-text">
-                                <i class="bi bi-calendar-event"></i>
-                            </span>
-                        </div>
+                        <label class="form-label">تاریخ شروع (شمسی)</label>
+                        <persian-date asp-for="StartDate" required></persian-date>
+                        <span asp-validation-for="StartDate" class="text-danger small"></span>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">تاریخ پایان</label>
-                        <div class="input-group">
-                            <input type="text" 
-                                   id="EndDatePicker" 
-                                   name="EndDate" 
-                                   class="form-control persian-date-input" 
-                                   value="@Model.EndDate.ToString("yyyy/MM/dd")" 
-                                   autocomplete="off" 
-                                   required />
-                            <span class="input-group-text">
-                                <i class="bi bi-calendar-event"></i>
-                            </span>
-                        </div>
+                        <label class="form-label">تاریخ پایان (شمسی)</label>
+                        <persian-date asp-for="EndDate" required></persian-date>
+                        <span asp-validation-for="EndDate" class="text-danger small"></span>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">حداکثر تعداد استفاده</label>
@@ -97,38 +77,25 @@
 </div>
 
 @section Scripts {
-    <script src="~/lib/persian-date/persian-date.js"></script>
-    <script src="~/lib/persian-datepicker/js/persian-datepicker.js"></script>
     <script>
-        $(document).ready(function () {
-            $("#StartDatePicker").pDatepicker({
+        $(function () {
+            $("#StartDate").persianDatepicker({
                 format: 'YYYY/MM/DD',
                 autoClose: true,
-                initialValue: true,
-                calendar: {
-                    persian: {
-                        locale: 'fa'
-                    }
-                }
+                initialValue: false,
+                observer: true,
+                calendar: { persian: { locale: 'fa' } }
             });
-
-            $("#EndDatePicker").pDatepicker({
+            $("#EndDate").persianDatepicker({
                 format: 'YYYY/MM/DD',
                 autoClose: true,
-                initialValue: true,
-                calendar: {
-                    persian: {
-                        locale: 'fa'
-                    }
-                }
+                initialValue: false,
+                observer: true,
+                calendar: { persian: { locale: 'fa' } }
             });
-            document.getElementById('DiscountType').addEventListener('change', function() {
+            document.getElementById('DiscountType').addEventListener('change', function () {
                 var label = document.getElementById('DiscountValueLabel');
-                if (this.value == '1') {
-                    label.innerText = 'مقدار تخفیف (درصد)';
-                } else {
-                    label.innerText = 'مقدار تخفیف (تومان)';
-                }
+                label.innerText = this.value == '1' ? 'مقدار تخفیف (درصد)' : 'مقدار تخفیف (تومان)';
             });
             document.getElementById('DiscountType').dispatchEvent(new Event('change'));
         });

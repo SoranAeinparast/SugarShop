@@ -1,0 +1,81 @@
+@using SugarShop.Domain.Entities.Sms
+@model List<SmsCampaign>
+@{
+    ViewData["Title"] = "ارسال انبوه تفکیک‌شده";
+    Layout = "_AdminLayout";
+    string Fa(object v) => v?.ToString() ?? "";
+    var audiences = new Dictionary<SmsAudienceType, string>
+    {
+        { SmsAudienceType.AllCustomers, "همه مشتریان" },
+        { SmsAudienceType.PurchasedLast90Days, "خرید ۳ ماه اخیر" },
+        { SmsAudienceType.PurchasedLast180Days, "خرید ۶ ماه اخیر" },
+        { SmsAudienceType.VipCustomers, "مشتریان VIP" },
+        { SmsAudienceType.NoPurchase180Days, "مشتریان راکد" },
+        { SmsAudienceType.SmsSubscribers, "مشترکین پیامکی" },
+        { SmsAudienceType.BirthdaysThisMonth, "تولدهای این ماه" }
+    };
+    string StatusBadge(SmsCampaignStatus st) => st switch
+    {
+        SmsCampaignStatus.Completed => "bg-success",
+        SmsCampaignStatus.Sending => "bg-info text-dark",
+        SmsCampaignStatus.Failed => "bg-danger",
+        SmsCampaignStatus.Cancelled => "bg-secondary",
+        _ => "bg-light text-dark"
+    };
+}
+
+<a href="/SmsSettings" class="btn btn-outline-secondary btn-sm mb-3"><i class="bi bi-arrow-right"></i> بازگشت به داشبورد سامانه پیامکی</a>
+<partial name="_SmsCreditBar" />
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">📣 ارسال انبوه تفکیک‌شده</h2>
+    <a href="@Url.Action("CreateCampaign")" class="btn btn-primary">+ کمپین جدید</a>
+</div>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>عنوان</th>
+                    <th>مخاطب</th>
+                    <th>گیرندگان</th>
+                    <th>وضعیت</th>
+                    <th>تاریخ</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Any())
+                {
+                    <tr><td colspan="6" class="text-center text-muted py-4">هنوز کمپینی ساخته نشده است.</td></tr>
+                }
+                @foreach (var c in Model)
+                {
+                    <tr>
+                        <td class="fw-bold">@c.Title</td>
+                        <td>@audiences.GetValueOrDefault(c.Audience)</td>
+                        <td>@Fa(c.TotalRecipients) نفر</td>
+                        <td><span class="badge @StatusBadge(c.Status)">@c.Status.ToString()</span></td>
+                        <td class="text-muted small">@c.CreatedAt.AddHours(3.5).ToString("yyyy/MM/dd HH:mm")</td>
+                        <td>
+                            @if (c.Status == SmsCampaignStatus.Sending)
+                            {
+                                <form asp-action="CancelCampaign" method="post" class="d-inline"
+                                      onsubmit="return confirm('کمپین لغو شود؟')">
+                                    <input type="hidden" name="id" value="@c.Id" />
+                                    <button class="btn btn-sm btn-outline-danger">لغو</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="alert alert-light border mt-3">
+    <strong>💡 نکته حرفه‌ای:</strong> برای نرخ تبدیل بالاتر و هزینه کمتر، پیامک تبلیغاتی را فقط به
+    «خرید کرده در ۳ ماه گذشته» بفرستید؛ مشتریان راکد را با پیامک «کد تخفیف بازگشت» فعال کنید و
+    VIP‌ها را برای پیشنهادهای اختصاصی نگه دارید.
+</div>

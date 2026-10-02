@@ -235,7 +235,7 @@
         <div class="story-card fade-in-up">
             <div class="story-image-col">
                 @if (!string.IsNullOrEmpty(Model.StoryImagePath)) {
-                    <img src="@Model.StoryImagePath" alt="داستان ما" />
+                    <img src="@Model.StoryImagePath" alt="داستان ما" loading="lazy" />
                 } else {
                     <div class="d-flex align-items-center justify-content-center h-100 bg-light">
                         <i class="bi bi-image text-muted" style="font-size: 4rem;"></i>

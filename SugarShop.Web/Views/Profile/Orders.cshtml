@@ -1,12 +1,26 @@
-﻿@using SugarShop.Web.Extensions
-@using SugarShop.Domain.Entities.Sales
+﻿@using SugarShop.Domain.Entities.Sales
 @using SugarShop.Web.ViewModels
 @model List<OrderListItemViewModel>
-@using SugarShop.Web.Extensions
 @using MD.PersianDateTime
 @{
     ViewData["Title"] = "سفارشات من";
-    string ToPersianNumber(string input) => input.ToPersianNumber();
+
+    // همه‌ی این مقادیر از سرور می‌آیند؛ لیست فقط یک صفحه است و شمارش‌ها در SQL حساب شده‌اند
+    var currentStatus = ViewBag.CurrentStatus as string ?? "all";
+    var search = ViewBag.Search as string ?? "";
+    var statusCounts = ViewBag.StatusCounts as Dictionary<string, int> ?? new Dictionary<string, int>();
+    int currentPage = ViewBag.CurrentPage is int cp ? cp : 1;
+    int totalPages = ViewBag.TotalPages is int tp ? tp : 1;
+    int pageSize = ViewBag.PageSize is int ps ? ps : 10;
+    int totalCount = ViewBag.TotalCount is int tc ? tc : Model.Count;
+
+    int CountOf(string key) => statusCounts.TryGetValue(key, out var c) ? c : 0;
+    string TabUrl(string status) => Url.Action("Orders", new { status, search }) ?? "#";
+    string PageUrl(int page) => Url.Action("Orders", new { status = currentStatus, search, page }) ?? "#";
+    bool hasFilter = currentStatus != "all" || !string.IsNullOrEmpty(search);
+
+    int firstRow = totalCount == 0 ? 0 : ((currentPage - 1) * pageSize) + 1;
+    int lastRow = Math.Min(currentPage * pageSize, totalCount);
 }
 <div class="container mt-4 mb-5">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -29,11 +43,67 @@
         </div>
     }
 
-    @if (Model.Count == 0)
+    @* 🔍 جست‌وجوی سمت سرور: کد سفارش (فروشگاه) یا کد/طعم کیک سفارشی *@
+    <form method="get" asp-action="Orders" class="card card-body mb-3">
+        <input type="hidden" name="status" value="@currentStatus" />
+        <div class="row g-2 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label">🔍 جست‌وجو</label>
+                <input type="text" name="search" value="@search" class="form-control"
+                       placeholder="کد سفارش (مثل ORD-... یا CAKE-0012) یا طعم کیک..." />
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary">جست‌وجو</button>
+                @if (!string.IsNullOrEmpty(search))
+                {
+                    <a href="@TabUrl(currentStatus)" class="btn btn-outline-secondary">پاک کردن</a>
+                }
+            </div>
+        </div>
+    </form>
+
+    @* تب‌های وضعیت: شمارنده‌ها روی کل سفارش‌های منطبق با جست‌وجو حساب شده‌اند (نه فقط صفحه جاری) *@
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <a class="nav-link @(currentStatus == "all" ? "active" : "")" href="@TabUrl("all")">
+                همه <span class="badge bg-secondary">@CountOf("all").ToPersianNumber()</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(currentStatus == "unpaid" ? "active" : "")" href="@TabUrl("unpaid")">
+                در انتظار پرداخت <span class="badge bg-warning text-dark">@CountOf("unpaid").ToPersianNumber()</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(currentStatus == "active" ? "active" : "")" href="@TabUrl("active")">
+                در حال آماده‌سازی <span class="badge bg-info text-dark">@CountOf("active").ToPersianNumber()</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(currentStatus == "done" ? "active" : "")" href="@TabUrl("done")">
+                تحویل‌شده <span class="badge bg-success">@CountOf("done").ToPersianNumber()</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(currentStatus == "canceled" ? "active" : "")" href="@TabUrl("canceled")">
+                لغو‌شده <span class="badge bg-danger">@CountOf("canceled").ToPersianNumber()</span>
+            </a>
+        </li>
+    </ul>
+
+    @if (totalCount == 0)
     {
         <div class="bg-white rounded-4 shadow-sm p-5 text-center">
-            <div class="alert alert-info border-0 mb-0">شما هنوز سفارشی ثبت نکرده‌اید.</div>
-            <a href="/Home/Index" class="btn btn-primary mt-3">شروع خرید</a>
+            @if (hasFilter)
+            {
+                <div class="alert alert-info border-0 mb-0">سفارشی با این فیلتر پیدا نشد.</div>
+                <a href="@Url.Action("Orders", "Profile")" class="btn btn-outline-secondary mt-3">نمایش همه سفارش‌ها</a>
+            }
+            else
+            {
+                <div class="alert alert-info border-0 mb-0">شما هنوز سفارشی ثبت نکرده‌اید.</div>
+                <a href="/Home/Index" class="btn btn-primary mt-3">شروع خرید</a>
+            }
         </div>
     }
     else
@@ -43,10 +113,11 @@
                 <table class="table table-striped table-bordered mb-0">
                     <thead class="table-dark">
                         <tr>
+                            <th>نوع</th>
                             <th>کد سفارش</th>
                             <th>قیمت نهایی</th>
-                            <th>وضعیت سفارش</th>
-                            <th>وضعیت پرداخت</th>
+                            <th>وضعیت</th>
+                            <th>پرداخت</th>
                             <th>تاریخ</th>
                             <th>عملیات</th>
                         </tr>
@@ -55,42 +126,114 @@
                         @foreach (var order in Model)
                         {
                             <tr>
-                                <td class="align-middle">@order.OrderCode</td>
+                                <td class="align-middle">
+                                    @if (order.IsCustomCake)
+                                    {
+                                        <span class="badge bg-danger">🎂 کیک سفارشی</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">🛍️ فروشگاه</span>
+                                    }
+                                </td>
+                                <td class="align-middle">
+                                    @order.OrderCode
+                                    @if (order.IsCustomCake && !string.IsNullOrWhiteSpace(order.CakeFlavor))
+                                    {
+                                        <div class="small text-muted">@order.CakeFlavor</div>
+                                    }
+                                </td>
                                 <td class="align-middle">
                                     @if (order.TotalFinalPrice > 0)
                                     {
                                         <span class="text-success">@order.TotalFinalPrice.ToString("N0").ToPersianNumber() تومان</span>
+                                        @if (order.IsCustomCake && (order.CakeDeliveryFee ?? 0) > 0)
+                                        {
+                                            <div class="small text-muted">(شامل پیک: @order.CakeDeliveryFee!.Value.ToString("N0").ToPersianNumber() تومان)</div>
+                                        }
                                     }
                                     else
                                     {
                                         <span class="text-muted">اعلام نشده</span>
                                     }
                                 </td>
-                                <td class="align-middle">@order.OrderStatus.ToFarsi()</td>
-                                <td class="align-middle">@order.PaymentStatus.ToFarsi()</td>
-                                <td>
+                                <td class="align-middle">
+                                    @if (order.IsCustomCake && order.CakeStatus.HasValue)
+                                    {
+                                        <partial name="_CakeStatusBadge" model="order.CakeStatus.Value" />
+                                    }
+                                    else
+                                    {
+                                        @order.OrderStatus.ToFarsi()
+                                    }
+                                </td>
+                                <td class="align-middle">
+                                    @if (order.IsCustomCake)
+                                    {
+                                        @if (order.CakeIsPaid == true)
+                                        {
+                                            <span class="badge bg-success">پرداخت شده</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark">پرداخت نشده</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        @order.PaymentStatus.ToFarsi()
+                                    }
+                                </td>
+                                <td class="align-middle">
                                     @{
-                                        var persianDate = new PersianDateTime(@order.CreatedAt);
+                                        var persianDate = new PersianDateTime(order.CreatedAt);
                                         var dateString = persianDate.ToString("yyyy/MM/dd");
                                     }
                                     @dateString.ToPersianNumber()
                                 </td>
                                 <td class="align-middle">
                                     <div class="d-flex gap-2 flex-wrap align-items-center">
-                                        <a asp-action="OrderDetails" asp-route-id="@order.Id" class="btn btn-sm btn-primary d-inline-flex align-items-center justify-content-center" style="height: 31px;">جزئیات</a>
-                                        @if (order.IsPaymentEnabled && order.PaymentStatus == PaymentStatus.Unpaid)
+                                        @if (order.IsCustomCake)
                                         {
-                                            <form asp-action="PayOrder" method="post" class="d-inline-flex m-0 p-0" style="height: 31px;">
-                                                <input type="hidden" name="orderId" value="@order.Id" />
-                                                <button type="submit" class="btn btn-sm btn-success d-inline-flex align-items-center justify-content-center w-100 h-100">💳 پرداخت</button>
-                                            </form>
+                                            <a asp-action="CustomCakeOrderDetails" asp-route-id="@order.CustomCakeOrderId" class="btn btn-sm btn-primary d-inline-flex align-items-center justify-content-center" style="height: 31px;">جزئیات</a>
+                                            @if (order.IsPaymentEnabled && order.CakeIsPaid == false)
+                                            {
+                                                <form asp-action="PayCustomCakeOrder" method="post" class="d-inline-flex m-0 p-0" style="height: 31px;">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@order.CustomCakeOrderId" />
+                                                    <button type="submit" class="btn btn-sm btn-success d-inline-flex align-items-center justify-content-center w-100 h-100">💳 پرداخت</button>
+                                                </form>
+                                            }
+                                            else if (order.CakeStatus == SugarShop.Domain.Entities.Sales.CustomCakeOrderStatus.Accepted && order.CakeIsPaid == false)
+                                            {
+                                                <span class="badge bg-warning text-dark align-self-center" style="height: 31px; display: inline-flex; align-items: center;" title="فروشگاه هنوز قیمت نهایی این سفارش را اعلام نکرده است">⏳ در انتظار قیمت</span>
+                                            }
+                                            @if (order.IsDeletable)
+                                            {
+                                                <form asp-action="DeleteCustomCakeOrder" method="post" class="d-inline-flex m-0 p-0" onsubmit="return confirm('آیا از حذف این سفارش کیک اطمینان دارید؟');" style="height: 31px;">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@order.CustomCakeOrderId" />
+                                                    <button type="submit" class="btn btn-sm btn-danger d-inline-flex align-items-center justify-content-center w-100 h-100">🗑️ حذف</button>
+                                                </form>
+                                            }
                                         }
-                                        @if (order.IsDeletable)
+                                        else
                                         {
-                                            <form asp-action="DeleteOrder" method="post" class="d-inline-flex m-0 p-0" onsubmit="return confirm('آیا از حذف این سفارش اطمینان دارید؟');" style="height: 31px;">
-                                                <input type="hidden" name="orderId" value="@order.Id" />
-                                                <button type="submit" class="btn btn-sm btn-danger d-inline-flex align-items-center justify-content-center w-100 h-100">🗑️ حذف</button>
-                                            </form>
+                                            <a asp-action="OrderDetails" asp-route-id="@order.Id" class="btn btn-sm btn-primary d-inline-flex align-items-center justify-content-center" style="height: 31px;">جزئیات</a>
+                                            @if (order.IsPaymentEnabled && order.PaymentStatus == PaymentStatus.Unpaid)
+                                            {
+                                                <form asp-action="PayOrder" method="post" class="d-inline-flex m-0 p-0" style="height: 31px;">
+                                                    <input type="hidden" name="orderId" value="@order.Id" />
+                                                    <button type="submit" class="btn btn-sm btn-success d-inline-flex align-items-center justify-content-center w-100 h-100">💳 پرداخت</button>
+                                                </form>
+                                            }
+                                            @if (order.IsDeletable)
+                                            {
+                                                <form asp-action="DeleteOrder" method="post" class="d-inline-flex m-0 p-0" onsubmit="return confirm('آیا از حذف این سفارش اطمینان دارید؟');" style="height: 31px;">
+                                                    <input type="hidden" name="orderId" value="@order.Id" />
+                                                    <button type="submit" class="btn btn-sm btn-danger d-inline-flex align-items-center justify-content-center w-100 h-100">🗑️ حذف</button>
+                                                </form>
+                                            }
                                         }
                                     </div>
                                 </td>
@@ -99,6 +242,41 @@
                     </tbody>
                 </table>
             </div>
+
+            <div class="text-muted small mt-3">
+                نمایش @firstRow.ToPersianNumber() تا @lastRow.ToPersianNumber() از @totalCount.ToPersianNumber() سفارش
+                @if (!string.IsNullOrEmpty(search))
+                {
+                    <span>— نتیجه جست‌وجوی «@search»</span>
+                }
+            </div>
+
+            @if (totalPages > 1)
+            {
+                <nav>
+                    <ul class="pagination justify-content-center mt-2">
+                        <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                            <a class="page-link" href="@PageUrl(currentPage - 1)">قبلی</a>
+                        </li>
+                        @for (int i = 1; i <= totalPages; i++)
+                        {
+                            if (i == 1 || i == totalPages || Math.Abs(i - currentPage) <= 2)
+                            {
+                                <li class="page-item @(i == currentPage ? "active" : "")">
+                                    <a class="page-link" href="@PageUrl(i)">@i.ToPersianNumber()</a>
+                                </li>
+                            }
+                            else if (Math.Abs(i - currentPage) == 3)
+                            {
+                                <li class="page-item disabled"><span class="page-link">…</span></li>
+                            }
+                        }
+                        <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                            <a class="page-link" href="@PageUrl(currentPage + 1)">بعدی</a>
+                        </li>
+                    </ul>
+                </nav>
+            }
         </div>
     }
 </div>

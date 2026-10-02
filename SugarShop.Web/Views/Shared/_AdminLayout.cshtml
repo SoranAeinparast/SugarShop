@@ -2,15 +2,29 @@
 @using SugarShop.Domain.Entities
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
+@{
+    // 📱 «این درخواست از داخل اپ آمده؟» — تنها منبع: User-Agent پوسته اندرویدی سایت.
+    // پنل مدیریت هم داخل اپ همان پوسته‌ی اپ (نوار پایین) را می‌گیرد تا تجربه یکدست بماند
+    // و هیچ‌وقت چیدمان وب و اپ با هم قاطی نشوند.
+    var isAppClient = SugarShop.Web.Helpers.AppClient.IsAppRequest(Context);
+}
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="fa" dir="rtl" data-app-mode="@(isAppClient ? "inapp" : "browser")">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - پنل مدیریت</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.rtl.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/bootstrap-icons.css" />
     <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/lib/persian-datepicker/css/persian-datepicker.css" />
+    @* رفع‌کننده‌ی حالت صفحه (اپ / مرورگر) — همان اسکریپت و همان منبع حقیقت در کل سایت *@
+    <script src="~/js/app-mode.js" asp-append-version="true"></script>
+    @if (isAppClient)
+    {
+        @* داخل اپ: پوسته‌ی اپ (نوار پایین) روی پنل مدیریت هم اعمال می‌شود *@
+        <link rel="stylesheet" href="~/css/pwa.css" asp-append-version="true" />
+    }
     <style>
         html, body {
             background-color: #f8f9fa !important;
@@ -137,12 +151,16 @@
                         
                         <li class="nav-divider">تنظیمات</li>
                         <li><a asp-area="" asp-controller="SiteSettings" asp-action="Index">⚙️ <span>تنظیمات سایت</span></a></li>
+                        <li><a asp-area="" asp-controller="Admin" asp-action="Settings">🧾 <span>تنظیمات فروشگاه (ارسال رایگان/کش‌بک)</span></a></li>
                         <li><a asp-area="" asp-controller="Newsletter" asp-action="Settings">⚙️ <span>تنظیمات ایمیل</span></a></li>
                         <li><a asp-area="Admin" asp-controller="ContactSettings" asp-action="Messages">📨 <span>پیام‌های فرم تماس</span></a></li>
                         <li><a asp-area="" asp-controller="Menu" asp-action="Index">📋 <span>مدیریت منو</span></a></li>
                         <li><a asp-area="" asp-controller="PaymentGateways" asp-action="Index">💳 <span>مدیریت درگاه‌ها</span></a></li>
+                        <li><a asp-area="" asp-controller="PaymentGateways" asp-action="ZibalSettings">🔑 <span>تنظیم کلید درگاه زیبال</span></a></li>
                         <li><a asp-area="" asp-controller="Wallet" asp-action="Index">💰 <span>مدیریت کیف پول</span></a></li>
+                        <li><a asp-area="" asp-controller="SmsSettings" asp-action="Index">📱 <span>تنظیمات سامانه پیامکی</span></a></li>
                         <li><a asp-area="Admin" asp-controller="EducationalContent" asp-action="Index">📚 <span>مدیریت محتوای آموزشی</span></a></li>
+                        <li><a asp-area="Admin" asp-controller="EducationalHeaderSettings" asp-action="Index">🎓 <span>تنظیمات هدر صفحه آموزش</span></a></li>
                         <li><a asp-area="Admin" asp-controller="AIContentSettings" asp-action="Index">🤖 <span>تنظیمات تولید محتوای هوشمند</span></a></li>
                     }
                 </ul>
@@ -280,6 +298,7 @@
 // ============================================================
 let currentTargetInput = null;
 let currentPreviewImg = null;
+let mediaPickerModal = null;
 
 $(document).on('click', '.open-media-picker', function(e) {
     e.preventDefault();
@@ -294,8 +313,12 @@ $(document).on('click', '.open-media-picker', function(e) {
     currentTargetInput = targetSelector ? $(targetSelector) : null;
     currentPreviewImg = previewSelector ? $(previewSelector) : null;
 
-    // باز کردن مودال و بارگذاری داده‌ها
-    $('#mediaPickerModal').modal('show');
+    // باز کردن مودال و بارگذاری داده‌ها (API استاندارد Bootstrap 5)
+    if (!mediaPickerModal) {
+        const modalEl = document.getElementById('mediaPickerModal');
+        if (modalEl) mediaPickerModal = new bootstrap.Modal(modalEl);
+    }
+    if (mediaPickerModal) mediaPickerModal.show();
     loadPickerFiles();
 });
 
@@ -372,8 +395,8 @@ $(document).on('click', '.media-picker-item', function() {
         }
     }
 
-    // . بستن مودال
-    $('#mediaPickerModal').modal('hide');
+    // بستن مودال
+    if (mediaPickerModal) mediaPickerModal.hide();
 });
 
 // فیلتر کردن در داخل مودال
@@ -392,5 +415,10 @@ $('#pickerType').on('change', function() {
     @await RenderSectionAsync("Scripts", required: false)
 
     <partial name="_MediaPickerModal" />
+    @if (isAppClient)
+    {
+        @* ناوبری پایین اپ: کاربر داخل اپ همیشه به خانه/سبد/سفارش‌ها/پروفایل دسترسی دارد *@
+        <partial name="_PwaShell" />
+    }
 </body>
 </html>

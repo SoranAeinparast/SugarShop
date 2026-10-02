@@ -11,6 +11,7 @@
         <div class="alert alert-success">@TempData["Success"]</div>
     }
     <form method="post">
+        @Html.AntiForgeryToken()
         <div class="mb-3">
             <label class="form-label">موضوع</label>
             <input type="text" name="subject" class="form-control" required />

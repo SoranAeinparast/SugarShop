@@ -2,6 +2,9 @@
 appsettings.Production.json
 appsettings.Development.json
 
+# Data Protection keys (auth cookies) - machine-specific
+DataProtectionKeys/
+
 # Build outputs
 bin/
 obj/
@@ -10,3 +13,39 @@ obj/
 *.user
 *.suo
 .vs/
+
+# Agent/workspace state
+.freebuff/
+
+# Project export archives (may contain secrets, bloat history)
+++SugarShop++.zip
+
+# Runtime uploads - keep on disk, never commit
+**/wwwroot/media/
+**/wwwroot/images/cake_orders/
+**/wwwroot/images/avatars/
+
+# Unused publish profile
+SugarShop.Web/Properties/PublishProfiles/FolderProfile3.pubxml
+
+# TWA build artifacts + signing key (never commit)
+twa/build/
+twa/keystore.jks
+twa/app-release-signed.apk
+
+# Local/dev log files (never commit)
+*.log
+
+# خروجی تست‌های دستی با curl در ریشه‌ی مخزن
+# ⚠️ cookies.txt کوکی ورود (نشست زنده) دارد و نباید هرگز کامیت شود
+/cookies.txt
+/login.html
+/reg.html
+/orders.html
+/orders_app.html
+/sm.err
+/tools/uitest.ps1
+
+# فایل‌های پیش‌نمایش موقت (صفحه‌های HTML آزمون چیدمان)
+**/wwwroot/_preview_*.html
+/_preview_*.html

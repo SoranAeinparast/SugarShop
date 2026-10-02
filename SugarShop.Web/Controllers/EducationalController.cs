@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SugarShop.Domain.Entities;
 using SugarShop.Infrastructure.Persistence.Sales;
+using SugarShop.Web.Helpers;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -24,13 +25,24 @@ namespace SugarShop.Web.Controllers
                 .OrderByDescending(c => c.PublishedAt)
                 .Take(20)
                 .ToListAsync();
+
+            // ✅ تنظیمات هدر (هیرو) صفحه آموزش — قابل مدیریت از پنل ادمین
+            var headerSettings = await _context.EducationalHeaderSettings.FirstOrDefaultAsync();
+            ViewBag.HeaderSettings = headerSettings;
+
             return View(contents);
         }
 
         public async Task<IActionResult> Details(int id)
         {
-            var content = await _context.EducationalContents.FindAsync(id);
+            // ✅ فقط محتوای منتشرشده برای عموم قابل مشاهده است (پیش‌نویس/تأییدنشده دیده نمی‌شود)
+            var content = await _context.EducationalContents
+                .Where(c => c.Id == id && c.IsPublished)
+                .FirstOrDefaultAsync();
             if (content == null) return NotFound();
+
+            // پاک‌سازی سمت خروج برای محتوای قدیمی‌ای که قبلاً پاک‌سازی نشده است
+            content.BodyHtml = HtmlSanitizerHelper.Sanitize(content.BodyHtml);
             return View(content);
         }
     }

@@ -35,16 +35,33 @@ namespace SugarShop.Web.Services
             var settings = await context.AIContentSettings.FirstOrDefaultAsync() ?? new AIContentSettings();
             var cron = settings.ScheduleCron ?? "0 8 * * *";
 
-            _recurringJobManager.AddOrUpdate(
-                "fetch-and-publish-content",
-                () => OrchestrateContent(),
-                cron,
-                new RecurringJobOptions
-                {
-                    TimeZone = TimeZoneInfo.Local
-                });
+            // اگر cron ذخیره‌شده نامعتبر باشد (مثلاً به‌صورت دستی/قدیمی در دیتابیس ثبت شده)،
+            // به‌جای متوقف کردن راه‌اندازی، با پیش‌فرض ۸ صبح زمان‌بندی می‌شود و خطا لاگ می‌گردد.
+            try
+            {
+                _recurringJobManager.AddOrUpdate(
+                    "fetch-and-publish-content",
+                    () => OrchestrateContent(),
+                    cron,
+                    new RecurringJobOptions
+                    {
+                        TimeZone = TimeZoneInfo.Local
+                    });
 
-            _logger.LogInformation("Scheduled content fetching with cron: {Cron}", cron);
+                _logger.LogInformation("Scheduled content fetching with cron: {Cron}", cron);
+            }
+            catch (ArgumentException ex) when (string.Equals(ex.ParamName, "cronExpression", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogError(ex, "Invalid stored cron '{Cron}'. Falling back to default '0 8 * * *'. Please fix it in Admin → AI settings.", cron);
+                _recurringJobManager.AddOrUpdate(
+                    "fetch-and-publish-content",
+                    () => OrchestrateContent(),
+                    "0 8 * * *",
+                    new RecurringJobOptions
+                    {
+                        TimeZone = TimeZoneInfo.Local
+                    });
+            }
         }
 
         public async Task OrchestrateContent()

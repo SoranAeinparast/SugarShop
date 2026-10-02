@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- اپ فقط به دامنه‌ی فروشگاه خودش اعتماد می‌کند؛ ترافیک HTTP معمولی و
+         بقیه‌ی دامنه‌ها مسدود هستند. گواهی هاست (Let's Encrypt) هر ۹۰ روز
+         تمدید می‌شود؛ با این تنظیم اپ همیشه آن را می‌پذیرد و بعد از تمدید
+         خراب نمی‌شود. -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">sweets.soransoftpro.ir</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

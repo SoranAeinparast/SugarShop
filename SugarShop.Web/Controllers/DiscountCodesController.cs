@@ -91,6 +91,7 @@ namespace SugarShop.Web.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)
         {
             var code = await _context.Set<DiscountCode>().FindAsync(id);

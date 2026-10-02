@@ -1,4 +1,5 @@
 ﻿@using SugarShop.Domain.Entities
+@using MD.PersianDateTime
 @{
     ViewData["Title"] = "مدیریت پیام‌ها";
     Layout = "_AdminLayout";
@@ -37,7 +38,7 @@
                                 else if (ticket.Status == TicketStatus.Answered) { <span class="badge bg-success">پاسخ داده شده</span> }
                                 else if (ticket.Status == TicketStatus.Closed) { <span class="badge bg-secondary">بسته</span> }
                             </td>
-                            <td class="align-middle">@ticket.CreatedAt.ToString("yyyy/MM/dd HH:mm")</td>
+                            <td class="align-middle">@(new PersianDateTime(ticket.CreatedAt).ToString("yyyy/MM/dd HH:mm").ToPersianNumber())</td>
                             <td class="align-middle">
                                 <a href="@Url.Action("Details", new { id = ticket.Id })" class="btn btn-sm btn-info">مشاهده و پاسخ</a>
                             </td>

@@ -1,0 +1,107 @@
+@using SugarShop.Web.SessionModels
+@using SugarShop.Web.Extensions
+@model BoxSessionState
+@{
+    var selectedBox = ViewBag.SelectedBoxType as SugarShop.Domain.Entities.BoxType;
+    var sweetItems = ViewBag.SweetItems as List<SugarShop.Domain.Entities.SweetItem> ?? new();
+    var maxRows = selectedBox?.MaxRows ?? 0;
+    var capacity = selectedBox?.CapacityGrams ?? 0;
+    var rowsUsed = Model.TotalRowsUsed;
+    var weightUsed = Model.TotalApproxWeightGrams;
+    var rowsPct = maxRows > 0 ? Math.Min(100, rowsUsed * 100 / maxRows) : 0;
+    var weightPct = capacity > 0 ? Math.Min(100, weightUsed * 100 / capacity) : 0;
+    var isFull = (maxRows > 0 && rowsUsed >= maxRows) || (capacity > 0 && weightUsed >= capacity);
+
+    // متن راهنمای تکمیل جعبه (تا وقتی جعبه کامل نشده نمایش داده می‌شود)
+    string fillHint = "";
+    if (!isFull && rowsUsed > 0)
+    {
+        var remainingRows = Math.Max(0, maxRows - rowsUsed);
+        var remainingWeight = Math.Max(0, capacity - weightUsed);
+        if (remainingRows > 0 && remainingWeight > 0)
+            fillHint = $"{remainingRows.ToPersianNumber()} ردیف دیگر یا حدود {remainingWeight.ToPersianNumber()} گرم ظرفیت باقی است؛ تا پر شدن جعبه، انتقال به سبد فعال نمی‌شود.";
+        else if (remainingRows > 0)
+            fillHint = $"{remainingRows.ToPersianNumber()} ردیف دیگر بچین؛ تا پر شدن جعبه، انتقال به سبد فعال نمی‌شود.";
+        else if (remainingWeight > 0)
+            fillHint = $"حدود {remainingWeight.ToPersianNumber()} گرم دیگر جا داری؛ تا پر شدن جعبه، انتقال به سبد فعال نمی‌شود.";
+    }
+}
+<div class="bx-panel-card" id="boxMiniPanelCard" data-full="@(isFull ? "true" : "false")">
+    <div class="bx-panel-header" id="bxPanelHeader" title="جمع کردن / باز کردن پنل">
+        <span class="bx-panel-head-icon">📦</span>
+        <div class="bx-panel-head-info">
+            <div class="bx-panel-title">@(selectedBox?.TitleFa ?? "جعبه شیرینی")</div>
+            <div class="bx-panel-sub">
+                @if (isFull)
+                {
+                    <span>🎉 کامل شد — آماده انتقال به سبد</span>
+                }
+                else
+                {
+                    <span>@rowsUsed.ToPersianNumber() از @maxRows.ToPersianNumber() ردیف پر شده</span>
+                }
+            </div>
+        </div>
+        <span class="bx-panel-count">@rowsUsed.ToPersianNumber()</span>
+        <button type="button" class="bx-panel-toggle" id="bxPanelToggle" aria-label="جمع کردن">‹</button>
+    </div>
+    <div class="bx-panel-body" id="bxPanelBody">
+        <div class="bx-progress">
+            <div class="bx-progress-row">
+                <span class="bx-progress-label">ردیف‌ها</span>
+                <div class="bx-bar"><div class="bx-bar-fill bx-bar-gold" style="width: @rowsPct%"></div></div>
+                <span class="bx-progress-val">@rowsUsed.ToPersianNumber()/@maxRows.ToPersianNumber()</span>
+            </div>
+            <div class="bx-progress-row">
+                <span class="bx-progress-label">وزن</span>
+                <div class="bx-bar"><div class="bx-bar-fill bx-bar-green" style="width: @weightPct%"></div></div>
+                <span class="bx-progress-val">@weightUsed.ToPersianNumber()/@capacity.ToPersianNumber()</span>
+            </div>
+        </div>
+        @if (!string.IsNullOrEmpty(fillHint))
+        {
+            <div class="bx-full-hint"><i class="bi bi-lightbulb-fill"></i> <span>@fillHint</span></div>
+        }
+        <div class="bx-rows">
+            @if (rowsUsed == 0)
+            {
+                <div class="bx-empty">جعبه‌ات خالیه — روی شیرینی‌های دلخواه بزن تا ردیف‌هاشون اضافه بشه 🍪</div>
+            }
+            else
+            {
+                for (int i = 0; i < rowsUsed; i++)
+                {
+                    var item = Model.Items[i];
+                    var rowNum = i + 1;
+                    var sweet = sweetItems.FirstOrDefault(s => s.Id == item.SweetItemId);
+                    var img = sweet?.ImagePath ?? "";
+                    <div class="bx-row">
+                        <span class="bx-row-num">@rowNum.ToPersianNumber()</span>
+                        @if (!string.IsNullOrEmpty(img))
+                        {
+                            <img class="bx-row-img" src="@img" alt="@item.TitleFaSnapshot" loading="lazy" onerror="this.style.display='none'" />
+                        }
+                        <div class="bx-row-info">
+                            <div class="bx-row-name">@item.TitleFaSnapshot</div>
+                            <div class="bx-row-weight">⚖️ ~@item.ApproxWeightGrams.ToPersianNumber() گرم</div>
+                        </div>
+                        <button type="button" class="bx-row-remove" data-row-index="@i" title="حذف ردیف">✕</button>
+                    </div>
+                }
+            }
+        </div>
+        <div class="bx-panel-actions">
+            <button type="button" class="bx-btn bx-btn-ghost @(rowsUsed == 0 ? "bx-disabled" : "")" id="bxChangeBox">🔄 تغییر جعبه</button>
+            <button type="button" class="bx-btn bx-btn-ghost-danger @(rowsUsed == 0 ? "bx-disabled" : "")" id="bxClearBox" title="خالی کردن جعبه">🗑️</button>
+            <button type="button"
+                    class="bx-btn bx-btn-confirm @(!isFull ? "bx-disabled" : "bx-full")"
+                    id="bxConfirmCart"
+                    title="@(!isFull ? "برای انتقال به سبد خرید ابتدا جعبه را کامل کن" : "انتقال جعبه کامل به سبد خرید")">
+                🛒 تأیید و رفتن به سبد
+            </button>
+        </div>
+        <div class="bx-abandon-row">
+            <button type="button" class="bx-abandon" id="bxAbandonBox">✕ انصراف از جعبه و لغو کل فرآیند</button>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,80 @@
+@using SugarShop.Domain.Entities.Sms
+@{
+    ViewData["Title"] = "گزارش زنده پنل sms.ir";
+    Layout = "_AdminLayout";
+    var report = ViewBag.LiveReport as List<SugarShop.Web.Services.Sms.SmsDeliveryInfo>;
+
+    string StateBadge(byte? st) => st switch
+    {
+        1 => "<span class='badge bg-success'>رسیده به گوشی</span>",
+        2 => "<span class='badge bg-info text-dark'>پردازش مخابرات</span>",
+        3 => "<span class='badge bg-info text-dark'>رسیده مخابرات</span>",
+        4 => "<span class='badge bg-danger'>نرسیده به مخابرات</span>",
+        6 => "<span class='badge bg-danger' title='اعتبار کسر شد ولی پیامک به گوشی نرسید'>خطا در مخابرات</span>",
+        7 => "<span class='badge bg-dark'>لیست سیاه</span>",
+        null => "<span class='text-muted'>در انتظار</span>",
+        _ => $"<span class='badge bg-secondary'>کد {st}</span>"
+    };
+}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <a href="/SmsSettings/Logs" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-right"></i> بازگشت به گزارش پیامک‌ها</a>
+    <span class="text-muted small">این گزارش مستقیماً از سامانه sms.ir خوانده می‌شود و آخرین ۵۰ ارسال امروز را نشان می‌دهد.</span>
+</div>
+<partial name="_SmsCreditBar" />
+<h2 class="mb-3">📡 گزارش زنده ارسال‌های امروز (از پنل sms.ir)</h2>
+
+@if (report == null)
+{
+    <div class="alert alert-warning">دریافت گزارش از sms.ir ناموفق بود. اتصال (کلید API و حالت آزمایشی) را بررسی کنید.</div>
+}
+else if (report.Count == 0)
+{
+    <div class="alert alert-info">امروز هنوز پیامکی از این پنل ارسال نشده است.</div>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>شناسه پیام</th>
+                        <th>شماره</th>
+                        <th>وضعیت تحویل</th>
+                        <th>هزینه (پیامک)</th>
+                        <th>زمان (ایران)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in report)
+                    {
+                        <tr>
+                            <td dir="ltr" class="small">@r.MessageId</td>
+                            <td class="fw-bold" dir="ltr">0@(r.Mobile ?? "")</td>
+                            <td>@Html.Raw(StateBadge(r.DeliveryState))</td>
+                            <td>@(r.Cost?.ToString("N1") ?? "—")</td>
+                            <td class="text-muted small">
+                                @if (r.DeliveryDateTime.HasValue)
+                                {
+                                    var dt = DateTimeOffset.FromUnixTimeSeconds(r.DeliveryDateTime.Value).AddHours(3.5);
+                                    @dt.ToString("yyyy/MM/dd HH:mm:ss")
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    var failed = report.Count(x => x.DeliveryState is 4 or 6 or 7);
+    if (failed > 0)
+    {
+        <div class="alert alert-danger mt-3">
+            <strong>⚠️ @failed پیامک امروز به گوشی نرسیده است</strong> در حالی که اعتبار آن‌ها کسر شده.
+            علت رایج: بلاک شدن خط توسط اپراتور (متون تبلیغاتی بدون تایید)، شماره در لیست سیاه، یا اختلال موقت مخابرات.
+            اگر همه ارسال‌های امروز این وضعیت را دارند، با پشتیبانی sms.ir تماس بگیرید و شماره خط (SenderNumber) پنل را بررسی کنید.
+        </div>
+    }
+}

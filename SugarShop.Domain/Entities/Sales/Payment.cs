@@ -19,7 +19,14 @@ namespace SugarShop.Domain.Entities.Sales
         public string? RawRequest { get; set; }
         public string? RawResponse { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public string? ReconciliationNote { get; set; }
+        public DateTime? ReconciledAt { get; set; }
+        public string? ReconciledByUserId { get; set; }
+        public string? ExternalRefundReference { get; set; }
+        public string? ExternalRefundNote { get; set; }
+        public DateTime? ExternalRefundedAt { get; set; }
+        public string? ExternalRefundedByUserId { get; set; }
         public Order? Order { get; set; }
-        public string TransactionCode { get; set; }
+        public string TransactionCode { get; set; } = null!;
     }
 }

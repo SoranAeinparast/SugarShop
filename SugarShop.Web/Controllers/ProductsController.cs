@@ -15,14 +15,64 @@ namespace SugarShop.Web.Controllers
         {
             _context = context;
         }
-        public async Task<IActionResult> Index()
+
+        // ✅ متد Index اصلاح‌شده با جستجو، فیلتر و صفحه‌بندی کامل
+        public async Task<IActionResult> Index(string? search, int? categoryId, int page = 1)
         {
-            var products = await _context.Products
+            const int pageSize = 20;
+
+            var query = _context.Products
                 .Include(p => p.Category)
+                .AsNoTracking()
+                .AsQueryable();
+
+            // 🔍 فیلتر بر اساس نام
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim();
+                query = query.Where(p => p.TitleFa.Contains(term));
+            }
+
+            // 🗂️ فیلتر بر اساس دسته
+            if (categoryId.HasValue && categoryId.Value > 0)
+                query = query.Where(p => p.CategoryId == categoryId.Value);
+
+            // 📊 محاسبه تعداد کل و تعداد صفحات
+            var totalCount = await query.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            if (totalPages < 1) totalPages = 1;
+
+            // 🔒 جلوگیری از page نامعتبر
+            if (page < 1) page = 1;
+            if (page > totalPages) page = totalPages;
+
+            var products = await query
                 .OrderBy(p => p.SortOrder)
+                .ThenByDescending(p => p.Id)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
+
+            // 📤 ارسال داده‌ها به View
+            ViewBag.TotalCount = totalCount;
+            ViewBag.TotalPages = totalPages;
+            ViewBag.CurrentPage = page;
+            ViewBag.PageSize = pageSize;
+            ViewBag.Search = search;
+            ViewBag.CategoryId = categoryId;
+
+            // 🗂️ لیست دسته‌ها برای dropdown فیلتر
+            ViewBag.Categories = await _context.Categories
+                .Where(c => c.IsActive)
+                .OrderBy(c => c.SortOrder)
+                .Select(c => new { c.Id, c.TitleFa })
+                .ToListAsync();
+
             return View(products);
         }
+
+        // ⬇️ بقیه متدها کاملاً بدون تغییر باقی می‌مانند ⬇️
+
         [HttpGet]
         public async Task<IActionResult> Create()
         {
@@ -52,6 +102,7 @@ namespace SugarShop.Web.Controllers
                 .ToListAsync();
             return View(model);
         }
+
         [HttpGet]
         public async Task<IActionResult> Edit(int id)
         {
@@ -73,7 +124,6 @@ namespace SugarShop.Web.Controllers
             {
                 var existing = await _context.Products.FindAsync(id);
                 if (existing == null) return NotFound();
-
                 existing.TitleFa = model.TitleFa;
                 existing.Slug = model.Slug;
                 existing.CategoryId = model.CategoryId;
@@ -85,7 +135,6 @@ namespace SugarShop.Web.Controllers
                 existing.Description = model.Description;
                 existing.ImagePath = model.ImagePath;
                 existing.UpdatedAt = DateTime.UtcNow;
-
                 await _context.SaveChangesAsync();
                 TempData["Success"] = "محصول ویرایش شد.";
                 return RedirectToAction(nameof(Index));

@@ -1,0 +1,83 @@
+@using SugarShop.Domain.Entities.Sms
+@*
+    نوار وضعیت حساب sms.ir: اعتبار باقیمانده (بر حسب تعداد پیامک — واحد واقعی API)،
+    مصرف این ماه، وضعیت اتصال و صف ارسال.
+    نکته: API اعتبار sms.ir عددی مثل 733.02 برمی‌گرداند که همان «733 پیامک» پنل است نه تومان.
+*@
+@model dynamic
+@{
+    decimal? credit = ViewBag.CreditToman;   // واحد: تعداد پیامک
+    string? creditError = ViewBag.CreditError;
+    bool sandbox = Model is SmsSystemSetting s ? s.SandboxMode : true;
+    bool enabled = Model is SmsSystemSetting s2 ? s2.IsEnabled : true;
+    decimal monthCost = (decimal)(ViewBag.MonthCost ?? 0m);  // مجموع cost ثبت‌شده = تعداد پیامک مصرفی
+    int monthSent = (int)(ViewBag.MonthSent ?? 0);
+    int deliveryFailed = (int)(ViewBag.DeliveryFailed ?? 0);
+}
+<div class="card shadow-sm mb-4 border-0" style="background: linear-gradient(90deg,#f8f9fa,#eef4ff);">
+    <div class="card-body py-3">
+        <div class="d-flex flex-wrap align-items-center gap-3">
+            <div class="d-flex align-items-center gap-2">
+                <span class="fs-4">💳</span>
+                <div>
+                    <small class="text-muted d-block">اعتبار پنل sms.ir (تعداد پیامک)</small>
+                    @if (sandbox)
+                    {
+                        <span class="badge bg-warning text-dark">حالت آزمایشی</span>
+                    }
+                    else if (credit.HasValue)
+                    {
+                        <strong class="fs-5 @(credit.Value < 100 ? "text-danger" : "text-success")">
+                            @credit.Value.ToString("N0") پیامک
+                        </strong>
+                        @if (credit.Value < 100)
+                        {
+                            <small class="text-danger d-block">اعتبار رو به اتمام است — لطفاً شارژ کنید.</small>
+                        }
+                    }
+                    else
+                    {
+                        <span class="text-muted small">@(!string.IsNullOrEmpty(creditError) ? creditError : "برای نمایش اعتبار، اتصال را تست کنید")</span>
+                    }
+                </div>
+            </div>
+            <div class="vr d-none d-md-block"></div>
+            <div>
+                <small class="text-muted d-block">مصرف این ماه (تعداد پیامک)</small>
+                <strong>@monthCost.ToString("N0") پیامک</strong>
+            </div>
+            <div class="vr d-none d-md-block"></div>
+            <div>
+                <small class="text-muted d-block">ارسال موفق این ماه</small>
+                <strong>@monthSent</strong>
+            </div>
+            @if (deliveryFailed > 0)
+            {
+                <div class="vr d-none d-md-block"></div>
+                <div>
+                    <small class="text-danger d-block">خطای تحویل (کسر اعتبار بدون رسیدن)</small>
+                    <strong class="text-danger">@deliveryFailed</strong>
+                </div>
+            }
+            <div class="vr d-none d-md-block"></div>
+            <div>
+                <small class="text-muted d-block">صف در انتظار ارسال</small>
+                <strong>@(ViewBag.QueueCount ?? 0)</strong>
+            </div>
+            <div class="ms-auto">
+                @if (sandbox)
+                {
+                    <span class="badge bg-warning text-dark p-2">⚠️ حالت آزمایشی — ارسال واقعی خاموش</span>
+                }
+                else if (enabled)
+                {
+                    <span class="badge bg-success p-2">✅ متصل و فعال</span>
+                }
+                else
+                {
+                    <span class="badge bg-secondary p-2">⛔ غیرفعال</span>
+                }
+            </div>
+        </div>
+    </div>
+</div>

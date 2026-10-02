@@ -102,6 +102,38 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                     b.ToTable("AboutUsSettings");
                 });
 
+            modelBuilder.Entity("SugarShop.Domain.Entities.AppDownloadLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AppVersion")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("DownloadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("IpAddress")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Referrer")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("UserAgent")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AppDownloadLogs");
+                });
+
             modelBuilder.Entity("SugarShop.Domain.Entities.CategoryHeaderSetting", b =>
                 {
                     b.Property<int>("Id")
@@ -270,6 +302,47 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                     b.HasIndex("TopicId");
 
                     b.ToTable("EducationalContents");
+                });
+
+            modelBuilder.Entity("SugarShop.Domain.Entities.EducationalHeaderSetting", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BackgroundColor")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("BackgroundImagePath")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Height")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Subtitle")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TextColor")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("EducationalHeaderSettings");
                 });
 
             modelBuilder.Entity("SugarShop.Domain.Entities.GalleryHeaderSetting", b =>
@@ -653,6 +726,9 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
 
                     b.HasIndex("OrderId");
 
+                    b.HasIndex("OrderId", "BoxTitle")
+                        .IsUnique();
+
                     b.ToTable("BoxFinalInfos");
                 });
 
@@ -717,12 +793,28 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("AddressId")
+                        .HasColumnType("int");
+
                     b.Property<string>("AdminNotes")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("CustomerFullAddress")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CustomerPostalCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("DeliveryFee")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("DeliveryMethod")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DesiredDeliveryDateTime")
                         .HasColumnType("datetime2");
@@ -748,6 +840,12 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                     b.Property<string>("PrintImagePath")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ReceiverName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReceiverPhone")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("SampleImagePath")
                         .HasMaxLength(500)
@@ -845,6 +943,105 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                     b.ToTable("DiscountCodes");
                 });
 
+            modelBuilder.Entity("SugarShop.Domain.Entities.Sales.Invoice", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("DeliveryFee")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("InvoiceDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InvoiceNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsPrinted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("OrderId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("PrintedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("Subtotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId");
+
+                    b.ToTable("Invoices");
+                });
+
+            modelBuilder.Entity("SugarShop.Domain.Entities.Sales.InvoiceItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BoxTitle")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("InvoiceId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ItemName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TotalPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("WeightGrams")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.ToTable("InvoiceItems");
+                });
+
             modelBuilder.Entity("SugarShop.Domain.Entities.Sales.Order", b =>
                 {
                     b.Property<int>("Id")
@@ -855,6 +1052,9 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
 
                     b.Property<string>("AdminNotes")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("CashbackAppliedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -884,6 +1084,9 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<int>("DeliveryMethod")
+                        .HasColumnType("int");
+
                     b.Property<TimeSpan?>("DeliveryTime")
                         .HasColumnType("time");
 
@@ -905,6 +1108,14 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                     b.Property<int?>("FinalTotalWeightGrams")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("InventoryDeductedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsInternal")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("IsPaymentEnabled")
                         .HasColumnType("bit");
 
@@ -918,6 +1129,9 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
 
                     b.Property<int>("OrderStatus")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("PaymentReminderSentAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("PaymentStatus")
                         .HasColumnType("int");
@@ -938,6 +1152,8 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedAt");
+
                     b.HasIndex("CustomerAddressId");
 
                     b.HasIndex("DiscountCodeId");
@@ -946,6 +1162,13 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                         .IsUnique();
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("IsInternal", "OrderStatus")
+                        .HasDatabaseName("IX_Orders_IsInternal_OrderStatus");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("IsInternal", "OrderStatus"), new[] { "FinalTotalAmount", "TotalAmountSnapshot" });
+
+                    b.HasIndex("OrderStatus", "CreatedAt");
 
                     b.HasIndex("UserId", "CreatedAt");
 
@@ -1025,6 +1248,21 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ExternalRefundNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ExternalRefundReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("ExternalRefundedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ExternalRefundedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<string>("MerchantRefId")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -1037,13 +1275,25 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
 
                     b.Property<string>("Provider")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<string>("RawRequest")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("RawResponse")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReconciliationNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("ReconciledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReconciledByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("TransactionCode")
                         .IsRequired()
@@ -1053,7 +1303,10 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
 
                     b.HasIndex("Authority");
 
-                    b.HasIndex("OrderId");
+                    b.HasIndex("OrderId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Payments_OneActiveZibalAttemptPerOrder")
+                        .HasFilter("[PaymentStatus] = 2 AND [Provider] = N'Zibal'");
 
                     b.ToTable("Payments");
                 });
@@ -1137,6 +1390,83 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                     b.HasIndex("GatewayId", "Title");
 
                     b.ToTable("PaymentGatewayAccounts", (string)null);
+                });
+
+            modelBuilder.Entity("SugarShop.Domain.Entities.Sales.SmsLinkTracking", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("FirstOpenedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("LastOpenedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("OpenCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("OrderId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Kind");
+
+                    b.HasIndex("OrderId", "Kind")
+                        .IsUnique();
+
+                    b.ToTable("SmsLinkTrackings");
+                });
+
+            modelBuilder.Entity("SugarShop.Domain.Entities.Sales.StatementLink", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LastOpenedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("OpenCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("OrderId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.ToTable("StatementLinks");
                 });
 
             modelBuilder.Entity("SugarShop.Domain.Entities.Sales.WalletSettings", b =>
@@ -1236,6 +1566,10 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                     b.Property<string>("ContactSuccessMessage")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("EconomicCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<string>("Email")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
@@ -1246,6 +1580,10 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
 
                     b.Property<string>("FooterCopyrightText")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("FreeDeliveryThreshold")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("InstagramUrl")
                         .HasColumnType("nvarchar(max)");
@@ -1270,6 +1608,10 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Phone")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("PostalCode")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
@@ -1415,6 +1757,510 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                     b.ToTable("Sliders");
                 });
 
+            modelBuilder.Entity("SugarShop.Domain.Entities.Sms.RestockSubscription", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("Notified")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("NotifiedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SweetItemId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("SweetItemId", "Notified");
+
+                    b.ToTable("RestockSubscriptions", (string)null);
+                });
+
+            modelBuilder.Entity("SugarShop.Domain.Entities.Sms.SmsAutoReminderLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("RefKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("ReminderType")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("Success")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReminderType", "RefKey")
+                        .IsUnique();
+
+                    b.ToTable("SmsAutoReminderLogs", (string)null);
+                });
+
+            modelBuilder.Entity("SugarShop.Domain.Entities.Sms.SmsCampaign", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Audience")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("FailedCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SentCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal>("TotalCost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("TotalRecipients")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("SmsCampaigns", (string)null);
+                });
+
+            modelBuilder.Entity("SugarShop.Domain.Entities.Sms.SmsCampaignRecipient", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("CampaignId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Cost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("RecipientName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("SmsLogId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CampaignId");
+
+                    b.ToTable("SmsCampaignRecipients", (string)null);
+                });
+
+            modelBuilder.Entity("SugarShop.Domain.Entities.Sms.SmsLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("Cost")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("DeliveryCheckedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte?>("DeliveryState")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("MessageText")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PhoneNumber")
+                        .IsRequired()
+                        .HasMaxLength(900)
+                        .HasColumnType("nvarchar(900)");
+
+                    b.Property<long?>("ProviderMessageId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("ProviderUsed")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PhoneNumber");
+
+                    b.HasIndex("SentAt");
+
+                    b.HasIndex("Status", "SentAt");
+
+                    b.ToTable("SmsLogs", (string)null);
+                });
+
+            modelBuilder.Entity("SugarShop.Domain.Entities.Sms.SmsOtpCode", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("IsUsed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("Phone", "Purpose", "IsUsed");
+
+                    b.ToTable("SmsOtpCodes", (string)null);
+                });
+
+            modelBuilder.Entity("SugarShop.Domain.Entities.Sms.SmsOutboxItem", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("RecipientType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RefKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Scenario")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("Status", "Id");
+
+                    b.ToTable("SmsOutboxItems", (string)null);
+                });
+
+            modelBuilder.Entity("SugarShop.Domain.Entities.Sms.SmsSystemSetting", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ApiKey")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("BirthdayDaysBefore")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("BirthdaySmsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("CustomCakeAlertPhones")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<bool>("CustomCakeAlertsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LowStockAlertPhones")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<bool>("LowStockAlertsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("LowStockThreshold")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MaxSmsPerPhonePerDay")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MonthlyBudgetToman")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("NewOrderAlertOnlyWeighing")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("NewOrderAlertPhones")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("NewOrderAlertRoles")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("OtpLoginEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("OtpPerIpPerHour")
+                        .HasColumnType("int");
+
+                    b.Property<int>("OtpPerPhonePerHour")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("PasswordResetSmsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("PaymentReminderDelayHours")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("PaymentReminderEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("QueueBatchSize")
+                        .HasColumnType("int");
+
+                    b.Property<int>("QueueDelaySeconds")
+                        .HasColumnType("int");
+
+                    b.Property<int>("QuietEndHour")
+                        .HasColumnType("int");
+
+                    b.Property<int>("QuietStartHour")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("RegisterWelcomeEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RespectQuietHours")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RestockAlertsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("SandboxMode")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("SenderNumber")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("StaffAlertsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("TicketNotificationsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("VipAutoSpecialOffers")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("VipPurchaseThresholdToman")
+                        .HasColumnType("int");
+
+                    b.Property<string>("WinBackCodePrefix")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("WinBackCodeTitle")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("WinBackDays")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WinBackDiscountPercent")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WinBackDiscountValidityDays")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("WinBackEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("WinBackMinOrderAmount")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("SmsSystemSettings", (string)null);
+                });
+
+            modelBuilder.Entity("SugarShop.Domain.Entities.Sms.SmsTemplate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BodyText")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Scenario")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Scenario");
+
+                    b.ToTable("SmsTemplates", (string)null);
+                });
+
             modelBuilder.Entity("SugarShop.Domain.Entities.SplashSetting", b =>
                 {
                     b.Property<int>("Id")
@@ -1455,6 +2301,21 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("AppAndroidEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("AppBaseUrl")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AppDisplayName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("AppEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AppIosEnabled")
+                        .HasColumnType("bit");
 
                     b.Property<string>("BodyBgColor")
                         .IsRequired()
@@ -1571,7 +2432,9 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Wallets_UserId");
 
                     b.ToTable("Wallets");
                 });
@@ -1640,6 +2503,28 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                     b.Navigation("Order");
                 });
 
+            modelBuilder.Entity("SugarShop.Domain.Entities.Sales.Invoice", b =>
+                {
+                    b.HasOne("SugarShop.Domain.Entities.Sales.Order", "Order")
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                });
+
+            modelBuilder.Entity("SugarShop.Domain.Entities.Sales.InvoiceItem", b =>
+                {
+                    b.HasOne("SugarShop.Domain.Entities.Sales.Invoice", "Invoice")
+                        .WithMany("Items")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Invoice");
+                });
+
             modelBuilder.Entity("SugarShop.Domain.Entities.Sales.Order", b =>
                 {
                     b.HasOne("SugarShop.Domain.Entities.Sales.Address", "CustomerAddress")
@@ -1690,6 +2575,22 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                     b.Navigation("Gateway");
                 });
 
+            modelBuilder.Entity("SugarShop.Domain.Entities.Sms.SmsCampaignRecipient", b =>
+                {
+                    b.HasOne("SugarShop.Domain.Entities.Sms.SmsCampaign", "Campaign")
+                        .WithMany("Recipients")
+                        .HasForeignKey("CampaignId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Campaign");
+                });
+
+            modelBuilder.Entity("SugarShop.Domain.Entities.Sales.Invoice", b =>
+                {
+                    b.Navigation("Items");
+                });
+
             modelBuilder.Entity("SugarShop.Domain.Entities.Sales.Order", b =>
                 {
                     b.Navigation("Items");
@@ -1700,6 +2601,11 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
             modelBuilder.Entity("SugarShop.Domain.Entities.Sales.PaymentGateway", b =>
                 {
                     b.Navigation("Accounts");
+                });
+
+            modelBuilder.Entity("SugarShop.Domain.Entities.Sms.SmsCampaign", b =>
+                {
+                    b.Navigation("Recipients");
                 });
 #pragma warning restore 612, 618
         }

@@ -1,0 +1,87 @@
+@model SugarShop.Domain.Entities.EducationalContent
+@{
+    ViewData["Title"] = "ایجاد محتوای آموزشی";
+    Layout = "_AdminLayout";
+}
+<div class="container-fluid px-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0">➕ ایجاد محتوای آموزشی</h4>
+        <a asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-arrow-right"></i> بازگشت به لیست</a>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <form asp-action="Create" method="post">
+                @Html.AntiForgeryToken()
+                <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label class="form-label">عنوان <span class="text-danger">*</span></label>
+                        <input asp-for="Title" class="form-control" required />
+                        <span asp-validation-for="Title" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">دسته‌بندی</label>
+                        <input asp-for="Category" class="form-control" placeholder="آموزشی" />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">محتوا <span class="text-danger">*</span></label>
+                        <partial name="_RichTextEditor" model="Model" />
+                        <small class="text-muted">
+                            ویرایشگر بصری — نیازی به دانش کدنویسی نیست. برای تصویر، دکمه <i class="bi bi-image"></i> را بزنید و از کتابخانه رسانه انتخاب کنید.
+                            محتوا به‌صورت خودکار پاک‌سازی امنیتی می‌شود.
+                        </small>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">تصویر شاخص</label>
+                        <div class="input-group">
+                            <input asp-for="FeaturedImageUrl" class="form-control" id="imgUrlInput" placeholder="/media/… یا https://…" />
+                            <button type="button" class="btn btn-outline-primary open-media-picker" data-target="#imgUrlInput" data-preview="#imgPreviewTag" title="انتخاب از کتابخانه رسانه">
+                                <i class="bi bi-images"></i> کتابخانه
+                            </button>
+                        </div>
+                        <small class="text-muted">تصویر دلخواه را از کتابخانه رسانه انتخاب کنید یا آدرس مستقیم وارد کنید.</small>
+                        <div id="imgPreview" class="d-none mt-2">
+                            <img id="imgPreviewTag" src="" alt="پیش‌نمایش تصویر شاخص"
+                                 style="max-height:180px;max-width:100%;border-radius:8px;border:1px solid #dee2e6;"
+                                 onerror="this.style.display='none';" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">برچسب‌ها</label>
+                        <input asp-for="Tags" class="form-control" placeholder="شیرینی, کیک, آموزش" />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">توضیح متا (SEO)</label>
+                        <input asp-for="MetaDescription" class="form-control" />
+                    </div>
+
+                    <div class="col-12 text-end">
+                        <button type="submit" class="btn btn-success px-5"><i class="bi bi-save"></i> ذخیره</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(function () {
+            $('#imgUrlInput').on('input change', function () {
+                var val = $.trim($(this).val());
+                var $prev = $('#imgPreview');
+                var $tag = $('#imgPreviewTag');
+                if (val) {
+                    $tag.attr('src', val).show();
+                    $prev.removeClass('d-none');
+                } else {
+                    $prev.addClass('d-none');
+                }
+            });
+        });
+    </script>
+}

@@ -1,0 +1,67 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>آفلاین - شیرینی سرا</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Vazirmatn, Vazir, Tahoma, sans-serif;
+            background: linear-gradient(160deg, #FFF8F0 0%, #FDF1E3 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #5D4037;
+            padding: 24px;
+        }
+        .box {
+            text-align: center;
+            max-width: 360px;
+        }
+        .icon {
+            font-size: 72px;
+            margin-bottom: 16px;
+            animation: float 3s ease-in-out infinite;
+        }
+        @@keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        h1 { font-size: 22px; margin-bottom: 12px; color: #8B4513; }
+        p { font-size: 15px; line-height: 1.9; opacity: .85; margin-bottom: 24px; }
+        button {
+            background: linear-gradient(135deg, #8B4513, #B8860B);
+            color: #fff;
+            border: none;
+            padding: 12px 36px;
+            border-radius: 999px;
+            font-size: 15px;
+            font-family: inherit;
+            cursor: pointer;
+            box-shadow: 0 6px 18px rgba(139, 69, 19, .25);
+            transition: transform .2s;
+        }
+        button:hover { transform: translateY(-2px); }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <div class="icon">🍩</div>
+        <h1>اتصال اینترنت قطع است</h1>
+        <p>
+            نگران نباش! به‌محض وصل شدن دوباره اینترنت،
+            فروشگاه به‌صورت خودکار در دسترس خواهد بود.
+        </p>
+        <button onclick="location.reload()">تلاش مجدد 🔄</button>
+    </div>
+    <script>
+        // به‌محض بازگشت شبکه، صفحه دوباره بارگذاری می‌شود
+        window.addEventListener('online', () => location.reload());
+    </script>
+</body>
+</html>

@@ -8,7 +8,7 @@ namespace SugarShop.Web.TagHelpers
     public class PersianDateTagHelper : TagHelper
     {
         [HtmlAttributeName("asp-for")]
-        public ModelExpression AspFor { get; set; }
+        public ModelExpression AspFor { get; set; } = null!;
 
         public override void Process(TagHelperContext context, TagHelperOutput output)
         {

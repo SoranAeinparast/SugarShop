@@ -1,52 +1,501 @@
-﻿<div class="offcanvas offcanvas-end box-offcanvas-wide" tabindex="-1" id="boxOffcanvas" aria-labelledby="boxOffcanvasLabel" data-bs-backdrop="true" data-bs-keyboard="false">
-    <div class="offcanvas-header bg-gradient-primary text-white border-0">
-        <h5 class="offcanvas-title fw-bold" id="boxOffcanvasLabel">
-            <i class="bi bi-box-seam"></i> 📦 جعبه شیرینی
-        </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
-    </div>
-    <div class="offcanvas-body p-0" id="boxOffcanvasBody">
-        <div class="text-center py-5">
-            <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
-            <p class="mt-3 text-muted">در حال بارگذاری پنل جعبه...</p>
+@Html.AntiForgeryToken()
+
+@* ============================================================
+   مودال انتخاب جعبه (مرکز صفحه) — با انتخاب کاربر خودکار بسته می‌شود
+   ============================================================ *@
+<div class="modal fade bx-select-modal" id="boxSelectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="bx-head">
+                <div class="bx-head-icon">🎁</div>
+                <div class="bx-head-title">جعبه‌ات را انتخاب کن</div>
+                <div class="bx-head-sub">هر جعبه چند ردیف دارد؛ روی هر شیرینی که بزنی، یک ردیف از آن در جعبه چیده می‌شود</div>
+                <button type="button" class="bx-head-close" data-bs-dismiss="modal" aria-label="بستن">✕</button>
+            </div>
+            <div class="modal-body p-0" id="boxSelectBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border" style="color: #b8860b; width: 2.6rem; height: 2.6rem;"></div>
+                    <p class="mt-3 text-muted mb-0">در حال بارگذاری جعبه‌ها...</p>
+                </div>
+            </div>
+            <div class="bx-select-footer">
+                <button type="button" class="bx-cancel-pick" id="bxCancelPicker">
+                    <i class="bi bi-x-lg"></i> انصراف و ادامه خرید
+                </button>
+            </div>
         </div>
     </div>
 </div>
 
+@* ============================================================
+   پنل شناور جعبه — نمایش گرافیکی ردیف‌ها، بدون مسدود کردن دید
+   ============================================================ *@
+<div id="boxMiniPanel" class="bx-panel" style="display:none;">
+    <div id="boxMiniPanelBody">
+        <div class="bx-panel-loading"><span class="spinner-border spinner-border-sm" style="color:#b8860b"></span> در حال بارگذاری جعبه...</div>
+    </div>
+</div>
+
 <style>
-.offcanvas-header {
-    background: linear-gradient(135deg, #d4a056 0%, #b8860b 100%);
-}
-.offcanvas.box-offcanvas-wide {
-    box-shadow: -5px 0 25px rgba(0,0,0,0.15);
-}
-@@media (max-width: 767.98px) {
-    .offcanvas.box-offcanvas-wide {
-        width: 100% !important;
-        border-radius: 0;
+    /* ==================== سیستم طراحی جعبه (bx) ==================== */
+    .bx-select-modal .modal-content {
+        border: none;
+        border-radius: 1.6rem;
+        overflow: hidden;
+        box-shadow: 0 30px 70px rgba(58, 33, 16, 0.4);
+        background: #fdf6ec;
     }
-}
-@@media (min-width: 768px) {
-    .offcanvas.box-offcanvas-wide {
-        width: 850px !important;
-        max-width: 90vw;
-        border-radius: 1rem 0 0 1rem;
-        box-shadow: 5px 0 25px rgba(0,0,0,0.15);
+    .bx-select-modal .bx-head {
+        position: relative;
+        padding: 1.6rem 2rem 1.4rem;
+        text-align: center;
+        color: #fff;
+        background: linear-gradient(135deg, #3a2110 0%, #6b3d1f 55%, #b8860b 100%);
     }
-}
-.offcanvas-body {
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: #d4a056 #f8f9fa;
-}
-.offcanvas-body::-webkit-scrollbar {
-    width: 6px;
-}
-.offcanvas-body::-webkit-scrollbar-track {
-    background: #f8f9fa;
-}
-.offcanvas-body::-webkit-scrollbar-thumb {
-    background-color: #d4a056;
-    border-radius: 10px;
-}
+    .bx-select-modal .bx-head::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background-image: radial-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px);
+        background-size: 14px 14px;
+        opacity: 0.45;
+    }
+    .bx-select-modal .bx-head-icon { font-size: 2.7rem; filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.35)); }
+    .bx-select-modal .bx-head-title { font-weight: 800; font-size: 1.35rem; margin-top: 0.35rem; }
+    .bx-select-modal .bx-head-sub { font-size: 0.85rem; opacity: 0.88; margin-top: 0.25rem; }
+    .bx-head-close {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        width: 32px;
+        height: 32px;
+        border: none;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.18);
+        color: #fff;
+        font-size: 0.9rem;
+        line-height: 1;
+        transition: all 0.2s;
+        z-index: 2;
+    }
+    .bx-head-close:hover { background: rgba(255, 255, 255, 0.35); transform: rotate(90deg); }
+
+    .bx-select-body { padding: 1.4rem; }
+    .bx-select-grid { display: grid; grid-template-columns: 1fr; gap: 0.9rem; }
+    @@media (min-width: 640px) { .bx-select-grid { grid-template-columns: 1fr 1fr; } }
+
+    .bx-option {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        background: #fff;
+        border: 2px solid #f0e0c8;
+        border-radius: 1.1rem;
+        padding: 0.9rem 1.1rem;
+        cursor: pointer;
+        transition: all 0.25s ease;
+        box-shadow: 0 4px 14px rgba(58, 33, 16, 0.06);
+    }
+    .bx-option:hover {
+        border-color: #d4a056;
+        transform: translateY(-3px);
+        box-shadow: 0 10px 24px rgba(184, 134, 11, 0.18);
+    }
+    .bx-option.active {
+        border-color: #b8860b;
+        background: linear-gradient(180deg, #fffdf7, #fdf0d8);
+        box-shadow: 0 8px 22px rgba(184, 134, 11, 0.28);
+    }
+    .bx-option.active::before {
+        content: '✓';
+        position: absolute;
+        top: -10px;
+        right: -10px;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #43c16e, #2e9e5b);
+        color: #fff;
+        font-weight: 800;
+        font-size: 0.85rem;
+        display: grid;
+        place-items: center;
+        box-shadow: 0 4px 10px rgba(46, 158, 91, 0.4);
+    }
+
+    /* هدیه گرافیکی CSS */
+    .bx-gift { position: relative; width: 60px; height: 60px; flex-shrink: 0; }
+    .bx-gift-box {
+        position: absolute;
+        left: 10px; right: 10px; bottom: 6px; top: 26px;
+        background: linear-gradient(160deg, #e8b96b, #c98a2e);
+        border-radius: 8px;
+        box-shadow: inset 0 -6px 10px rgba(0, 0, 0, 0.12), 0 6px 12px rgba(0, 0, 0, 0.18);
+    }
+    .bx-gift-lid {
+        position: absolute;
+        left: 3px; right: 3px; top: 17px; height: 17px;
+        background: linear-gradient(160deg, #f0c987, #d4a056);
+        border-radius: 6px;
+        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.18);
+        z-index: 1;
+    }
+    .bx-gift-ribbon-v {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        top: 12px; bottom: 6px;
+        width: 12px;
+        background: linear-gradient(180deg, #e2574c, #c0392b);
+        z-index: 2;
+    }
+    .bx-gift-ribbon-h {
+        position: absolute;
+        left: 3px; right: 3px; top: 25px; height: 10px;
+        background: linear-gradient(180deg, #e2574c, #c0392b);
+        z-index: 2;
+    }
+    .bx-gift-bow {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 22px; height: 16px;
+        z-index: 3;
+    }
+    .bx-gift-bow::before,
+    .bx-gift-bow::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        width: 12px; height: 12px;
+        background: linear-gradient(135deg, #f07b6c, #c0392b);
+        border-radius: 50% 50% 50% 0;
+        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+    }
+    .bx-gift-bow::before { left: -3px; transform: rotate(-22deg); }
+    .bx-gift-bow::after { right: -3px; transform: rotate(68deg) scaleX(-1); }
+
+    .bx-option-info { flex: 1; min-width: 0; }
+    .bx-option-title { font-weight: 800; font-size: 1rem; color: #3b2414; }
+    .bx-option-meta { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.45rem; }
+    .bx-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        background: #f5e9d2;
+        color: #7a4e15;
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 0.22rem 0.6rem;
+        border-radius: 99px;
+    }
+    .bx-option-cta { flex-shrink: 0; }
+    .bx-pick {
+        display: inline-block;
+        background: linear-gradient(135deg, #e8b96b, #b8860b);
+        color: #fff;
+        font-size: 0.78rem;
+        font-weight: 800;
+        padding: 0.5rem 1.1rem;
+        border-radius: 99px;
+        box-shadow: 0 5px 14px rgba(184, 134, 11, 0.35);
+        transition: all 0.2s;
+    }
+    .bx-option:hover .bx-pick { transform: scale(1.05); box-shadow: 0 8px 18px rgba(184, 134, 11, 0.45); }
+    .bx-selected {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        color: #2e9e5b;
+        font-size: 0.78rem;
+        font-weight: 800;
+        padding: 0.5rem 1rem;
+        border-radius: 99px;
+        background: #e8f7ee;
+        border: 1px solid #bfe8cd;
+    }
+    .bx-note {
+        margin-top: 1rem;
+        padding: 0.7rem 1rem;
+        border-radius: 0.9rem;
+        background: #fdf0d8;
+        border: 1px dashed #d4a056;
+        color: #7a4e15;
+        font-size: 0.8rem;
+    }
+
+    /* ==================== پنل شناور ==================== */
+    .bx-panel {
+        position: fixed;
+        bottom: 24px;
+        left: 24px;
+        z-index: 1080;
+        width: min(372px, calc(100vw - 32px));
+    }
+    .bx-panel-card {
+        background: #fff;
+        border-radius: 1.4rem;
+        overflow: hidden;
+        box-shadow: 0 18px 50px rgba(58, 33, 16, 0.35), 0 0 0 1px rgba(212, 160, 86, 0.4);
+        animation: bx-pop 0.35s ease;
+    }
+    @@keyframes bx-pop {
+        from { opacity: 0; transform: translateY(26px) scale(0.95); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .bx-panel-header {
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        padding: 0.85rem 1rem;
+        background: linear-gradient(135deg, #3a2110, #6b3d1f 60%, #a05a17);
+        color: #fff;
+        cursor: pointer;
+        user-select: none;
+    }
+    .bx-panel-head-icon { font-size: 1.35rem; }
+    .bx-panel-head-info { flex: 1; min-width: 0; }
+    .bx-panel-title { font-weight: 800; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bx-panel-sub { font-size: 0.7rem; opacity: 0.85; }
+    .bx-panel-count {
+        background: #fff;
+        color: #8a5a1a;
+        font-weight: 800;
+        font-size: 0.78rem;
+        min-width: 26px;
+        height: 26px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    }
+    .bx-panel-toggle {
+        background: rgba(255, 255, 255, 0.18);
+        border: none;
+        color: #fff;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-size: 0.9rem;
+        transition: transform 0.25s;
+    }
+    .bx-panel-toggle:hover { background: rgba(255, 255, 255, 0.32); }
+    .bx-panel-body { padding: 1rem; }
+
+    /* حالت جمع‌شده (دکمه گرد) */
+    .bx-panel-card.bx-mini {
+        width: 62px;
+        height: 62px;
+        border-radius: 50%;
+        animation: none;
+    }
+    .bx-panel-card.bx-mini .bx-panel-header {
+        width: 62px;
+        height: 62px;
+        border-radius: 50%;
+        padding: 0;
+        justify-content: center;
+        position: relative;
+    }
+    .bx-panel-card.bx-mini .bx-panel-head-info,
+    .bx-panel-card.bx-mini .bx-panel-toggle,
+    .bx-panel-card.bx-mini .bx-panel-body { display: none; }
+    .bx-panel-card.bx-mini .bx-panel-count {
+        position: absolute;
+        top: -3px;
+        right: -3px;
+        border: 2px solid #fff;
+    }
+    .bx-panel-body.bx-collapsed { display: none; }
+
+    .bx-panel-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.6rem;
+        padding: 1.1rem;
+        background: #fff;
+        border-radius: 1.2rem;
+        color: #8a6b47;
+        font-size: 0.82rem;
+        box-shadow: 0 14px 40px rgba(58, 33, 16, 0.3);
+    }
+
+    /* نوار پیشرفت */
+    .bx-progress { display: flex; flex-direction: column; gap: 0.5rem; }
+    .bx-progress-row { display: flex; align-items: center; gap: 0.6rem; }
+    .bx-progress-label { font-size: 0.72rem; font-weight: 700; color: #7a4e15; width: 42px; }
+    .bx-progress-val { font-size: 0.7rem; font-weight: 700; color: #8a6b47; white-space: nowrap; }
+    .bx-bar { flex: 1; height: 7px; background: #f0e0c8; border-radius: 99px; overflow: hidden; }
+    .bx-bar-fill { height: 100%; border-radius: 99px; transition: width 0.5s ease; }
+    .bx-bar-gold { background: linear-gradient(90deg, #f0c987, #b8860b); }
+    .bx-bar-green { background: linear-gradient(90deg, #43c16e, #2e9e5b); }
+
+    /* ردیف‌های جعبه */
+    .bx-rows {
+        max-height: 195px;
+        overflow-y: auto;
+        margin-top: 0.85rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding-left: 2px;
+        scrollbar-width: thin;
+        scrollbar-color: #d4a056 transparent;
+    }
+    .bx-rows::-webkit-scrollbar { width: 5px; }
+    .bx-rows::-webkit-scrollbar-thumb { background: #d4a056; border-radius: 10px; }
+    .bx-row {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        background: #fdf6ec;
+        border: 1px solid #f0e0c8;
+        border-radius: 0.9rem;
+        padding: 0.5rem 0.65rem;
+        animation: bx-row-in 0.3s ease;
+    }
+    @@keyframes bx-row-in {
+        from { opacity: 0; transform: translateX(16px); }
+        to { opacity: 1; transform: none; }
+    }
+    .bx-row-num {
+        background: #d4a056;
+        color: #fff;
+        font-size: 0.66rem;
+        font-weight: 800;
+        min-width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+    }
+    .bx-row-img {
+        width: 38px;
+        height: 38px;
+        border-radius: 0.6rem;
+        object-fit: cover;
+        border: 2px solid #e8d5b5;
+        flex-shrink: 0;
+        background: #f5e9d2;
+    }
+    .bx-row-info { flex: 1; min-width: 0; }
+    .bx-row-name { font-weight: 700; font-size: 0.8rem; color: #3b2414; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bx-row-weight { font-size: 0.68rem; color: #8a6b47; }
+    .bx-row-remove {
+        border: none;
+        background: transparent;
+        color: #c0392b;
+        font-size: 0.95rem;
+        padding: 0.25rem 0.4rem;
+        border-radius: 0.5rem;
+        transition: all 0.2s;
+        flex-shrink: 0;
+    }
+    .bx-row-remove:hover { background: #fde8e6; }
+    .bx-empty {
+        text-align: center;
+        padding: 1rem 0.5rem;
+        color: #8a6b47;
+        font-size: 0.8rem;
+        line-height: 1.9;
+    }
+
+    /* دکمه‌های پنل */
+    .bx-panel-actions { display: flex; gap: 0.5rem; margin-top: 0.9rem; }
+    .bx-btn {
+        border: none;
+        border-radius: 0.85rem;
+        padding: 0.55rem 0.75rem;
+        font-size: 0.76rem;
+        font-weight: 800;
+        transition: all 0.2s;
+        white-space: nowrap;
+    }
+    .bx-btn-ghost { background: #f5e9d2; color: #7a4e15; }
+    .bx-btn-ghost:hover { background: #eed9b4; }
+    .bx-btn-ghost-danger { background: #fde8e6; color: #c0392b; }
+    .bx-btn-ghost-danger:hover { background: #fbd4d0; }
+    .bx-btn-confirm {
+        flex: 1;
+        background: linear-gradient(135deg, #e8b96b, #b8860b);
+        color: #fff;
+        box-shadow: 0 6px 16px rgba(184, 134, 11, 0.4);
+    }
+    .bx-btn-confirm:hover { filter: brightness(1.06); transform: translateY(-1px); }
+    .bx-btn-confirm.bx-full { animation: bx-pulse 1.6s infinite; }
+    @@keyframes bx-pulse {
+        0%, 100% { box-shadow: 0 6px 16px rgba(184, 134, 11, 0.4); }
+        50% { box-shadow: 0 6px 26px rgba(226, 87, 76, 0.6); transform: scale(1.02); }
+    }
+    .bx-disabled { opacity: 0.45; pointer-events: none; }
+
+    @@media (max-width: 576px) {
+        .bx-panel { bottom: 14px; left: 14px; width: calc(100vw - 28px); }
+        .bx-select-body { padding: 1rem; }
+        .bx-option { padding: 0.75rem 0.9rem; }
+        .bx-gift { width: 52px; height: 52px; }
+        .bx-option-title { font-size: 0.92rem; }
+        .bx-pick { padding: 0.45rem 0.9rem; font-size: 0.72rem; }
+    }
+
+    /* ==================== دکمه‌های انصراف ==================== */
+    .bx-select-footer {
+        padding: 0.9rem 1.4rem 1.3rem;
+        display: flex;
+        justify-content: center;
+        border-top: 1px dashed #f0e0c8;
+        background: #fffaf1;
+    }
+    .bx-cancel-pick {
+        background: #fff;
+        color: #8a5a1a;
+        border: 1.5px solid #e3cda9;
+        border-radius: 99px;
+        font-weight: 800;
+        font-size: 0.82rem;
+        padding: 0.55rem 1.6rem;
+        transition: all 0.2s;
+    }
+    .bx-cancel-pick:hover { background: #fde8e6; border-color: #e2574c; color: #c0392b; }
+
+    /* راهنمای تکمیل جعبه در پنل شناور */
+    .bx-full-hint {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.45rem;
+        margin-top: 0.6rem;
+        padding: 0.5rem 0.7rem;
+        background: #fff8e6;
+        border: 1px dashed #e0c27a;
+        color: #8a6a1e;
+        border-radius: 0.7rem;
+        font-size: 0.72rem;
+        line-height: 1.7;
+    }
+
+    /* انصراف کامل از فرآیند جعبه (پنل شناور) */
+    .bx-abandon-row {
+        margin-top: 0.75rem;
+        text-align: center;
+        border-top: 1px dashed #f0e0c8;
+        padding-top: 0.6rem;
+    }
+    .bx-abandon {
+        background: transparent;
+        border: none;
+        color: #c07a6b;
+        font-size: 0.74rem;
+        font-weight: 700;
+        text-decoration: underline dotted;
+        text-underline-offset: 3px;
+        transition: color 0.2s;
+    }
+    .bx-abandon:hover { color: #c0392b; }
 </style>

@@ -7,6 +7,9 @@ namespace SugarShop.Infrastructure.Services
 {
     public class ZibalPaymentService
     {
+        /// <summary>آدرس شروع پرداخت زیبال؛ برای هدایت دوباره به پرداختِ در جریان استفاده میشود.</summary>
+        public const string StartPaymentUrl = "https://gateway.zibal.ir/start/";
+
         private readonly HttpClient _httpClient;
         private readonly string _merchant;
         private readonly string _requestUrl;
@@ -19,16 +22,16 @@ namespace SugarShop.Infrastructure.Services
             _httpClient = httpClient;
             _merchant = configuration["Zibal:Merchant"] ?? "zibal";
             _requestUrl = "https://gateway.zibal.ir/v1/request";
-            _startUrl = "https://gateway.zibal.ir/start/";
+            _startUrl = StartPaymentUrl;
             _verifyUrl = "https://gateway.zibal.ir/v1/verify";
             _logger = logger;
         }
 
-        public async Task<(bool Success, string TrackId, string PaymentUrl, string ErrorMessage)> RequestPayment(long amountInRials, string description, string callbackUrl, string mobile = null)
+        public async Task<(bool Success, string TrackId, string PaymentUrl, string ErrorMessage)> RequestPayment(long amountInRials, string description, string callbackUrl, string? mobile = null, string? merchant = null)
         {
             var requestData = new
             {
-                merchant = _merchant,
+                merchant = merchant ?? _merchant,
                 amount = amountInRials,
                 callbackUrl = callbackUrl,
                 description = description,
@@ -40,7 +43,7 @@ namespace SugarShop.Infrastructure.Services
             var response = await _httpClient.PostAsync(_requestUrl, content);
             var responseString = await response.Content.ReadAsStringAsync();
 
-            _logger.LogInformation("Zibal RequestPayment response: {Response}", responseString);
+            _logger.LogInformation("Zibal payment-session request returned HTTP {StatusCode}.", (int)response.StatusCode);
 
             try
             {
@@ -55,7 +58,7 @@ namespace SugarShop.Infrastructure.Services
                             ? trackIdElement.GetString() ?? ""
                             : trackIdElement.GetInt64().ToString();
 
-                        return (true, trackId, _startUrl + trackId, null);
+                        return (true, trackId, _startUrl + trackId, null!);
                     }
                     return (false, "", "", "trackId دریافت نشد");
                 }
@@ -72,11 +75,11 @@ namespace SugarShop.Infrastructure.Services
             }
         }
 
-        public async Task<(bool Success, long RefNumber, string ErrorMessage)> VerifyPayment(string trackId)
+        public async Task<(bool Success, long RefNumber, string ErrorMessage)> VerifyPayment(string trackId, string? merchant = null)
         {
             var verifyData = new
             {
-                merchant = _merchant,
+                merchant = merchant ?? _merchant,
                 trackId = trackId
             };
 
@@ -85,7 +88,7 @@ namespace SugarShop.Infrastructure.Services
             var response = await _httpClient.PostAsync(_verifyUrl, content);
             var responseString = await response.Content.ReadAsStringAsync();
 
-            _logger.LogInformation("Zibal Verify response: {Response}", responseString);
+            _logger.LogInformation("Zibal payment verification returned HTTP {StatusCode}.", (int)response.StatusCode);
 
             try
             {
@@ -97,9 +100,9 @@ namespace SugarShop.Infrastructure.Services
                     if (root.TryGetProperty("refNumber", out var refElement) && refElement.ValueKind != JsonValueKind.Null)
                     {
                         long refNumber = refElement.GetInt64();
-                        return (true, refNumber, null);
+                        return (true, refNumber, null!);
                     }
-                    return (true, 0, null);
+                    return (true, 0, null!);
                 }
                 else
                 {

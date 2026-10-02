@@ -1,0 +1,64 @@
+﻿@model SugarShop.Web.ViewModels.ZibalGatewaySettingsViewModel
+@{
+    ViewData["Title"] = "تنظیمات درگاه زیبال";
+    Layout = "_AdminLayout";
+}
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <h4 class="mb-0">🔑 تنظیمات درگاه زیبال (کلید پذیرنده)</h4>
+    </div>
+    <div class="card-body">
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success">@TempData["Success"]</div>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger">@TempData["Error"]</div>
+        }
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            هر زمان که کلید پذیرنده (Merchant ID) درگاه زیبال را دریافت کردید (مثلاً از پشتیبانی/بات)،
+            همین‌جا آن را در فیلد زیر قرار دهید، حالت «عملیاتی» را انتخاب و درگاه را فعال کنید.
+            از همان لحظه پرداخت‌ها با این کلید انجام می‌شود و دیگر نیازی به تغییر کد نیست.
+        </div>
+        <form asp-action="ZibalSettings" method="post">
+            <div class="row">
+                <div class="col-md-8 mb-3">
+                    <label asp-for="MerchantId" class="form-label fw-bold"></label>
+                    <input asp-for="MerchantId" class="form-control font-monospace" dir="ltr"
+                           placeholder="مثال: zibal" autocomplete="off" />
+                    <span asp-validation-for="MerchantId" class="text-danger"></span>
+                    <small class="text-muted">
+                        در حالت تست مقدار پیش‌فرض «zibal» کافی است؛ برای دریافت پرداخت واقعی، کلید اختصاصی خود را وارد کنید.
+                    </small>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label asp-for="Mode" class="form-label fw-bold">حالت درگاه</label>
+                    <select asp-for="Mode" class="form-select">
+                        <option value="Test">تست (Sandbox)</option>
+                        <option value="Production">عملیاتی (واقعی)</option>
+                    </select>
+                </div>
+                <div class="col-md-8 mb-3">
+                    <div class="form-check form-switch mt-4">
+                        <input asp-for="IsActive" class="form-check-input" type="checkbox" />
+                        <label asp-for="IsActive" class="form-check-label">درگاه فعال باشد</label>
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-circle"></i> ذخیره و اعمال تنظیمات درگاه
+                    </button>
+                    <a asp-action="Index" class="btn btn-secondary">بازگشت به مدیریت درگاه‌ها</a>
+                </div>
+            </div>
+        </form>
+        <hr />
+        <div class="alert alert-warning mb-0">
+            <i class="bi bi-exclamation-triangle"></i>
+            <strong>هشدار:</strong> با انتخاب حالت «عملیاتی» و فعال‌سازی، پرداخت‌های واقعی از مشتریان دریافت می‌شود.
+            ابتدا حتماً کلید صحیح را ذخیره و یک پرداخت آزمایشی کوچک انجام دهید.
+        </div>
+    </div>
+</div>

@@ -1,0 +1,85 @@
+@using SugarShop.Domain.Entities.Sms
+@model SmsSystemSetting
+@{
+    ViewData["Title"] = "اتصال به درگاه پیامکی";
+    Layout = "_AdminLayout";
+}
+
+<a href="/SmsSettings" class="btn btn-outline-secondary btn-sm mb-3"><i class="bi bi-arrow-right"></i> بازگشت به داشبورد سامانه پیامکی</a>
+<partial name="_SmsCreditBar" model="Model" />
+<h2 class="mb-3">🔌 اتصال به درگاه پیامکی (sms.ir)</h2>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success">@TempData["Success"]</div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger">@TempData["Error"]</div>
+}
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form asp-action="Connection" method="post">
+                    <div class="mb-3 d-flex align-items-center gap-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" asp-for="IsEnabled" />
+                            <label class="form-check-label fw-bold" asp-for="IsEnabled">سامانه پیامکی فعال باشد</label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">کلید API (ApiKey)</label>
+                        @if (!string.IsNullOrWhiteSpace(Model.ApiKey))
+                        {
+                            <div class="input-group">
+                                <input type="text" class="form-control" value="این کلید ثبت شده است (●●●●●●●●●●●●)" disabled />
+                                <span class="input-group-text">✅</span>
+                            </div>
+                            <small class="text-muted">برای تغییر کلید جدید، مقدار جدید را در فیلد زیر وارد کنید.</small>
+                        }
+                        <input type="text" name="newApiKey" class="form-control mt-1" placeholder="کلید API را اینجا وارد کنید" autocomplete="off" />
+                        <small class="text-muted">از پنل sms.ir → بخش «برنامه‌نویسان» → ایجاد کلید</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">شماره خط ارسال (اختیاری)</label>
+                        <input asp-for="SenderNumber" class="form-control" placeholder="مثال: 3000505 یا خالی بگذارید تا خودکار انتخاب شود" />
+                        <small class="text-muted">اگر خالی باشد، پس از تست اتصال به‌صورت خودکار از خطوط پنل شما انتخاب می‌شود.</small>
+                    </div>
+
+                    <div class="mb-3 form-check form-switch">
+                        <input class="form-check-input" type="checkbox" asp-for="SandboxMode" />
+                        <label class="form-check-label fw-bold" asp-for="SandboxMode">حالت آزمایشی (Sandbox)</label>
+                        <small class="d-block text-muted">
+                            در حالت آزمایشی هیچ پیامکی واقعاً ارسال نمی‌شود و همه ارسال‌ها فقط در گزارش ثبت می‌شوند —
+                            بدون هزینه. پس از تست موفق اتصال، این حالت به‌صورت خودکار خاموش می‌شود.
+                        </small>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">💾 ذخیره تنظیمات</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mt-3">
+            <div class="card-header bg-white fw-bold">🧪 تست اتصال و ارسال پیامک آزمایشی</div>
+            <div class="card-body">
+                <form asp-action="TestConnection" method="post" class="row g-2 align-items-end">
+                    <div class="col-md-7">
+                        <label class="form-label">شماره موبایل خود را وارد کنید (اختیاری)</label>
+                        <input type="text" name="testPhone" class="form-control" placeholder="09123456789" />
+                    </div>
+                    <div class="col-md-5">
+                        <button type="submit" class="btn btn-outline-primary w-100">
+                            بررسی اتصال و ارسال پیامک تست
+                        </button>
+                    </div>
+                    <small class="text-muted">اگر شماره وارد کنید، یک پیامک واقعی تست برای شما ارسال می‌شود و در صورت موفقیت، حالت آزمایشی خودکار خاموش خواهد شد.</small>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

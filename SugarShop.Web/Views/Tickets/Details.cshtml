@@ -1,4 +1,5 @@
 ﻿@using SugarShop.Domain.Entities
+@using MD.PersianDateTime
 @model Ticket
 @{
     ViewData["Title"] = "جزئیات پیام";
@@ -11,7 +12,7 @@
     </div>
     <div class="card-body">
         <p><strong>کاربر:</strong> @ViewBag.UserName</p>
-        <p><strong>تاریخ ایجاد:</strong> @Model.CreatedAt.ToString("yyyy/MM/dd HH:mm")</p>
+        <p><strong>تاریخ ایجاد:</strong> @(new PersianDateTime(Model.CreatedAt).ToString("yyyy/MM/dd HH:mm").ToPersianNumber())</p>
         <p><strong>وضعیت:</strong>
             @if (Model.Status == TicketStatus.Open) { <span class="badge bg-danger">باز</span> }
             else if (Model.Status == TicketStatus.Answered) { <span class="badge bg-success">پاسخ داده شده</span> }

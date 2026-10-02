@@ -19,6 +19,7 @@ namespace SugarShop.Infrastructure.Persistence
             {
                 e.Property(u => u.FullName).HasMaxLength(100);
                 e.Property(u => u.AvatarPath).HasMaxLength(500);
+                e.Property(u => u.NationalCode).HasMaxLength(20);
             });
         }
     }

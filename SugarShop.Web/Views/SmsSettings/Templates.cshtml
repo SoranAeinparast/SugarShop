@@ -1,0 +1,119 @@
+@using SugarShop.Domain.Entities.Sms
+@model List<SmsTemplate>
+@{
+    ViewData["Title"] = "مدیریت قالب‌های پیامک";
+    Layout = "_AdminLayout";
+    var names = (Dictionary<SmsScenario, string>)ViewBag.ScenarioNames;
+    var vars = (Dictionary<SmsScenario, string>)ViewBag.ScenarioVars;
+}
+
+<a href="/SmsSettings" class="btn btn-outline-secondary btn-sm mb-3"><i class="bi bi-arrow-right"></i> بازگشت به داشبورد سامانه پیامکی</a>
+<partial name="_SmsCreditBar" />
+<h2 class="mb-1">📝 مدیریت قالب‌های پیامک</h2>
+<p class="text-muted">همه پیامک‌های ضروری به‌صورت پیش‌فرض فعال هستند؛ فقط در صورت تمایل متن را تغییر دهید.</p>
+
+@if (!Model.Any())
+{
+    <div class="alert alert-warning">قالبی یافت نشد. برنامه را یک‌بار ری‌استارت کنید تا قالب‌های پیش‌فرض ساخته شوند.</div>
+    return;
+}
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success">@TempData["Success"]</div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger">@TempData["Error"]</div>
+}
+
+<div class="accordion" id="tplAccordion">
+    @foreach (var t in Model)
+    {
+        var isAuto = t.Scenario == SmsScenario.BirthdayReminder || t.Scenario == SmsScenario.WinBackDiscount
+        || t.Scenario == SmsScenario.RestockAvailable || t.Scenario == SmsScenario.LowStockAlert;
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button @(t.Id == Model[0].Id ? "" : "collapsed")" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#tpl@(t.Id)">
+                    <span class="me-2">
+                        @if (t.IsActive)
+                        {
+                            <span class="badge bg-success">فعال</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">غیرفعال</span>
+                        }
+                    </span>
+                    <strong>@names.GetValueOrDefault(t.Scenario, t.Title)</strong>
+                    @if (isAuto)
+                    {
+                        <small class="text-muted ms-2">(خودکار روزانه)</small>
+                    }
+                </button>
+            </h2>
+            <div id="tpl@(t.Id)" class="accordion-collapse collapse @(t.Id == Model[0].Id ? "show" : "")"
+                 data-bs-parent="#tplAccordion">
+                <div class="accordion-body">
+                    <form asp-action="SaveTemplate" method="post">
+                        <input type="hidden" name="id" value="@t.Id" />
+
+                        <div class="mb-2">
+                            <small class="text-muted">
+                                متغیرهای قابل استفاده (به‌صورت خودکار جایگذاری می‌شوند):
+                                <code class="text-primary">@vars.GetValueOrDefault(t.Scenario, "—")</code>
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <textarea name="bodyText" class="form-control" rows="4" dir="rtl">@t.BodyText</textarea>
+                        </div>
+
+                        <div class="d-flex align-items-center gap-3 flex-wrap">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="isActive" value="true"
+                                       @(t.IsActive ? "checked" : "") id="act@(t.Id)" />
+                                <label class="form-check-label" for="act@(t.Id)">ارسال این پیامک فعال باشد</label>
+                            </div>
+                            <span class="text-muted small">
+                                کاراکتر: <span id="cnt@(t.Id)">@t.BodyText.Length</span> (هر ۶۰ کاراکتر = ۱ پیامک)
+                            </span>
+                            <button type="submit" class="btn btn-primary btn-sm ms-auto">💾 ذخیره</button>
+                        </div>
+                    </form>
+                    <div class="alert alert-light border mt-2 mb-0 py-2 preview-box" data-cnt="cnt@(t.Id)" data-ta="textarea" dir="rtl"></div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .preview-box { min-height: 34px; color: #555; }
+    .preview-box:empty::before { content: "پیش‌نمایش متن اینجا نمایش داده می‌شود"; color: #aaa; }
+</style>
+
+@section Scripts {
+<script>
+    document.querySelectorAll('.accordion-item').forEach(function (item) {
+        var ta = item.querySelector('textarea');
+        var cnt = item.querySelector('[id^=cnt]');
+        var preview = item.querySelector('.preview-box');
+        function update() {
+            cnt.textContent = ta.value.length;
+            preview.textContent = ta.value
+                .replaceAll('{CustomerName}', 'علی').replaceAll('{PersonName}', 'رضا')
+                .replaceAll('{OrderCode}', '۱۰۰۷').replaceAll('{CakeCode}', '۱۲')
+                .replaceAll('{TicketId}', '۳۴').replaceAll('{Amount}', '۴۵۰٫۰۰۰')
+                .replaceAll('{Status}', 'در حال آماده‌سازی').replaceAll('{Code}', '۸۲۴۹۱۳')
+                .replaceAll('{DiscountCode}', 'BACK123406').replaceAll('{DiscountPercent}', '۱۰')
+                .replaceAll('{ValidityDays}', '۷').replaceAll('{ProductName}', 'کیک شکلاتی')
+                .replaceAll('{Products}', 'کیک شکلاتی، باقلوا').replaceAll('{Message}', 'جشنواره نورانی فروشگاه')
+                .replaceAll('{SiteName}', 'شیرینی سرا');
+        }
+        ta.addEventListener('input', update);
+        update();
+    });
+</script>
+}

@@ -1,0 +1,51 @@
+@using SugarShop.Web.Extensions
+@{
+    var boxTypes = ViewBag.BoxTypes as List<SugarShop.Domain.Entities.BoxType> ?? new();
+    var selectedBoxId = ViewBag.SelectedBoxTypeId as int?;
+    var hasItems = ViewBag.HasItems is true;
+}
+<div id="boxSelectContent" class="bx-select-body" data-has-items="@(hasItems ? "true" : "false")">
+    @if (boxTypes.Count == 0)
+    {
+        <div class="alert alert-warning m-3">هنوز جعبه‌ای تعریف نشده است. لطفاً بعداً مراجعه کنید.</div>
+    }
+    else
+    {
+        <div class="bx-select-grid">
+            @foreach (var box in boxTypes)
+            {
+                var isSelected = selectedBoxId == box.Id;
+                <div class="bx-option @(isSelected ? "active" : "")" data-box-id="@box.Id" role="button" tabindex="0">
+                    <div class="bx-gift">
+                        <div class="bx-gift-lid"></div>
+                        <div class="bx-gift-box"></div>
+                        <div class="bx-gift-ribbon-v"></div>
+                        <div class="bx-gift-ribbon-h"></div>
+                        <div class="bx-gift-bow"></div>
+                    </div>
+                    <div class="bx-option-info">
+                        <div class="bx-option-title">@box.TitleFa</div>
+                        <div class="bx-option-meta">
+                            <span class="bx-chip"><i class="bi bi-egg-fried"></i> @box.CapacityGrams.ToPersianNumber() گرم</span>
+                            <span class="bx-chip"><i class="bi bi-layout-three-columns"></i> @box.MaxRows.ToPersianNumber() ردیف</span>
+                        </div>
+                    </div>
+                    <div class="bx-option-cta">
+                        @if (isSelected)
+                        {
+                            <span class="bx-selected"><i class="bi bi-check-circle-fill"></i> انتخاب شده</span>
+                        }
+                        else
+                        {
+                            <span class="bx-pick"><i class="bi bi-check-lg"></i> انتخاب</span>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+        @if (hasItems)
+        {
+            <div class="bx-note"><i class="bi bi-info-circle"></i> جعبه فعلی ردیف‌هایی دارد؛ با انتخاب جعبه جدید، در صورت تناسب ظرفیت، همان ردیف‌ها به جعبه جدید منتقل می‌شوند.</div>
+        }
+    }
+</div>

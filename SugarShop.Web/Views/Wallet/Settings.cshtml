@@ -55,8 +55,9 @@
             <h5 class="mt-3">🔒 محدودیت‌ها</h5>
             <div class="row">
                 <div class="col-md-6">
-                    <label asp-for="MaxWalletBalance">سقف موجودی کیف پول (0 = نامحدود)</label>
+                    <label asp-for="MaxWalletBalance">سقف موجودی برای کش‌بک و افزایش دستی (0 = نامحدود)</label>
                     <input asp-for="MaxWalletBalance" class="form-control" />
+                    <small class="text-muted">شارژ مستقیم کیف پول همیشه با مبلغ کامل ثبت می‌شود.</small>
                 </div>
                 <div class="col-md-6">
                     <label asp-for="ExpiryDays">انقضای اعتبار (تعداد روز، 0 = بدون انقضا)</label>

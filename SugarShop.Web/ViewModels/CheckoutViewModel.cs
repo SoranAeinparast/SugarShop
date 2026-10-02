@@ -7,6 +7,7 @@ namespace SugarShop.Web.ViewModels
     {
         public List<Address>? UserAddresses { get; set; }
         public int? SelectedAddressId { get; set; }
+
         [Display(Name = "عنوان (خانه، محل کار)")]
         public string? NewAddressTitle { get; set; }
 
@@ -21,6 +22,7 @@ namespace SugarShop.Web.ViewModels
 
         [Display(Name = "شماره تماس")]
         public string? NewReceiverPhone { get; set; }
+
         [Display(Name = "تاریخ تحویل (اختیاری)")]
         public DateTime? DeliveryDate { get; set; }
 
@@ -29,13 +31,15 @@ namespace SugarShop.Web.ViewModels
 
         [Display(Name = "توضیحات (اختیاری)")]
         public string? Notes { get; set; }
+
         public bool UseWallet { get; set; }
         public string? GuestFullAddress { get; set; }
         public string? GuestPostalCode { get; set; }
         public string? GuestReceiverName { get; set; }
         public string? GuestReceiverPhone { get; set; }
-
         public bool UseNewAddress { get; set; }
 
+        // ✅ فیلد جدید: روش تحویل
+        public DeliveryMethod DeliveryMethod { get; set; } = DeliveryMethod.Pickup;
     }
 }

@@ -33,5 +33,16 @@ namespace SugarShop.Domain.Entities
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
         public bool BodyDotPatternEnabled { get; set; } = false;
 
+        // ── تنظیمات اپلیکیشن موبایل ──
+        /// <summary>نمایش/عدم نمایش اپلیکیشن در سایت (بنر نصب، لینک‌ها، صفحه دانلود).</summary>
+        public bool AppEnabled { get; set; } = true;
+        /// <summary>نام نمایشی اپلیکیشن — خالی = نام سایت.</summary>
+        public string? AppDisplayName { get; set; }
+        /// <summary>URL پایه اپلیکیشن (مثلاً https://sweets.soransoftpro.ir) — خالی = دامنه فعلی سایت.</summary>
+        public string? AppBaseUrl { get; set; }
+        /// <summary>فعال بودن نسخه اندروید (APK).</summary>
+        public bool AppAndroidEnabled { get; set; } = true;
+        /// <summary>فعال بودن راهنمای نصب iOS / PWA.</summary>
+        public bool AppIosEnabled { get; set; } = true;
     }
 }

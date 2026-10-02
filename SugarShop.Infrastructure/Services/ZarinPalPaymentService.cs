@@ -7,7 +7,7 @@ namespace SugarShop.Infrastructure.Services
     public class ZarinPalPaymentService
     {
         private readonly HttpClient _httpClient;
-        private readonly string _merchantId;
+        private readonly string? _merchantId;
         private readonly bool _isSandbox;
 
         public ZarinPalPaymentService(HttpClient httpClient, IConfiguration configuration)
@@ -43,13 +43,13 @@ namespace SugarShop.Infrastructure.Services
                     var paymentUrl = _isSandbox
                         ? $"https://sandbox.zarinpal.com/pg/StartPay/{result.Data.Authority}"
                         : $"https://www.zarinpal.com/pg/StartPay/{result.Data.Authority}";
-                    return (true, result.Data.Authority, paymentUrl, null);
+                    return (true, result.Data.Authority, paymentUrl, null!);
                 }
-                return (false, null, null, result?.Errors?.Message ?? "خطا در اتصال به درگاه پرداخت");
+                return (false, null!, null!, result?.Errors?.Message ?? "خطا در اتصال به درگاه پرداخت");
             }
             catch
             {
-                return (false, null, null, "پاسخ نامعتبر از درگاه پرداخت");
+                return (false, null!, null!, "پاسخ نامعتبر از درگاه پرداخت");
             }
         }
 
@@ -75,7 +75,7 @@ namespace SugarShop.Infrastructure.Services
                 var result = JsonSerializer.Deserialize<ZarinpalVerifyResponse>(responseString);
                 if (result?.Data?.Code == 100)
                 {
-                    return (true, result.Data.RefId, null);
+                    return (true, result.Data.RefId, null!);
                 }
                 return (false, 0, result?.Errors?.Message ?? "تراکنش ناموفق بود");
             }
@@ -86,9 +86,9 @@ namespace SugarShop.Infrastructure.Services
         }
     }
 
-    public class ZarinpalRequestResponse { public ZarinpalRequestData Data { get; set; } public ZarinpalError Errors { get; set; } }
-    public class ZarinpalRequestData { public int Code { get; set; } public string Authority { get; set; } }
-    public class ZarinpalVerifyResponse { public ZarinpalVerifyData Data { get; set; } public ZarinpalError Errors { get; set; } }
+    public class ZarinpalRequestResponse { public ZarinpalRequestData Data { get; set; } = null!; public ZarinpalError Errors { get; set; } = null!; }
+    public class ZarinpalRequestData { public int Code { get; set; } public string Authority { get; set; } = null!; }
+    public class ZarinpalVerifyResponse { public ZarinpalVerifyData Data { get; set; } = null!; public ZarinpalError Errors { get; set; } = null!; }
     public class ZarinpalVerifyData { public int Code { get; set; } public long RefId { get; set; } }
-    public class ZarinpalError { public string Message { get; set; } }
+    public class ZarinpalError { public string Message { get; set; } = null!; }
 }

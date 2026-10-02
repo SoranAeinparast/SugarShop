@@ -52,9 +52,8 @@ namespace SugarShop.Web.Controllers.Admin
             try
             {
                 var settings = await _salesDb.GalleryHeaderSettings.FirstOrDefaultAsync();
-                bool isNew = (settings == null);
 
-                if (isNew)
+                if (settings == null)
                 {
                     settings = new GalleryHeaderSetting();
                     _salesDb.GalleryHeaderSettings.Add(settings);

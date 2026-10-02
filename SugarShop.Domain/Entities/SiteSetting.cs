@@ -12,6 +12,10 @@ namespace SugarShop.Domain.Entities
         public string? Phone { get; set; }
         public string? Email { get; set; }
         public string? Address { get; set; }
+
+        // ✅ اطلاعات فروشنده برای فاکتور
+        public string? EconomicCode { get; set; }
+        public string? PostalCode { get; set; }
         public string? WorkingHours { get; set; }
         public string? InstagramUrl { get; set; }
         public string? TelegramUrl { get; set; }
@@ -54,5 +58,11 @@ namespace SugarShop.Domain.Entities
         public string? MapLongitude { get; set; }
         public string? MapLocationName { get; set; }
         public string? ContactSuccessMessage { get; set; }
+
+        /// <summary>
+        /// آستانه ارسال رایگان (تومان). اگر مبلغ کالاهای سفارش به این مقدار برسد، هزینه پیک صفر محاسبه میشود.
+        /// مقدار صفر یعنی این سیاست غیرفعال است.
+        /// </summary>
+        public decimal FreeDeliveryThreshold { get; set; }
     }
 }

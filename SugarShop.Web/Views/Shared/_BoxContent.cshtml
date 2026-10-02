@@ -75,19 +75,19 @@
                             {
                                 var isFilled = i < Model.Items.Count;
                                 var item = isFilled ? Model.Items[i] : null;
-                                var sweetItem = isFilled ? sweetItems?.FirstOrDefault(s => s.Id == item.SweetItemId) : null;
+                                var sweetItem = isFilled ? sweetItems?.FirstOrDefault(s => s.Id == item!.SweetItemId) : null;
                                 var imagePath = sweetItem?.ImagePath ?? "/images/sweets/default.png";
                                 <div class="d-flex align-items-center p-2 mb-2 rounded-3 @(isFilled ? "bg-white border border-warning" : "bg-white border border-dashed border-secondary")">
                                     @if (isFilled && item != null)
                                     {
                                         <div class="d-flex align-items-center gap-2 flex-grow-1">
-                                            <img src="@imagePath" alt="@item.TitleFaSnapshot" class="rounded-circle" style="width:36px; height:36px; object-fit:cover; border:2px solid #d4a056;" />
+                                            <img src="@imagePath" alt="@item.TitleFaSnapshot" loading="lazy" class="rounded-circle" style="width:36px; height:36px; object-fit:cover; border:2px solid #d4a056;" />
                                             <span class="fw-semibold text-truncate" style="font-size:0.9rem;">@item.TitleFaSnapshot</span>
                                         </div>
                                         <div class="d-flex gap-1">
                                             @for (int j = 0; j < 3; j++)
                                             {
-                                                <img src="@imagePath" alt="" class="rounded-circle" style="width:24px; height:24px; object-fit:cover; border:1px solid #d4a056; opacity:0.8;" />
+                                                <img src="@imagePath" alt="" loading="lazy" class="rounded-circle" style="width:24px; height:24px; object-fit:cover; border:1px solid #d4a056; opacity:0.8;" />
                                             }
                                         </div>
                                         <button class="btn btn-sm btn-outline-danger rounded-pill ms-2 remove-row" data-row-index="@i">

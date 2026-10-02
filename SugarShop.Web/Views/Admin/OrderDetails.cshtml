@@ -12,7 +12,36 @@
     var sweetNames = ViewBag.SweetNames as Dictionary<int, string> ?? new Dictionary<int, string>();
     var productNames = ViewBag.ProductNames as Dictionary<int, string> ?? new Dictionary<int, string>();
     var boxInfos = ViewBag.BoxInfos as Dictionary<string, BoxFinalInfo> ?? new Dictionary<string, BoxFinalInfo>();
-    string ToPersianNumber(string input) => input.ToPersianNumber();
+    var paymentResolutionActors = ViewBag.PaymentResolutionActors as Dictionary<string, string> ?? new Dictionary<string, string>();
+    // ظرفیت نوع هر جعبه (گرم) — از نوع جعبه‌ای که در زمان خرید انتخاب شده است
+    var boxCapacities = ViewBag.BoxCapacities as Dictionary<string, SugarShop.Web.ViewModels.BoxCapacityViewModel>
+        ?? new Dictionary<string, SugarShop.Web.ViewModels.BoxCapacityViewModel>();
+    var sweetPricePerKg = ViewBag.SweetPricePerKg as Dictionary<int, decimal> ?? new Dictionary<int, decimal>();
+    var payments = ViewBag.Payments as List<Payment> ?? new List<Payment>();
+    // ⚖️ وزن هر ردیف جعبه فقط همان وزنی است که فروشگاه وزن‌کشی و ثبت کرده است.
+    // هیچ وزن پیش‌فرض/تقریبی‌ای نشان داده نمی‌شود؛ ردیفِ وزن‌کشی‌نشده خالی می‌ماند.
+    Func<OrderItem, int> rowWeightOf = i => i.WeightSnapshotGrams is > 0 ? i.WeightSnapshotGrams!.Value : 0;
+    // 🏷️ دکمه چاپ برچسب وزن‌کشی فقط وقتی فعال است که وزن همه جعبه‌ها ثبت شده باشد
+    bool allBoxesWeighed = boxGroups.Any()
+        && boxGroups.All(bg => boxInfos.ContainsKey(bg.Key!) && boxInfos[bg.Key!].FinalWeightGrams > 0);
+    string gramsFa(int g) => g.ToString("N0").ToPersianNumber() + " گرم";
+    string tomanFa(decimal t) => t.ToString("N0").ToPersianNumber() + " تومان";
+    Func<OrderItem, decimal> rowPriceOf = i =>
+    {
+        var pricePerKg = i.SweetItemId.HasValue && sweetPricePerKg.ContainsKey(i.SweetItemId.Value) ? sweetPricePerKg[i.SweetItemId.Value] : 0m;
+        var quantity = i.Quantity < 1 ? 1 : i.Quantity;
+        return (rowWeightOf(i) / 1000m) * pricePerKg * quantity;
+    };
+    var rowWeightById = Model.Items.ToDictionary(i => i.Id, rowWeightOf);
+    var rowPriceById = Model.Items.ToDictionary(i => i.Id, rowPriceOf);
+    // پالت رنگی برای تفکیک بصری جعبه‌ها
+    var boxColorPalette = new[] {
+        ("#e8f1ff", "#2c6ecb"), ("#e9f9ef", "#1e9e50"), ("#fff4e0", "#e08a00"),
+        ("#fdeaea", "#d94848"), ("#f3e8ff", "#7a3fd1"), ("#e0f7fa", "#00838f"),
+        ("#fff8e1", "#b58900"), ("#fce4ec", "#c2185b")
+    };
+    string boxColor(int i) => boxColorPalette[i % boxColorPalette.Length].Item1;
+    string boxAccent(int i) => boxColorPalette[i % boxColorPalette.Length].Item2;
     string orderStatusClass = Model.OrderStatus switch
     {
         OrderStatus.AwaitingReview => "secondary",
@@ -22,9 +51,16 @@
         OrderStatus.Shipped => "dark",
         OrderStatus.Delivered => "success",
         OrderStatus.Cancelled => "danger",
+        OrderStatus.PaymentReview => "danger",
         _ => "secondary"
     };
-    string paymentStatusClass = Model.PaymentStatus == PaymentStatus.Succeeded ? "success" : "warning";
+    string paymentStatusClass = Model.PaymentStatus switch
+    {
+        PaymentStatus.Succeeded => "success",
+        PaymentStatus.Refunded => "secondary",
+        PaymentStatus.RefundRequired => "danger",
+        _ => "warning"
+    };
     string orderStatusText = Model.OrderStatus switch
     {
         OrderStatus.AwaitingReview => "در انتظار بررسی",
@@ -34,17 +70,53 @@
         OrderStatus.Shipped => "ارسال شده",
         OrderStatus.Delivered => "تحویل شده",
         OrderStatus.Cancelled => "لغو شده",
+        OrderStatus.PaymentReview => "نیازمند بررسی پرداخت",
         _ => "نامشخص"
     };
 }
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2 class="mb-0">📦 سفارش @Model.OrderCode</h2>
-        <a asp-action="Orders" class="btn btn-secondary">بازگشت</a>
+        <div class="d-flex gap-2">
+            @if (boxGroups.Any())
+            {
+                @* 🏷️ تنها دکمه چاپ برچسب صفحه (دکمه تکراریِ پایین صفحه حذف شد).
+                   تا وقتی وزن همه جعبه‌ها ثبت نشده باشد غیرفعال است و در همان تب باز می‌شود
+                   تا در حالت وب، پنجره/تب اضافه در پوسته‌ی اپ باز نشود. *@
+                if (allBoxesWeighed)
+                {
+                    <a href="@Url.Action("BoxLabels", "Admin", new { orderId = Model.Id })"
+                       class="btn btn-dark" title="چاپ برچسب وزن‌کشی همه جعبه‌ها برای چسباندن روی جعبه">🏷️ چاپ برچسب وزن‌کشی</a>
+                }
+                else
+                {
+                    <button type="button" class="btn btn-dark" disabled
+                            title="این دکمه پس از ورود اوزان و ثبت آن‌ها توسط فروشگاه فعال می‌شود.">
+                        🏷️ چاپ برچسب وزن‌کشی
+                    </button>
+                }
+            }
+            @if (Model.OrderStatus == OrderStatus.PaymentReview || Model.PaymentStatus == PaymentStatus.RefundRequired)
+            {
+                <a asp-action="PaymentReviews" class="btn btn-secondary">بازگشت به بررسی پرداخت‌ها</a>
+            }
+            else
+            {
+                <a asp-action="Orders" class="btn btn-secondary">بازگشت</a>
+            }
+        </div>
     </div>
     @if (TempData["SuccessMessage"] != null)
     {
         <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+    }
+    @if (TempData["WarningMessage"] != null)
+    {
+        <div class="alert alert-warning">@TempData["WarningMessage"]</div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
     }
     <div class="row">
         <div class="col-md-6">
@@ -55,9 +127,16 @@
                     <p><strong>تلفن:</strong> @Model.CustomerPhone</p>
                     <p><strong>آدرس:</strong> @Model.CustomerFullAddress</p>
                     <p><strong>کد پستی:</strong> @Model.CustomerPostalCode</p>
-                    @if (Model.DeliveryDate.HasValue) { <p><strong>تاریخ تحویل:</strong> @Model.DeliveryDate.Value.ToString("yyyy/MM/dd").ToPersianNumber()</p> }
+                    @if (Model.DeliveryDate.HasValue) { <p><strong>تاریخ تحویل:</strong> @(new PersianDateTime(Model.DeliveryDate.Value).ToString("yyyy/MM/dd").ToPersianNumber())</p> }
                     @if (Model.DeliveryTime.HasValue) { <p><strong>ساعت تحویل:</strong> @Model.DeliveryTime.Value.ToString(@"hh\:mm").ToPersianNumber()</p> }
                     @if (!string.IsNullOrEmpty(Model.Notes)) { <p><strong>توضیحات:</strong> @Model.Notes</p> }
+                    <hr />
+                    <div class="mb-2">
+                        <strong> روش تحویل:</strong>
+                        <span class="badge @(Model.DeliveryMethod == DeliveryMethod.Pickup ? "bg-success" : "bg-warning")">
+                            @(Model.DeliveryMethod == DeliveryMethod.Pickup ? "🏪 دریافت در محل" : "🛵 ارسال با پیک")
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -65,56 +144,317 @@
             <div class="card mb-3">
                 <div class="card-header"><h5 class="mb-0">اطلاعات مالی</h5></div>
                 <div class="card-body">
-                    <p><strong>قیمت تقریبی:</strong> @Model.TotalAmountSnapshot.ToString("N0").ToPersianNumber() تومان</p>
-                    @if (Model.FinalTotalAmount.HasValue)
-                    {
-                        <p><strong>قیمت نهایی:</strong> <span class="text-success fw-bold">@Model.FinalTotalAmount.Value.ToString("N0").ToPersianNumber() تومان</span></p>
+                    @{
+                        var deliveryFee = Model.DeliveryFeeSnapshot;
+                        var hasDeliveryFee = deliveryFee > 0;
+                        var anyBoxPendingForFinancial = boxGroups.Any(bg => !boxInfos.ContainsKey(bg.Key!));
                     }
-                    @if (Model.FinalTotalWeightGrams.HasValue)
+                    @if (!productItems.Any() && !boxGroups.Any())
                     {
-                        <p><strong>وزن نهایی:</strong> @Model.FinalTotalWeightGrams.Value.ToPersianNumber() گرم</p>
+                        @if (hasDeliveryFee)
+                        {
+                            <p><strong>هزینه پیک:</strong> <span class="text-info fw-bold">@deliveryFee.ToString("N0").ToPersianNumber() تومان</span></p>
+                            <hr />
+                            <p><strong>💰 مبلغ قابل پرداخت:</strong> <span class="text-success fs-5 fw-bold">@deliveryFee.ToString("N0").ToPersianNumber() تومان</span></p>
+                        }
+                        else
+                        {
+                            <p class="text-muted">هیچ آیتمی در این سفارش وجود ندارد.</p>
+                        }
                     }
-                    <p><strong>وضعیت سفارش:</strong> <span class="badge bg-@orderStatusClass">@orderStatusText</span></p>
-                    <p><strong>وضعیت پرداخت:</strong> <span class="badge bg-@paymentStatusClass">@(Model.PaymentStatus switch {
+                    else if (productItems.Any() && !boxGroups.Any())
+                    {
+                        var productTotal = productItems.Sum(p => p.TotalPriceSnapshot);
+                        <p><strong>جمع محصولات:</strong> <span>@productTotal.ToString("N0").ToPersianNumber() تومان</span></p>
+                        @if (hasDeliveryFee)
+                        {
+                            <p><strong>هزینه پیک:</strong> <span class="text-info fw-bold">@deliveryFee.ToString("N0").ToPersianNumber() تومان</span></p>
+                            <hr />
+                            <p><strong>💰 مبلغ قابل پرداخت:</strong> <span class="text-success fs-5 fw-bold">@((productTotal + deliveryFee).ToString("N0").ToPersianNumber()) تومان</span></p>
+                        }
+                        else
+                        {
+                            <hr />
+                            <p><strong>💰 مبلغ قابل پرداخت:</strong> <span class="text-success fs-5 fw-bold">@productTotal.ToString("N0").ToPersianNumber() تومان</span></p>
+                        }
+                    }
+                    else if (!productItems.Any() && boxGroups.Any())
+                    {
+                        @if (anyBoxPendingForFinancial)
+                        {
+                            <p><strong>جمع جعبه‌ها:</strong> <span class="text-muted">بعد از وزن‌کشی اعلام خواهد شد.</span></p>
+                            @if (hasDeliveryFee)
+                            {
+                                <p><strong>هزینه پیک:</strong> <span class="text-info fw-bold">@deliveryFee.ToString("N0").ToPersianNumber() تومان</span></p>
+                            }
+                            <hr />
+                            <p><strong>💰 مبلغ قابل پرداخت:</strong> <span class="text-muted fs-5">پس از اعلام قیمت جعبه محاسبه می‌شود.</span></p>
+                        }
+                        else
+                        {
+                            var boxTotal = boxInfos.Values.Sum(b => b.FinalPrice);
+                            <p><strong>جمع جعبه‌ها:</strong> <span>@boxTotal.ToString("N0").ToPersianNumber() تومان</span></p>
+                            @if (hasDeliveryFee)
+                            {
+                                <p><strong>هزینه پیک:</strong> <span class="text-info fw-bold">@deliveryFee.ToString("N0").ToPersianNumber() تومان</span></p>
+                                <hr />
+                                <p><strong>💰 مبلغ قابل پرداخت:</strong> <span class="text-success fs-5 fw-bold">@((boxTotal + deliveryFee).ToString("N0").ToPersianNumber()) تومان</span></p>
+                            }
+                            else
+                            {
+                                <hr />
+                                <p><strong>💰 مبلغ قابل پرداخت:</strong> <span class="text-success fs-5 fw-bold">@boxTotal.ToString("N0").ToPersianNumber() تومان</span></p>
+                            }
+                        }
+                    }
+                    else if (productItems.Any() && boxGroups.Any())
+                    {
+                        var productTotal = productItems.Sum(p => p.TotalPriceSnapshot);
+                        @if (anyBoxPendingForFinancial)
+                        {
+                            <p><strong>جمع محصولات:</strong> <span>@productTotal.ToString("N0").ToPersianNumber() تومان</span></p>
+                            <p><strong>جمع جعبه‌ها:</strong> <span class="text-muted">بعد از وزن‌کشی اعلام خواهد شد.</span></p>
+                            @if (hasDeliveryFee)
+                            {
+                                <p><strong>هزینه پیک:</strong> <span class="text-info fw-bold">@deliveryFee.ToString("N0").ToPersianNumber() تومان</span></p>
+                            }
+                            <hr />
+                            <p><strong>💰 مبلغ قابل پرداخت:</strong> <span class="text-muted fs-5">پس از اعلام قیمت جعبه محاسبه می‌شود.</span></p>
+                        }
+                        else
+                        {
+                            var boxTotal = boxInfos.Values.Sum(b => b.FinalPrice);
+                            <p><strong>جمع محصولات:</strong> <span>@productTotal.ToString("N0").ToPersianNumber() تومان</span></p>
+                            <p><strong>جمع جعبه‌ها:</strong> <span>@boxTotal.ToString("N0").ToPersianNumber() تومان</span></p>
+                            @if (hasDeliveryFee)
+                            {
+                                <p><strong>هزینه پیک:</strong> <span class="text-info fw-bold">@deliveryFee.ToString("N0").ToPersianNumber() تومان</span></p>
+                                <hr />
+                                <p><strong>💰 مبلغ قابل پرداخت:</strong> <span class="text-success fs-5 fw-bold">@((productTotal + boxTotal + deliveryFee).ToString("N0").ToPersianNumber()) تومان</span></p>
+                            }
+                            else
+                            {
+                                <hr />
+                                <p><strong>💰 مبلغ قابل پرداخت:</strong> <span class="text-success fs-5 fw-bold">@((productTotal + boxTotal).ToString("N0").ToPersianNumber()) تومان</span></p>
+                            }
+                        }
+                    }
+                    <hr />
+                    <p><strong>وضعیت سفارش:</strong>
+                        <span class="badge bg-@orderStatusClass">@orderStatusText</span>
+                    </p>
+                    <p><strong>وضعیت پرداخت:</strong>
+                        <span class="badge bg-@paymentStatusClass">@(Model.PaymentStatus switch {
                             PaymentStatus.Unpaid => "پرداخت نشده",
                             PaymentStatus.Initiated => "در حال پرداخت",
                             PaymentStatus.Succeeded => "پرداخت موفق",
                             PaymentStatus.Failed => "پرداخت ناموفق",
+                            PaymentStatus.RefundRequired => "پرداخت نیازمند تطبیق/استرداد",
+                            PaymentStatus.Refunded => "مسترد شده",
                             _ => "نامشخص"
                         })</span>
                     </p>
+                    @if (payments.Count > 0)
+                    {
+                        <div class="table-responsive mt-3">
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead><tr><th>درگاه</th><th>مبلغ</th><th>وضعیت</th><th>شناسه پیگیری</th><th>توضیحات ثبت‌شده</th></tr></thead>
+                                <tbody>
+                                    @foreach (var payment in payments)
+                                    {
+                                        <tr>
+                                            <td>@payment.Provider</td>
+                                            <td>@payment.Amount.ToString("N0").ToPersianNumber() تومان</td>
+                                            <td>@(payment.PaymentStatus switch {
+                                                PaymentStatus.Initiated => "در حال پرداخت",
+                                                PaymentStatus.Succeeded => "موفق",
+                                                PaymentStatus.Failed => "ناموفق",
+                                                PaymentStatus.RefundRequired => "نیازمند تطبیق/استرداد",
+                                                PaymentStatus.Refunded => "مسترد شده",
+                                                _ => "نامشخص"
+                                            })</td>
+                                            <td dir="ltr">@payment.TransactionCode</td>
+                                            <td>
+                                                @if (payment.ReconciledAt.HasValue)
+                                                {
+                                                    <div>تطبیق: @payment.ReconciledAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
+                                                    <small>@payment.ReconciliationNote</small>
+                                                    @if (!string.IsNullOrWhiteSpace(payment.ReconciledByUserId))
+                                                    {
+                                                        <small class="d-block">ثبت‌کننده: @paymentResolutionActors.GetValueOrDefault(payment.ReconciledByUserId, payment.ReconciledByUserId)</small>
+                                                    }
+                                                }
+                                                @if (payment.ExternalRefundedAt.HasValue)
+                                                {
+                                                    <div>استرداد: @payment.ExternalRefundReference · @payment.ExternalRefundedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
+                                                    <small>@payment.ExternalRefundNote</small>
+                                                    @if (!string.IsNullOrWhiteSpace(payment.ExternalRefundedByUserId))
+                                                    {
+                                                        <small class="d-block">ثبت‌کننده: @paymentResolutionActors.GetValueOrDefault(payment.ExternalRefundedByUserId, payment.ExternalRefundedByUserId)</small>
+                                                    }
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
                 </div>
             </div>
         </div>
     </div>
+
+    @* ═══════════════════════════════════════════════════════════════
+       ✅ کارت ورود هزینه پیک توسط ادمین (فقط اگر روش تحویل = پیک)
+       ═══════════════════════════════════════════════════════════════ *@
+    @if (Model.DeliveryMethod == DeliveryMethod.Delivery)
+    {
+        <div class="card mb-3 border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">🛵 هزینه ارسال با پیک</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">
+                    هزینه پیک ثبت‌شده فعلی: 
+                    <strong class="text-info">@(Model.DeliveryFeeSnapshot > 0 ? Model.DeliveryFeeSnapshot.ToString("N0").ToPersianNumber() + " تومان" : "هنوز تعیین نشده")</strong>
+                </p>
+                <form asp-action="UpdateDeliveryFee" method="post" class="row g-3">
+                    <input type="hidden" name="orderId" value="@Model.Id" />
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">هزینه پیک (تومان)</label>
+                        <input type="number" name="deliveryFee" class="form-control" 
+                               value="@Model.DeliveryFeeSnapshot" min="0" step="1000" required />
+                        <small class="text-muted">این مبلغ به قیمت نهایی سفارش اضافه می‌شود و مشتری در هنگام پرداخت آن را مشاهده می‌کند.</small>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label d-block">&nbsp;</label>
+                        <button type="submit" class="btn btn-warning w-100">💾 ذخیره هزینه پیک</button>
+                    </div>
+                    @if (Model.DeliveryFeeSnapshot > 0)
+                    {
+                        <div class="col-12">
+                            <div class="alert alert-info mb-0 mt-2">
+                                <i class="bi bi-info-circle"></i> 
+                                هزینه پیک ثبت شده: <strong>@Model.DeliveryFeeSnapshot.ToString("N0").ToPersianNumber() تومان</strong>
+                                <br />
+                                <small>این مبلغ به قیمت نهایی سفارش اضافه خواهد شد و مشتری در هنگام پرداخت آن را مشاهده می‌کند.</small>
+                            </div>
+                        </div>
+                    }
+                </form>
+            </div>
+        </div>
+    }
+
     <div class="card mb-3">
         <div class="card-header"><h5 class="mb-0">🔄 تغییر وضعیت سفارش</h5></div>
         <div class="card-body">
-            <form asp-action="UpdateOrderStatus" method="post" class="row g-3">
-                <input type="hidden" name="orderId" value="@Model.Id" />
-                <div class="col-md-6">
-                    <select name="status" class="form-select">
-                        <option value="1" selected="@(Model.OrderStatus == OrderStatus.AwaitingReview)">در انتظار بررسی</option>
-                        <option value="2" selected="@(Model.OrderStatus == OrderStatus.PendingPayment)">در انتظار پرداخت</option>
-                        <option value="3" selected="@(Model.OrderStatus == OrderStatus.Paid)">پرداخت شده</option>
-                        <option value="4" selected="@(Model.OrderStatus == OrderStatus.Preparing)">در حال آماده‌سازی</option>
-                        <option value="5" selected="@(Model.OrderStatus == OrderStatus.Shipped)">ارسال شده</option>
-                        <option value="6" selected="@(Model.OrderStatus == OrderStatus.Delivered)">تحویل شده</option>
-                        <option value="7" selected="@(Model.OrderStatus == OrderStatus.Cancelled)">لغو شده</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <button type="submit" class="btn btn-warning w-100">تغییر وضعیت</button>
-                </div>
-            </form>
+            @if (Model.PaymentStatus == PaymentStatus.RefundRequired || Model.OrderStatus == OrderStatus.PaymentReview)
+            {
+                var hasAppliedPayment = payments.Any(p => p.PaymentStatus == PaymentStatus.Succeeded);
+                var canResolvePayments = User.IsInRole("Admin") || User.IsInRole("Owner");
+                <div class="alert alert-warning">این سفارش تا تعیین‌تکلیف تمام پرداخت‌های بانکی قابل تغییر وضعیت نیست.</div>
+                @foreach (var payment in payments.Where(p => p.PaymentStatus == PaymentStatus.RefundRequired))
+                {
+                    <div class="border rounded p-3 mb-3">
+                        <div class="mb-3">تراکنش <b dir="ltr">@payment.TransactionCode</b>، مبلغ @tomanFa(payment.Amount)</div>
+                        @if (canResolvePayments)
+                        {
+                            <div class="row g-3">
+                                @if (!hasAppliedPayment)
+                                {
+                                    <div class="col-lg-6">
+                                        <form asp-action="ApplyCapturedPayment" method="post" class="border rounded p-3 h-100">
+                                            <input type="hidden" name="orderId" value="@Model.Id" />
+                                            <input type="hidden" name="paymentId" value="@payment.Id" />
+                                            <h6>اعمال پرداخت دریافت‌شده</h6>
+                                            <label class="form-label" for="verify-note-@payment.Id">یادداشت تطبیق با درگاه</label>
+                                            <textarea id="verify-note-@payment.Id" name="verificationNote" class="form-control mb-2" minlength="5" maxlength="1000" required></textarea>
+                                            <div class="form-check mb-3">
+                                                <input class="form-check-input" type="checkbox" id="confirm-payment-@payment.Id" name="confirmPayment" value="true" required />
+                                                <label class="form-check-label" for="confirm-payment-@payment.Id">تراکنش و مبلغ را در درگاه تأیید کردم.</label>
+                                            </div>
+                                            <button type="submit" class="btn btn-success">اعمال این پرداخت</button>
+                                        </form>
+                                    </div>
+                                }
+                                <div class="col-lg-6">
+                                    <form asp-action="RecordExternalRefund" method="post" class="border rounded p-3 h-100">
+                                        <input type="hidden" name="orderId" value="@Model.Id" />
+                                        <input type="hidden" name="paymentId" value="@payment.Id" />
+                                        <h6>ثبت استرداد انجام‌شده خارج از سایت</h6>
+                                        <label class="form-label" for="refund-ref-@payment.Id">شناسه/رسید استرداد</label>
+                                        <input id="refund-ref-@payment.Id" name="refundReference" class="form-control mb-2" maxlength="200" required />
+                                        <label class="form-label" for="refund-note-@payment.Id">یادداشت</label>
+                                        <textarea id="refund-note-@payment.Id" name="refundNote" class="form-control mb-2" minlength="5" maxlength="1000" required></textarea>
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="checkbox" id="confirm-refund-@payment.Id" name="refundConfirmed" value="true" required />
+                                            <label class="form-check-label" for="confirm-refund-@payment.Id">استرداد وجه را در درگاه/بانک انجام داده‌ام.</label>
+                                        </div>
+                                        <button type="submit" class="btn btn-outline-danger">ثبت استرداد</button>
+                                    </form>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-warning mb-0">فقط مدیر یا مالک می‌تواند پرداخت را اعمال یا رسید استرداد را ثبت کند.</div>
+                        }
+                    </div>
+                }
+            }
+            else if (Model.IsInternal)
+            {
+                <div class="alert alert-info mb-0">این سفارش داخلی است؛ وضعیت آن از مسیر همان پرداخت مدیریت می‌شود.</div>
+            }
+            else
+            {
+                <form asp-action="UpdateOrderStatus" method="post" class="row g-3">
+                    <input type="hidden" name="orderId" value="@Model.Id" />
+                    <div class="col-md-6">
+                        <select name="status" class="form-select">
+                            <option value="1" selected="@(Model.OrderStatus == OrderStatus.AwaitingReview)">در انتظار بررسی</option>
+                            <option value="2" selected="@(Model.OrderStatus == OrderStatus.PendingPayment)">در انتظار پرداخت</option>
+                            <option value="3" selected="@(Model.OrderStatus == OrderStatus.Paid)">پرداخت شده</option>
+                            <option value="4" selected="@(Model.OrderStatus == OrderStatus.Preparing)">در حال آماده‌سازی</option>
+                            <option value="5" selected="@(Model.OrderStatus == OrderStatus.Shipped)">ارسال شده</option>
+                            <option value="6" selected="@(Model.OrderStatus == OrderStatus.Delivered)">تحویل شده</option>
+                            <option value="7" selected="@(Model.OrderStatus == OrderStatus.Cancelled)">لغو شده</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-warning w-100">تغییر وضعیت</button>
+                    </div>
+                </form>
+            }
         </div>
+
+        @if (!Model.IsInternal)
+        {
+            <div class="card mb-3 border-success">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">📄 صدور فاکتور فروش</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">با کلیک روی دکمه زیر، فاکتور فروش رسمی برای این سفارش صادر می‌شود.</p>
+                    <form asp-action="GenerateInvoice" method="post">
+                        <input type="hidden" name="orderId" value="@Model.Id" />
+                        <button type="submit" class="btn btn-success">
+                            📄 صدور فاکتور
+                        </button>
+                    </form>
+                </div>
+            </div>
+        }
+
+
     </div>
     @if (productItems.Any())
     {
         <div class="card mb-4">
-            <div class="card-header bg-info text-white"><h5 class="mb-0">🛍️ محصولات عادی (قیمت ثابت)</h5></div>
-            <div class="card-body">
-                <div class="table-responsive">
+            <div class="card-header bg-info text-white"><h5 class="mb-0">️ محصولات عادی (قیمت ثابت)</h5></div>                <div class="card-body">
+                    <div class="table-responsive">
                     <table class="table table-bordered mb-0">
                         <thead class="table-light">
                             <tr>
@@ -139,7 +479,7 @@
                                     <td class="align-middle text-center">
                                         <form asp-action="DeleteProductItem" method="post" onsubmit="return confirm('آیا از حذف این محصول اطمینان دارید؟');">
                                             <input type="hidden" name="itemId" value="@productItem.Id" />
-                                            <button type="submit" class="btn btn-sm btn-danger">🗑️ حذف</button>
+                                            <button type="submit" class="btn btn-sm btn-danger">️ حذف</button>
                                         </form>
                                     </td>
                                 </tr>
@@ -159,98 +499,194 @@
     @if (boxGroups.Any())
     {
         <h4 class="mt-4">📦 جعبه‌های شیرینی</h4>
+        int boxIndex = 0;
         foreach (var boxGroup in boxGroups)
         {
             var boxTitle = boxGroup.Key;
             var sweetGroups = boxGroup.GroupBy(x => x.SweetItemId).ToList();
-            var boxInfo = boxInfos.ContainsKey(boxTitle) ? boxInfos[boxTitle] : null;
-            <div class="card mb-4 border-primary">
-                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">📦 @boxTitle</h5>
-                    <form asp-action="DeleteBox" method="post" onsubmit="return confirm('آیا از حذف کل این جعبه اطمینان دارید؟');">
-                        <input type="hidden" name="orderId" value="@Model.Id" />
-                        <input type="hidden" name="boxTitle" value="@boxTitle" />
-                        <button type="submit" class="btn btn-sm btn-danger">🗑️ حذف کل جعبه</button>
-                    </form>
+            var boxInfo = boxInfos.ContainsKey(boxTitle!) ? boxInfos[boxTitle!] : null;
+            var boxCapacity = boxCapacities.ContainsKey(boxTitle!) ? boxCapacities[boxTitle!] : null;
+            // جمع وزن و قیمت ردیف‌های همین جعبه = وزن و قیمت نهایی جعبه (مبنای محاسبه خودکار)
+            var rowsWeight = boxGroup.Sum(r => rowWeightById.ContainsKey(r.Id) ? rowWeightById[r.Id] : 0);
+            var rowsPrice = boxGroup.Sum(r => rowPriceById.ContainsKey(r.Id) ? rowPriceById[r.Id] : 0m);
+            var bg = boxColor(boxIndex);
+            var accent = boxAccent(boxIndex);
+            boxIndex++;
+            <div class="card mb-4 border-0 shadow-sm box-card" data-box-index="@boxIndex" style="background:@bg; border-right:5px solid @accent !important;">
+                <div class="card-header text-white d-flex justify-content-between align-items-center" style="background:@accent;">
+                    <h5 class="mb-0">
+                        📦 @boxTitle
+                        @if (boxCapacity != null && boxCapacity.CapacityGrams > 0)
+                        {
+                            <span class="badge bg-light text-dark ms-1">ظرفیت @boxCapacity.TypeTitle: @boxCapacity.CapacityGrams.ToPersianNumber() گرم</span>
+                        }
+                    </h5>
+                    <div class="d-flex align-items-center gap-2">
+                        @* برچسب هر جعبه هم تا ثبت وزن همان جعبه غیرفعال است و در همان تب باز میشود *@
+                        @if (boxInfo != null && boxInfo.FinalWeightGrams > 0)
+                        {
+                            <a href="@Url.Action("BoxLabels", "Admin", new { orderId = Model.Id, boxTitle })"
+                               class="btn btn-sm btn-light" title="چاپ برچسب وزن‌کشی همین جعبه">🏷️ چاپ برچسب این جعبه</a>
+                        }
+                        else
+                        {
+                            <button type="button" class="btn btn-sm btn-light" disabled
+                                    title="پس از ثبت وزن این جعبه فعال می‌شود.">🏷️ چاپ برچسب این جعبه</button>
+                        }
+                        <form asp-action="DeleteBox" method="post" onsubmit="return confirm('آیا از حذف کل این جعبه اطمینان دارید؟');">
+                            <input type="hidden" name="orderId" value="@Model.Id" />
+                            <input type="hidden" name="boxTitle" value="@boxTitle" />
+                            <button type="submit" class="btn btn-sm btn-light">🗑️ حذف کل جعبه</button>
+                        </form>
+                    </div>
                 </div>
                 <div class="card-body">
+                    @if (boxCapacity != null && boxCapacity.CapacityGrams > 0)
+                    {
+                        @* هشدار زنده ظرفیت: فقط اطلاع‌رسانی است و جلوی ثبت وزن را نمی‌گیرد *@
+                        <div class="alert alert-warning py-2 px-3 mb-2 d-none box-capacity-alert"
+                             data-capacity="@boxCapacity.CapacityGrams"
+                             data-type-title="@boxCapacity.TypeTitle"></div>
+                    }
                     <div class="table-responsive">
                         <table class="table table-bordered mb-0">
                             <thead class="table-light">
                                 <tr>
                                     <th>🍪 شیرینی</th>
-                                    <th class="text-center">🔢 تعداد ردیف</th>
+                                    <th class="text-center" style="width:180px;">⚖️ وزن این ردیف (گرم)</th>
+                                    <th class="text-center">💰 قیمت هر کیلو</th>
+                                    <th class="text-center">🧮 قیمت این ردیف</th>
                                     <th class="text-center">⚙️ عملیات</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var sweetGroup in sweetGroups)
+                                @foreach (var row in boxGroup.ToList())
                                 {
-                                    var first = sweetGroup.First();
-                                    var sweetName = first.SweetItemId.HasValue && sweetNames.ContainsKey(first.SweetItemId.Value)
-                                        ? sweetNames[first.SweetItemId.Value]
-                                        : $"شیرینی (شناسه {first.SweetItemId})";
-                                    var rowCount = sweetGroup.Count();
+                                    var sweetName = row.SweetItemId.HasValue && sweetNames.ContainsKey(row.SweetItemId.Value)
+                                        ? sweetNames[row.SweetItemId.Value]
+                                        : $"شیرینی (شناسه {row.SweetItemId})";
+                                    var pricePerKg = row.SweetItemId.HasValue && sweetPricePerKg.ContainsKey(row.SweetItemId.Value) ? sweetPricePerKg[row.SweetItemId.Value] : 0m;
+                                    var rowQuantity = row.Quantity < 1 ? 1 : row.Quantity;
+                                    var rowWeight = rowWeightById.ContainsKey(row.Id) ? rowWeightById[row.Id] : 0;
+                                    var rowPrice = rowPriceById.ContainsKey(row.Id) ? rowPriceById[row.Id] : 0m;
                                     <tr>
-                                        <td class="align-middle"><strong>@sweetName</strong></td>
-                                        <td class="align-middle text-center">@rowCount.ToPersianNumber() ردیف</td>
+                                        <td class="align-middle">
+                                            <strong>@sweetName</strong>
+                                            @if (rowQuantity > 1)
+                                            {
+                                                <span class="badge bg-secondary ms-1">@rowQuantity.ToPersianNumber() عدد</span>
+                                            }
+                                        </td>
                                         <td class="align-middle text-center">
-                                            <a href="@Url.Action("EditOrderItem", "Admin", new { itemId = first.Id })" class="btn btn-sm btn-warning">✏️ ویرایش</a>
+                                            <input type="hidden" name="itemWeightId" form="finalizeWeightsForm" value="@row.Id" />
+                                            @* وزن پیش‌فرض ندارد؛ تا وزن‌کشی توسط فروشگاه خالی می‌ماند *@
+                                            <input type="number" name="itemWeight" form="finalizeWeightsForm"
+                                                   class="form-control form-control-sm text-center box-row-weight"
+                                                   min="0" max="20000" step="1" placeholder="وزن‌کشی نشده"
+                                                   value="@(rowWeight > 0 ? rowWeight.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                                   data-price-per-kg="@pricePerKg.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-quantity="@rowQuantity" />
+                                        </td>
+                                        <td class="align-middle text-center">@pricePerKg.ToString("N0").ToPersianNumber() تومان</td>
+                                        <td class="align-middle text-center row-price">@(rowWeight > 0 ? tomanFa(rowPrice) : "—")</td>
+                                        <td class="align-middle text-center">
+                                            <a href="@Url.Action("EditOrderItem", "Admin", new { itemId = row.Id })" class="btn btn-sm btn-warning">✏️ ویرایش</a>
                                         </td>
                                     </tr>
                                 }
                             </tbody>
                             <tfoot class="table-secondary">
                                 <tr>
-                                    <td class="text-end align-middle"><strong>نوع شیرینی‌های انتخابی:</strong></td>
-                                    <td class="text-center align-middle" colspan="2"><strong>@sweetGroups.Count().ToPersianNumber() نوع شیرینی</strong></td>
+                                    <td class="text-end align-middle"><strong>جمع این جعبه:</strong></td>
+                                    <td class="text-center align-middle"><strong class="box-total-weight">@(rowsWeight > 0 ? gramsFa(rowsWeight) : "—")</strong></td>
+                                    <td class="text-center align-middle"><span class="text-muted small">@sweetGroups.Count().ToPersianNumber() نوع شیرینی</span></td>
+                                    <td class="text-center align-middle"><strong class="box-total-price">@(rowsPrice > 0 ? tomanFa(rowsPrice) : "—")</strong></td>
+                                    <td></td>
                                 </tr>
                             </tfoot>
                         </table>
                     </div>
-                    <div class="card mt-3">
-                        <div class="card-header bg-primary text-white"><h5 class="mb-0">⚖️ ثبت وزن دقیق و قیمت نهایی جعبه @boxTitle</h5></div>
-                        <div class="card-body">
-                            @if (boxInfo != null)
+                    @* ورودی‌های وزن/قیمت این جعبه — عضو فرم واحد پایین صفحه (فرم‌های تو در تو مجاز نیستند)  *@
+                    <div class="card mt-3 bg-white border-0">
+                        <div class="card-body py-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="mb-0">
+                                    ⚖️ وزن و قیمت نهایی جعبه @boxTitle
+                                    <span class="badge bg-light text-dark calc-mode-label">@(boxInfo != null ? "ویرایش دستی" : "محاسبه خودکار")</span>
+                                </h6>
+                                @if (boxInfo != null)
+                                {
+                                    <span class="badge bg-info text-dark">ثبت شده: @boxInfo.FinalWeightGrams.ToPersianNumber() گرم | @boxInfo.FinalPrice.ToString("N0").ToPersianNumber() تومان</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning text-dark">هنوز وزن‌کشی نشده</span>
+                                }
+                            </div>
+                            @if (boxInfo != null && !string.IsNullOrEmpty(boxInfo.AdminNotes))
                             {
-                                <div class="alert alert-info">
-                                    <strong>اطلاعات ثبت شده قبلی:</strong><br />
-                                    وزن: @boxInfo.FinalWeightGrams.ToPersianNumber() گرم | قیمت: @boxInfo.FinalPrice.ToString("N0").ToPersianNumber() تومان<br />
-                                    @if (!string.IsNullOrEmpty(boxInfo.AdminNotes)) { <span>یادداشت: @boxInfo.AdminNotes</span> }
-                                </div>
+                                <small class="text-muted d-block mb-2">یادداشت قبلی: @boxInfo.AdminNotes</small>
                             }
-                            <form asp-action="UpdateBoxWeight" method="post">
-                                <input type="hidden" name="orderId" value="@Model.Id" />
-                                <input type="hidden" name="boxTitle" value="@boxTitle" />
-                                <div class="row">
-                                    <div class="col-md-4">
-                                        <label class="form-label">وزن نهایی (گرم)</label>
-                                        <input type="number" name="finalWeightGrams" class="form-control" required value="@(boxInfo?.FinalWeightGrams ?? 0)" />
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label">قیمت نهایی (تومان)</label>
-                                        <input type="number" name="finalPrice" class="form-control" required value="@(boxInfo?.FinalPrice ?? 0)" />
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label">یادداشت (اختیاری)</label>
-                                        <input type="text" name="adminNotes" class="form-control" value="@(boxInfo?.AdminNotes ?? "")" />
-                                    </div>
-                                    <div class="col-md-12 mt-3">
-                                        <button type="submit" class="btn btn-success">✅ ثبت و فعال کردن دکمه پرداخت</button>
-                                    </div>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="form-label small">وزن نهایی (گرم) <span class="text-muted">(قابل ویرایش دستی)</span></label>
+                                    <input type="number" name="finalWeightGrams" form="finalizeWeightsForm"
+                                           class="form-control final-weight-input"
+                                           data-manual="@(boxInfo != null ? "1" : "0")"
+                                           min="0" max="100000" step="1" required
+                                           value="@((boxInfo?.FinalWeightGrams ?? rowsWeight).ToString(System.Globalization.CultureInfo.InvariantCulture))" />
                                 </div>
-                            </form>
+                                <div class="col-md-4">
+                                    <label class="form-label small">قیمت نهایی (تومان) <span class="text-muted">(قابل ویرایش دستی)</span></label>
+                                    <input type="number" name="finalPrice" form="finalizeWeightsForm"
+                                           class="form-control final-price-input"
+                                           data-manual="@(boxInfo != null ? "1" : "0")"
+                                           min="0" step="1" required
+                                           value="@((boxInfo?.FinalPrice ?? rowsPrice).ToString(System.Globalization.CultureInfo.InvariantCulture))" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small">یادداشت (اختیاری)</label>
+                                    <input type="text" name="adminNotes" form="finalizeWeightsForm" class="form-control" value="@(boxInfo?.AdminNotes ?? "")" />
+                                </div>
+                            </div>
+                            <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary auto-calc-btn">
+                                    🔄 محاسبه خودکار از روی وزن ردیف‌ها
+                                </button>
+                                <small class="text-muted">جمع وزن و قیمت ردیف‌های بالا (وزن ردیف × قیمت هر کیلو) نتیجه را تعیین می‌کند؛ اگر خودتان عددی را تغییر دهید، همان مقدار حفظ می‌شود.</small>
+                            </div>
                         </div>
                     </div>
+                    <input type="hidden" name="boxTitle" form="finalizeWeightsForm" value="@boxTitle" />
                 </div>
             </div>
         }
     }
-    <div class="mt-3 d-flex gap-2">
+    @if (boxGroups.Any())
+    {
+        @* ═══ دکمه واحد ثبت وزن/قیمت همه جعبه‌ها — یکبار در کل صفحه ═══ *@
+        <form id="finalizeWeightsForm" asp-action="FinalizeOrderWeights" method="post" class="card shadow-sm border-success mb-4">
+            <input type="hidden" name="orderId" value="@Model.Id" />
+            <div class="card-body d-flex flex-wrap align-items-center gap-3">
+                <div class="flex-grow-1">
+                    <strong>⚖️ ثبت وزن و قیمت همه جعبه‌ها و فعال‌سازی پرداخت</strong>
+                    <div class="small text-muted">پس از ثبت، مشتری می‌تواند مبلغ قابل پرداخت را تسویه کند و پیامک «آماده پرداخت» برایش ارسال می‌شود.</div>
+                </div>
+                <button type="submit" class="btn btn-success btn-lg px-4">
+                    ✅ ثبت و فعال کردن دکمه پرداخت
+                </button>
+                <button type="submit" class="btn btn-outline-success btn-lg px-4"
+                        formaction="@Url.Action("SaveBoxRowWeights", "Admin")">
+                    💾 فقط ذخیره وزن ردیف‌ها و محاسبه جعبه‌ها
+                </button>
+            </div>
+        </form>
+    }
+    <div class="mt-3 d-flex gap-2 flex-wrap">
         <a href="/Box/Status?returnToOrder=@Model.Id" class="btn btn-success">➕ اضافه کردن جعبه جدید</a>
+        @* 🏷️ دکمه تکراری «چاپ برچسب همه جعبهها» حذف شد؛ همان دکمه بالای صفحه (با فعال/غیرفعال شدن خودکار) کافی است. *@
         <form asp-action="DeleteOrder" method="post" onsubmit="return confirm('آیا از حذف کل این سفارش اطمینان دارید؟');">
             <input type="hidden" name="orderId" value="@Model.Id" />
-            <button type="submit" class="btn btn-danger">🗑️ حذف کل سفارش</button>
+            <button type="submit" class="btn btn-danger">️ حذف کل سفارش</button>
         </form>
     </div>
 </div>
@@ -301,9 +737,149 @@
             var newSweetId = $(this).data('id');
             var sweetName = $(this).data('name');
             if (!confirm('آیا می‌خواهید شیرینی "' + sweetName + '" را جایگزین کنید؟')) return;
-            $.post('/Admin/UpdateOrderItem', { itemId: currentItemId, newSweetItemId: newSweetId, newQuantity: 1 })
+            $.ajax({
+                url: '/Admin/UpdateOrderItem',
+                type: 'POST',
+                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').first().val() },
+                data: { itemId: currentItemId, newSweetItemId: newSweetId, newQuantity: 1 }
+            })
                 .done(function() { $('#selectSweetModal').modal('hide'); location.reload(); })
                 .fail(function(xhr) { alert('خطا در ویرایش: ' + (xhr.responseText || 'خطای ناشناخته')); });
         });
+        // ============================================================
+        // ⚖️ محاسبه خودکار وزن/قیمت جعبه از روی وزن تک‌تک ردیف‌ها
+        // ============================================================
+        function refreshCalcMode(card) {
+            var label = card.querySelector('.calc-mode-label');
+            if (!label) return;
+            var manual = false;
+            card.querySelectorAll('.final-weight-input, .final-price-input').forEach(function (i) {
+                if (i.dataset.manual === '1') manual = true;
+            });
+            label.textContent = manual ? 'ویرایش دستی' : 'محاسبه خودکار';
+            label.className = 'badge calc-mode-label ' + (manual ? 'bg-warning text-dark' : 'bg-light text-dark');
+        }
+
+        function recalcBoxCard(card) {
+            if (!card) return;
+            var totalWeight = 0;
+            var totalPrice = 0;
+
+            card.querySelectorAll('.box-row-weight').forEach(function (input) {
+                var weight = parseFloat(input.value) || 0;
+                var pricePerKg = parseFloat(input.dataset.pricePerKg) || 0;
+                var quantity = parseInt(input.dataset.quantity, 10) || 1;
+                var rowPrice = (weight / 1000) * pricePerKg * quantity;
+
+                var tr = input.closest('tr');
+                var cell = tr ? tr.querySelector('.row-price') : null;
+                // ردیفِ وزن‌کشی‌نشده قیمت ندارد (به‌جای عدد صفر/پیش‌فرض، خط تیره)
+                if (cell) cell.textContent = weight > 0 ? (Math.round(rowPrice).toLocaleString('fa-IR') + ' تومان') : '—';
+
+                totalWeight += weight;
+                totalPrice += rowPrice;
+            });
+
+            var weightLabel = card.querySelector('.box-total-weight');
+            if (weightLabel) weightLabel.textContent = totalWeight > 0 ? (Math.round(totalWeight).toLocaleString('fa-IR') + ' گرم') : '—';
+            var priceLabel = card.querySelector('.box-total-price');
+            if (priceLabel) priceLabel.textContent = totalPrice > 0 ? (Math.round(totalPrice).toLocaleString('fa-IR') + ' تومان') : '—';
+
+            // اگر مدیر خودش وزن/قیمت نهایی را تغییر داده باشد، مقدار او دست‌نخورده می‌ماند
+            var finalWeight = card.querySelector('.final-weight-input');
+            var finalPrice = card.querySelector('.final-price-input');
+            if (finalWeight && finalWeight.dataset.manual !== '1') finalWeight.value = Math.round(totalWeight);
+            if (finalPrice && finalPrice.dataset.manual !== '1') finalPrice.value = Math.round(totalPrice);
+
+            refreshCalcMode(card);
+            refreshCapacityGuards();
+        }
+
+        // ============================================================
+        // ⚖️ هشدار ظرفیت جعبه: اگر وزن از ظرفیت اسمی نوع جعبه کمی بیشتر شد،
+        // فقط هشدار نشان داده می‌شود و ثبت وزن انجام می‌شود (چند گرم اختلاف در وزن‌کشی
+        // طبیعی است). همان هشدار سمت سرور هم به‌صورت پیام اطلاع‌رسانی نمایش داده می‌شود.
+        // ============================================================
+        function faNum(n) { return Math.round(n).toLocaleString('fa-IR'); }
+
+        // وزن مؤثر جعبه: بیشترین مقدار بین جمع وزن ردیف‌ها و وزن نهایی واردشده
+        function boxEffectiveWeight(card) {
+            var rowsWeight = 0;
+            card.querySelectorAll('.box-row-weight').forEach(function (input) {
+                rowsWeight += parseFloat(input.value) || 0;
+            });
+            var finalInput = card.querySelector('.final-weight-input');
+            var finalWeight = finalInput ? (parseFloat(finalInput.value) || 0) : 0;
+            return { rowsWeight: rowsWeight, finalWeight: finalWeight, effective: Math.max(rowsWeight, finalWeight) };
+        }
+
+        function checkBoxCapacity(card) {
+            var alertBox = card.querySelector('.box-capacity-alert');
+            if (!alertBox) return false;
+
+            var capacity = parseInt(alertBox.dataset.capacity, 10) || 0;
+            if (capacity <= 0) return false;
+
+            var w = boxEffectiveWeight(card);
+            var over = w.effective > capacity;
+
+            if (over)
+            {
+                var reason = w.rowsWeight > capacity
+                    ? 'جمع وزن ردیف‌ها ' + faNum(w.rowsWeight) + ' گرم است'
+                    : 'وزن نهایی واردشده ' + faNum(w.finalWeight) + ' گرم است';
+                alertBox.innerHTML = '⚠️ توجه: ' + reason + '، در حالی که ظرفیت ' +
+                    (alertBox.dataset.typeTitle || 'این جعبه') + ' فقط ' + faNum(capacity) +
+                    ' گرم است. ثبت وزن انجام می‌شود؛ فقط اگر اختلاف زیاد است وزن ردیف‌ها را کم کنید یا با جعبه بزرگ‌تر وزن‌کشی کنید.';
+                alertBox.classList.remove('d-none');
+            }
+            else
+            {
+                alertBox.classList.add('d-none');
+            }
+
+            return over;
+        }
+
+        function refreshCapacityGuards() {
+            document.querySelectorAll('.box-card').forEach(function (card) {
+                checkBoxCapacity(card);
+            });
+        }
+
+        document.querySelectorAll('.box-card').forEach(function (card) {
+            card.querySelectorAll('.box-row-weight').forEach(function (input) {
+                input.addEventListener('input', function () { recalcBoxCard(card); });
+            });
+            card.querySelectorAll('.final-weight-input, .final-price-input').forEach(function (input) {
+                input.addEventListener('input', function () {
+                    input.dataset.manual = '1';
+                    refreshCalcMode(card);
+                });
+            });
+            var autoBtn = card.querySelector('.auto-calc-btn');
+            if (autoBtn) {
+                autoBtn.addEventListener('click', function () {
+                    card.querySelectorAll('.final-weight-input, .final-price-input').forEach(function (i) { i.dataset.manual = '0'; });
+                    recalcBoxCard(card);
+                });
+            }
+            recalcBoxCard(card);
+        });
+
+        // پیش از ارسال: ردیف‌های وزن‌کشی‌نشده (خالی) صفر می‌شوند تا آرایه‌های وزن هم‌تراز بمانند.
+        // هیچ مانعی برای ثبت وزن‌های بیش از ظرفیت اسمی جعبه گذاشته نمی‌شود (فقط هشدار داده شد).
+        var finalForm = document.getElementById('finalizeWeightsForm');
+        if (finalForm) {
+            finalForm.addEventListener('submit', function () {
+                // توجه: این ورودی‌ها با صفت form به فرم وصل شده‌اند و داخل خود <form> نیستند
+                document.querySelectorAll('.box-row-weight').forEach(function (input) {
+                    if (input.value === '' || isNaN(parseFloat(input.value))) input.value = '0';
+                });
+                document.querySelectorAll('.final-weight-input, .final-price-input').forEach(function (input) {
+                    if (input.value === '' || isNaN(parseFloat(input.value))) input.value = '0';
+                });
+            });
+        }
     </script>
 }

@@ -3,12 +3,42 @@
 @model List<SugarShop.Domain.Entities.EducationalContent>
 @{
     ViewData["Title"] = "آموزش‌های شیرینی‌پزی";
+    var headerSettings = ViewBag.HeaderSettings as SugarShop.Domain.Entities.EducationalHeaderSetting;
 }
-<div class="container mt-4">
-    <div class="text-center mb-5">
-        <h1 class="display-4 fw-bold">🍰 آموزش‌های شیرینی‌پزی</h1>
-        <p class="text-muted">آموزش‌های حرفه‌ای و کاربردی برای شیرینی‌پزی خانگی</p>
+
+@if (headerSettings != null && headerSettings.IsEnabled)
+{
+    // ✅ هدر قابل مدیریت از پنل ادمین (مثل تنظیمات صفحه درباره ما)
+    string bgStyle = headerSettings.BackgroundColor ?? "linear-gradient(135deg, #f5e6d3 0%, #d4a056 100%)";
+    if (!string.IsNullOrEmpty(headerSettings.BackgroundImagePath))
+    {
+        bgStyle = $"url('{headerSettings.BackgroundImagePath}') center/cover no-repeat, {bgStyle}";
+    }
+
+    <div class="edu-hero" style="width: 100vw; margin-left: calc(-50vw + 50%); margin-right: calc(-50vw + 50%); position: relative; overflow: hidden; min-height: @(headerSettings.Height)px; background: @bgStyle; display: flex; align-items: center;">
+        <div class="container">
+            <div class="text-center py-5">
+                <h1 class="display-4 fw-bold mb-2" style="color: @headerSettings.TextColor;">@(string.IsNullOrWhiteSpace(headerSettings.Title) ? "آموزش‌های شیرینی‌پزی" : headerSettings.Title)</h1>
+                @if (!string.IsNullOrWhiteSpace(headerSettings.Subtitle))
+                {
+                    <p class="mb-0" style="font-size: 1.1rem; color: @headerSettings.TextColor; opacity: 0.9;">@headerSettings.Subtitle</p>
+                }
+            </div>
+        </div>
     </div>
+}
+else
+{
+    @* هدر پیش‌فرض *@
+    <div class="container mt-4">
+        <div class="text-center mb-5">
+            <h1 class="display-4 fw-bold">🍰 آموزش‌های شیرینی‌پزی</h1>
+            <p class="text-muted">آموزش‌های حرفه‌ای و کاربردی برای شیرینی‌پزی خانگی</p>
+        </div>
+    </div>
+}
+
+<div class="container mt-4">
     <div class="row g-4">
         @foreach (var item in Model)
         {
@@ -16,7 +46,7 @@
                 <div class="card h-100 shadow-sm hover-shadow transition-all">
                     @if (!string.IsNullOrEmpty(item.FeaturedImageUrl) && !item.FeaturedImageUrl.Contains("placeholder"))
                     {
-                        <img src="@item.FeaturedImageUrl" class="card-img-top" alt="@item.Title" style="height: 200px; object-fit: cover;">
+                        <img src="@item.FeaturedImageUrl" class="card-img-top" alt="@item.Title" loading="lazy" style="height: 200px; object-fit: cover;">
                     }
                     else
                     {

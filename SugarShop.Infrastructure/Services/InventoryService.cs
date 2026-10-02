@@ -14,45 +14,43 @@ namespace SugarShop.Infrastructure.Services
             _catalogDb = catalogDb;
         }
 
-        public async Task DecreaseInventoryAsync(Order order)
+        /// <summary>
+        /// موجودی را فقط وقتی به‌صورت اتمیک کم می‌کند که تمام ردیف‌های سفارش موجودی کافی داشته باشند.
+        /// فراخواننده باید هنگام پردازش سفارش این کار را در تراکنش قرار دهد تا در کمبود یک ردیف،
+        /// کسرهای قبلی هم rollback شوند.
+        /// </summary>
+        public async Task<bool> TryDecreaseInventoryAsync(IEnumerable<OrderItem>? items)
         {
-            if (order.Items == null || !order.Items.Any())
-                return;
+            if (items == null) return true;
 
-            var productIds = order.Items.Where(i => i.ProductId.HasValue).Select(i => i.ProductId.Value).ToList();
-            var sweetIds = order.Items.Where(i => i.SweetItemId.HasValue).Select(i => i.SweetItemId.Value).ToList();
+            var rows = items.ToList();
+            if (rows.Any(i => i.Quantity < 1)) return false;
 
-            if (productIds.Any())
+            var products = rows.Where(i => i.ProductId.HasValue)
+                .GroupBy(i => i.ProductId!.Value)
+                .Select(g => new { Id = g.Key, Quantity = g.Sum(i => i.Quantity) })
+                .OrderBy(x => x.Id);
+            foreach (var item in products)
             {
-                var products = await _catalogDb.Products
-                    .Where(p => productIds.Contains(p.Id))
-                    .ToDictionaryAsync(p => p.Id);
-                foreach (var item in order.Items.Where(i => i.ProductId.HasValue))
-                {
-                    if (products.TryGetValue(item.ProductId.Value, out var product))
-                    {
-                        product.Inventory -= item.Quantity;
-                        if (product.Inventory < 0) product.Inventory = 0;
-                    }
-                }
+                var changed = await _catalogDb.Products
+                    .Where(p => p.Id == item.Id && p.Inventory >= item.Quantity)
+                    .ExecuteUpdateAsync(s => s.SetProperty(p => p.Inventory, p => p.Inventory - item.Quantity));
+                if (changed != 1) return false;
             }
 
-            if (sweetIds.Any())
+            var sweets = rows.Where(i => i.SweetItemId.HasValue)
+                .GroupBy(i => i.SweetItemId!.Value)
+                .Select(g => new { Id = g.Key, Quantity = g.Sum(i => i.Quantity) })
+                .OrderBy(x => x.Id);
+            foreach (var item in sweets)
             {
-                var sweets = await _catalogDb.SweetItems
-                    .Where(s => sweetIds.Contains(s.Id))
-                    .ToDictionaryAsync(s => s.Id);
-                foreach (var item in order.Items.Where(i => i.SweetItemId.HasValue))
-                {
-                    if (sweets.TryGetValue(item.SweetItemId.Value, out var sweet))
-                    {
-                        sweet.InventoryCount -= item.Quantity;
-                        if (sweet.InventoryCount < 0) sweet.InventoryCount = 0;
-                    }
-                }
+                var changed = await _catalogDb.SweetItems
+                    .Where(s => s.Id == item.Id && s.InventoryCount >= item.Quantity)
+                    .ExecuteUpdateAsync(s => s.SetProperty(s => s.InventoryCount, s => s.InventoryCount - item.Quantity));
+                if (changed != 1) return false;
             }
 
-            await _catalogDb.SaveChangesAsync();
+            return true;
         }
     }
 }

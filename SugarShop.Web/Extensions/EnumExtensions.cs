@@ -15,6 +15,7 @@ namespace SugarShop.Web.Extensions
                 OrderStatus.Shipped => "ارسال شده",
                 OrderStatus.Delivered => "تحویل شده",
                 OrderStatus.Cancelled => "لغو شده",
+                OrderStatus.PaymentReview => "نیازمند بررسی پرداخت",
                 _ => "نامشخص"
             };
         }
@@ -26,6 +27,8 @@ namespace SugarShop.Web.Extensions
                 PaymentStatus.Initiated => "در حال پرداخت",
                 PaymentStatus.Succeeded => "پرداخت موفق",
                 PaymentStatus.Failed => "پرداخت ناموفق",
+                PaymentStatus.RefundRequired => "پرداخت دریافت شد؛ پیگیری/استرداد لازم است",
+                PaymentStatus.Refunded => "مسترد شده",
                 _ => "نامشخص"
             };
         }
