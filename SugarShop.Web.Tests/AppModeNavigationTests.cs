@@ -72,9 +72,10 @@ public sealed class AppModeNavigationTests : IClassFixture<AppModeWebFactory>
                 continue;
 
             var destination = HtmlProbe.Parse(await response.Content.ReadAsStringAsync());
-            Assert.Equal(expectedMode, HtmlProbe.AppMode(destination),
+            var actualMode = HtmlProbe.AppMode(destination);
+            Assert.True(string.Equals(expectedMode, actualMode, StringComparison.Ordinal),
                 $"{pageName} ({pageUrl}) link '{href}' reached {response.RequestMessage?.RequestUri} " +
-                $"but rendered mode '{HtmlProbe.AppMode(destination)}' instead of '{expectedMode}'.");
+                $"but rendered mode '{actualMode}' instead of '{expectedMode}'.");
         }
     }
 
@@ -112,7 +113,8 @@ public sealed class AppModeNavigationTests : IClassFixture<AppModeWebFactory>
                 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
                 Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
                 var doc = HtmlProbe.Parse(await response.Content.ReadAsStringAsync());
-                Assert.Equal(expectedMode, HtmlProbe.AppMode(doc),
+                var actualMode = HtmlProbe.AppMode(doc);
+                Assert.True(string.Equals(expectedMode, actualMode, StringComparison.Ordinal),
                     $"The redirect chain from {path} lost the {expectedMode} presentation.");
             }
         }
