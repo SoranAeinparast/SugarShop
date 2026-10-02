@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using SugarShop.Domain.Entities;
 using SugarShop.Domain.Entities.Sales;
 using SugarShop.Infrastructure.Persistence;
@@ -235,6 +236,31 @@ namespace SugarShop.Web.Controllers
         /// <summary>فقط وضعیت‌های شناخته‌شده پذیرفته می‌شوند (این مقدار در نام فایل خروجی هم استفاده می‌شود).</summary>
         private static string NormalizeAdminOrderStatus(string? status)
             => AdminOrderStatusOf(status) is null ? "all" : status!;
+
+        [Authorize(Roles = "Admin,OrderManager,Owner")]
+        [HttpGet]
+        public async Task<IActionResult> PaymentReviews(int page = 1)
+        {
+            const int pageSize = 50;
+            var query = _salesDb.Orders.AsNoTracking().Where(o =>
+                o.OrderStatus == OrderStatus.PaymentReview
+                || o.PaymentStatus == PaymentStatus.RefundRequired
+                || o.Payments.Any(p => p.PaymentStatus == PaymentStatus.RefundRequired));
+            var total = await query.CountAsync();
+            var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+            page = Math.Clamp(page, 1, totalPages);
+            var orders = await query
+                .Include(o => o.Payments)
+                .OrderByDescending(o => o.UpdatedAt)
+                .ThenByDescending(o => o.Id)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+            ViewBag.TotalPaymentReviews = total;
+            ViewBag.CurrentPage = page;
+            ViewBag.TotalPages = totalPages;
+            return View(orders);
+        }
 
         [Authorize(Roles = "Admin,OrderManager,Owner")]
         [HttpGet]
@@ -965,6 +991,21 @@ namespace SugarShop.Web.Controllers
                 .ToDictionary(g => g.Key, g => g.OrderByDescending(b => b.UpdatedAt).ThenByDescending(b => b.Id).First());
 
             ViewBag.BoxInfos = boxInfos;
+            var payments = await _salesDb.Payments.AsNoTracking()
+                .Where(p => p.OrderId == id)
+                .OrderByDescending(p => p.CreatedAt)
+                .ToListAsync();
+            ViewBag.Payments = payments;
+            var paymentActorIds = payments
+                .SelectMany(p => new[] { p.ReconciledByUserId, p.ExternalRefundedByUserId })
+                .Where(userId => !string.IsNullOrWhiteSpace(userId))
+                .Distinct()
+                .ToList();
+            ViewBag.PaymentResolutionActors = paymentActorIds.Count == 0
+                ? new Dictionary<string, string>()
+                : await _userManager.Users
+                    .Where(user => paymentActorIds.Contains(user.Id))
+                    .ToDictionaryAsync(user => user.Id, user => user.UserName ?? user.Email ?? user.Id);
 
             var sweetItemIds = order.Items.Where(x => x.SweetItemId.HasValue).Select(x => x.SweetItemId!.Value).Distinct().ToList();
             var sweetNames = sweetItemIds.Any()
@@ -1266,35 +1307,119 @@ namespace SugarShop.Web.Controllers
         {
             var order = await _salesDb.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == orderId);
             if (order == null) return NotFound();
-
             var oldStatus = order.OrderStatus;
-            order.OrderStatus = status;
-            order.UpdatedAt = DateTime.UtcNow;
 
-            await _salesDb.SaveChangesAsync();
+            if (order.IsInternal)
+            {
+                TempData["ErrorMessage"] = "سفارش داخلی فقط از مسیر پرداخت خودش قابل تعیین‌تکلیف است.";
+                return RedirectToAction("OrderDetails", new { id = orderId });
+            }
+
+            if (order.OrderStatus == OrderStatus.PaymentReview || order.PaymentStatus == PaymentStatus.RefundRequired)
+            {
+                TempData["ErrorMessage"] = "ابتدا پرداخت‌ها را در مسیر «بررسی پرداخت‌ها» اعمال یا مسترد کنید.";
+                return RedirectToAction("OrderDetails", new { id = orderId });
+            }
+
+            if (!Enum.IsDefined(status)) return BadRequest();
+            if (status == OrderStatus.PaymentReview)
+            {
+                TempData["ErrorMessage"] = "وضعیت بررسی پرداخت فقط پس از تأیید تراکنش از درگاه ثبت می‌شود.";
+                return RedirectToAction("OrderDetails", new { id = orderId });
+            }
+
+            bool fulfillmentStatus = status is OrderStatus.Paid or OrderStatus.Preparing or OrderStatus.Shipped or OrderStatus.Delivered;
+            if (fulfillmentStatus && order.PaymentStatus != PaymentStatus.Succeeded)
+            {
+                TempData["ErrorMessage"] = "تا ثبت پرداخت موفق، امکان آماده‌سازی یا تحویل سفارش وجود ندارد.";
+                return RedirectToAction("OrderDetails", new { id = orderId });
+            }
+
+            if (fulfillmentStatus && order.Items.Count > 0 && order.InventoryDeductedAt == null)
+            {
+                if (!ReferenceEquals(_catalogDb.Database.GetDbConnection(), _salesDb.Database.GetDbConnection()))
+                    throw new InvalidOperationException("Sales and Catalog DbContexts are not sharing a connection; inventory resolution aborted.");
+
+                await using var inventoryTx = await _salesDb.Database.BeginTransactionAsync();
+                try
+                {
+                    _catalogDb.Database.UseTransaction(inventoryTx.GetDbTransaction());
+                    var orderLockTime = DateTime.UtcNow;
+                    var lockedOrder = await _salesDb.Orders
+                        .Where(o => o.Id == order.Id)
+                        .ExecuteUpdateAsync(s => s.SetProperty(o => o.UpdatedAt, orderLockTime));
+                    if (lockedOrder != 1)
+                    {
+                        await inventoryTx.RollbackAsync();
+                        return NotFound();
+                    }
+                    await _salesDb.Entry(order).ReloadAsync();
+                    oldStatus = order.OrderStatus;
+
+                    if (order.OrderStatus == OrderStatus.PaymentReview || order.PaymentStatus == PaymentStatus.RefundRequired)
+                    {
+                        await inventoryTx.RollbackAsync();
+                        TempData["ErrorMessage"] = "سفارش هم‌زمان وارد بررسی پرداخت شده است؛ از مسیر بررسی پرداخت‌ها استفاده کنید.";
+                        return RedirectToAction("OrderDetails", new { id = orderId });
+                    }
+
+                    if (order.PaymentStatus != PaymentStatus.Succeeded)
+                    {
+                        await inventoryTx.RollbackAsync();
+                        TempData["ErrorMessage"] = "وضعیت پرداخت هم‌زمان تغییر کرد؛ صفحه را تازه‌سازی کنید.";
+                        return RedirectToAction("OrderDetails", new { id = orderId });
+                    }
+
+                    var reservationTime = DateTime.UtcNow;
+                    var claimedInventory = await _salesDb.Orders
+                        .Where(o => o.Id == order.Id && o.InventoryDeductedAt == null)
+                        .ExecuteUpdateAsync(s => s.SetProperty(o => o.InventoryDeductedAt, reservationTime));
+                    if (claimedInventory != 1)
+                    {
+                        await inventoryTx.RollbackAsync();
+                        TempData["ErrorMessage"] = "سفارش دیگری هم‌زمان در حال پردازش است؛ وضعیت را دوباره بررسی کنید.";
+                        return RedirectToAction("OrderDetails", new { id = orderId });
+                    }
+
+                    if (!await _inventoryService.TryDecreaseInventoryAsync(order.Items))
+                    {
+                        await inventoryTx.RollbackAsync();
+                        TempData["ErrorMessage"] = "موجودی همه اقلام سفارش کافی نیست؛ وضعیت سفارش تغییر نکرد.";
+                        return RedirectToAction("OrderDetails", new { id = orderId });
+                    }
+
+                    order.InventoryDeductedAt = reservationTime;
+                    order.OrderStatus = status;
+                    order.UpdatedAt = DateTime.UtcNow;
+                    await _salesDb.SaveChangesAsync();
+                    await inventoryTx.CommitAsync();
+                }
+                catch
+                {
+                    await inventoryTx.RollbackAsync();
+                    throw;
+                }
+            }
+            else
+            {
+                var updatedAt = DateTime.UtcNow;
+                var statusUpdated = await _salesDb.Orders
+                    .Where(o => o.Id == order.Id
+                        && o.PaymentStatus != PaymentStatus.RefundRequired
+                        && o.OrderStatus != OrderStatus.PaymentReview)
+                    .ExecuteUpdateAsync(s => s
+                        .SetProperty(o => o.OrderStatus, status)
+                        .SetProperty(o => o.UpdatedAt, updatedAt));
+                if (statusUpdated != 1)
+                {
+                    TempData["ErrorMessage"] = "وضعیت سفارش هم‌زمان تغییر کرده یا پرداخت آن نیازمند بررسی است؛ صفحه را تازه‌سازی کنید.";
+                    return RedirectToAction("OrderDetails", new { id = orderId });
+                }
+                await _salesDb.Entry(order).ReloadAsync();
+            }
 
             // ── پیامک‌های خودکار بر اساس وضعیت جدید ──
-            try
-            {
-                if (status == OrderStatus.Preparing && oldStatus != OrderStatus.Preparing)
-                {
-                    await _sms.NotifyOrderStatusChangedAsync(order, "در حال آماده‌سازی");
-                }
-                else if (status == OrderStatus.Shipped && oldStatus != OrderStatus.Shipped)
-                {
-                    await _sms.NotifyOrderStatusChangedAsync(order, "ارسال شد");
-                }
-                else if (status == OrderStatus.Delivered && oldStatus != OrderStatus.Delivered)
-                {
-                    await _sms.NotifyOrderStatusChangedAsync(order, "تحویل شد");
-                }
-            }
-            catch (Exception smsEx)
-            {
-                _logger.LogWarning(smsEx, "SMS status-change notify failed for order {OrderId}", orderId);
-            }
-
-            // Note: inventory is now deducted only in PaymentController.Callback after successful payment
+            await NotifyOrderStatusChangeAsync(order, oldStatus, status);
             if (status == OrderStatus.Delivered && oldStatus != OrderStatus.Delivered && order.PaymentStatus == PaymentStatus.Succeeded)
                 await ApplyCashbackToWallet(order);
 
@@ -1302,15 +1427,28 @@ namespace SugarShop.Web.Controllers
             return RedirectToAction("OrderDetails", new { id = orderId });
         }
 
+        private async Task NotifyOrderStatusChangeAsync(Order order, OrderStatus oldStatus, OrderStatus status)
+        {
+            try
+            {
+                if (status == OrderStatus.Preparing && oldStatus != OrderStatus.Preparing)
+                    await _sms.NotifyOrderStatusChangedAsync(order, "در حال آماده‌سازی");
+                else if (status == OrderStatus.Shipped && oldStatus != OrderStatus.Shipped)
+                    await _sms.NotifyOrderStatusChangedAsync(order, "ارسال شد");
+                else if (status == OrderStatus.Delivered && oldStatus != OrderStatus.Delivered)
+                    await _sms.NotifyOrderStatusChangedAsync(order, "تحویل شد");
+            }
+            catch (Exception smsEx)
+            {
+                _logger.LogWarning(smsEx, "SMS status-change notify failed for order {OrderId}", order.Id);
+            }
+        }
+
         private async Task ApplyCashbackToWallet(Order order)
         {
+            if (string.IsNullOrWhiteSpace(order.UserId)) return;
             var settings = await _salesDb.WalletSettings.FirstOrDefaultAsync();
             if (settings == null || !settings.IsEnabled) return;
-
-            // جلوگیری از کشبک تکراری برای یک سفارش (مثلاً تغییر وضعیت چندباره به تحویل‌شده)
-            var cashbackAlreadyPaid = await _salesDb.WalletTransactions
-                .AnyAsync(t => t.OrderId == order.Id && t.Type == "Cashback");
-            if (cashbackAlreadyPaid) return;
 
             // مبنای کش‌بک، مبلغی است که واقعاً دریافت شده (درگاه + کیف پول)، نه برآورد لحظه ثبت سفارش
             var pricing = await _pricingService.ComputeAsync(order);
@@ -1324,36 +1462,50 @@ namespace SugarShop.Web.Controllers
 
             if (cashbackAmount <= 0) return;
 
-            if (cashbackBase >= settings.MinimumOrderAmount)
+            if (cashbackBase < settings.MinimumOrderAmount) return;
+
+            await using var transaction = await _salesDb.Database.BeginTransactionAsync();
+            var appliedAt = DateTime.UtcNow;
+            var claimed = await _salesDb.Orders
+                .Where(o => o.Id == order.Id && o.CashbackAppliedAt == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(o => o.CashbackAppliedAt, appliedAt));
+            if (claimed != 1)
             {
-                var wallet = await _salesDb.Wallets.FirstOrDefaultAsync(w => w.UserId == order.UserId);
-                if (wallet == null)
-                {
-                    wallet = new Wallet { UserId = order.UserId!, Balance = 0 };
-                    _salesDb.Wallets.Add(wallet);
-                }
-
-                if (settings.MaxWalletBalance > 0 && wallet.Balance + cashbackAmount > settings.MaxWalletBalance)
-                    cashbackAmount = settings.MaxWalletBalance - wallet.Balance;
-
-                if (cashbackAmount > 0)
-                {
-                    wallet.Balance += cashbackAmount;
-                    wallet.UpdatedAt = DateTime.UtcNow;
-
-                    _salesDb.WalletTransactions.Add(new WalletTransaction
-                    {
-                        UserId = order.UserId!,
-                        Amount = cashbackAmount,
-                        Type = "Cashback",
-                        Description = $"بازگشت وجه از سفارش #{order.OrderCode}",
-                        OrderId = order.Id,
-                        CreatedAt = DateTime.UtcNow
-                    });
-
-                    await _salesDb.SaveChangesAsync();
-                }
+                await transaction.RollbackAsync();
+                return;
             }
+
+            order.CashbackAppliedAt = appliedAt;
+            var existingCashback = await _salesDb.WalletTransactions
+                .AnyAsync(t => t.OrderId == order.Id && t.Type == "Cashback");
+            if (existingCashback)
+            {
+                await transaction.CommitAsync();
+                return;
+            }
+
+            var wallet = await WalletBalanceLock.GetOrCreateForUpdateAsync(_salesDb, order.UserId);
+
+            if (settings.MaxWalletBalance > 0)
+                cashbackAmount = Math.Min(cashbackAmount, settings.MaxWalletBalance - wallet.Balance);
+
+            if (cashbackAmount > 0)
+            {
+                wallet.Balance += cashbackAmount;
+                wallet.UpdatedAt = appliedAt;
+                _salesDb.WalletTransactions.Add(new WalletTransaction
+                {
+                    UserId = order.UserId,
+                    Amount = cashbackAmount,
+                    Type = "Cashback",
+                    Description = $"بازگشت وجه از سفارش #{order.OrderCode}",
+                    OrderId = order.Id,
+                    CreatedAt = appliedAt
+                });
+            }
+
+            await _salesDb.SaveChangesAsync();
+            await transaction.CommitAsync();
         }
 
         [Authorize(Roles = "Admin,OrderManager,Owner")]
@@ -1391,6 +1543,7 @@ namespace SugarShop.Web.Controllers
             var order = await _salesDb.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == orderId);
             if (order == null) return NotFound();
 
+            await using var transaction = await _salesDb.Database.BeginTransactionAsync();
             // بازگشت وجه کیف پول فقط برای سفارش‌های پرداخت‌نشده (idempotent؛ یک‌بار انجام می‌شود)
             if (order.PaymentStatus != PaymentStatus.Succeeded)
                 await OrderWalletHelper.RefundWalletAsync(_salesDb, order);
@@ -1402,6 +1555,7 @@ namespace SugarShop.Web.Controllers
             _salesDb.OrderItems.RemoveRange(order.Items);
             _salesDb.Orders.Remove(order);
             await _salesDb.SaveChangesAsync();
+            await transaction.CommitAsync();
 
             TempData["SuccessMessage"] = "سفارش با موفقیت حذف شد.";
             return RedirectToAction("Orders");
@@ -1542,6 +1696,323 @@ namespace SugarShop.Web.Controllers
             var order = await _salesDb.CustomCakeOrders.FindAsync(id);
             if (order == null) return NotFound();
             return View(order);
+        }
+
+        [Authorize(Roles = "Admin,Owner")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApplyCapturedPayment(int orderId, int paymentId, bool confirmPayment, string? verificationNote)
+        {
+            var note = verificationNote?.Trim();
+            if (!confirmPayment || string.IsNullOrWhiteSpace(note) || note.Length < 5 || note.Length > 1000)
+            {
+                TempData["ErrorMessage"] = "تأیید پرداخت و یادداشت تطبیق (حداقل ۵ نویسه) الزامی است.";
+                return RedirectToAction("OrderDetails", new { id = orderId });
+            }
+
+            await using var transaction = await _salesDb.Database.BeginTransactionAsync();
+            var lockTime = DateTime.UtcNow;
+            var locked = await _salesDb.Orders
+                .Where(o => o.Id == orderId && o.OrderStatus == OrderStatus.PaymentReview
+                    && o.PaymentStatus == PaymentStatus.RefundRequired)
+                .ExecuteUpdateAsync(s => s.SetProperty(o => o.UpdatedAt, lockTime));
+            if (locked != 1)
+            {
+                await transaction.RollbackAsync();
+                TempData["ErrorMessage"] = "این سفارش دیگر در صف بررسی پرداخت نیست؛ صفحه را تازه‌سازی کنید.";
+                return RedirectToAction("OrderDetails", new { id = orderId });
+            }
+
+            var order = await _salesDb.Orders.Include(o => o.Items).SingleAsync(o => o.Id == orderId);
+            var payment = await _salesDb.Payments.SingleOrDefaultAsync(p => p.Id == paymentId && p.OrderId == orderId);
+            if (payment == null || payment.PaymentStatus != PaymentStatus.RefundRequired)
+            {
+                await transaction.RollbackAsync();
+                TempData["ErrorMessage"] = "پرداخت انتخاب‌شده دیگر برای تطبیق در دسترس نیست.";
+                return RedirectToAction("OrderDetails", new { id = orderId });
+            }
+
+            var isWalletRecharge = order.Notes == OrderNotes.WalletRecharge;
+            await _salesDb.Payments
+                .Where(p => p.OrderId == orderId && p.Id != paymentId && p.PaymentStatus == PaymentStatus.Initiated)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.PaymentStatus, PaymentStatus.Failed));
+
+            var anotherPaymentAlreadyApplied = await _salesDb.Payments.AnyAsync(p =>
+                p.OrderId == orderId && p.Id != paymentId && p.PaymentStatus == PaymentStatus.Succeeded);
+            if (anotherPaymentAlreadyApplied && (isWalletRecharge || order.Items.Count == 0))
+            {
+                await transaction.RollbackAsync();
+                TempData["ErrorMessage"] = "برای این سفارش قبلاً یک پرداخت اعمال شده است؛ پرداخت اضافه باید مسترد شود.";
+                return RedirectToAction("OrderDetails", new { id = orderId });
+            }
+
+            decimal expectedAmount;
+            OrderPricing? currentPricing = null;
+            if (isWalletRecharge)
+            {
+                expectedAmount = order.TotalAmountSnapshot;
+            }
+            else if (order.Items.Count > 0)
+            {
+                currentPricing = await _pricingService.ComputeAsync(order);
+                expectedAmount = (long)Math.Ceiling(currentPricing.PayableNow);
+            }
+            else
+            {
+                expectedAmount = order.FinalTotalAmount ?? order.TotalAmountSnapshot;
+            }
+
+            var cakeOrderId = OrderNotes.TryParseCustomCakeOrderId(order.Notes);
+            CustomCakeOrder? cakeOrder = null;
+            if (cakeOrderId.HasValue)
+            {
+                cakeOrder = await _salesDb.CustomCakeOrders.SingleOrDefaultAsync(c => c.Id == cakeOrderId.Value);
+                if (cakeOrder == null || cakeOrder.UserId != order.UserId
+                    || cakeOrder.Status != CustomCakeOrderStatus.Accepted || cakeOrder.IsPaid)
+                {
+                    await transaction.RollbackAsync();
+                    TempData["ErrorMessage"] = "سفارش کیک سفارشی برای این پرداخت معتبر نیست؛ پرداخت را مسترد یا دستی پیگیری کنید.";
+                    return RedirectToAction("OrderDetails", new { id = orderId });
+                }
+            }
+
+            if (payment.Amount != expectedAmount)
+            {
+                await transaction.RollbackAsync();
+                TempData["ErrorMessage"] = "مبلغ پرداخت با مبلغ فعلی سفارش برابر نیست؛ پرداخت را مسترد یا دستی پیگیری کنید.";
+                return RedirectToAction("OrderDetails", new { id = orderId });
+            }
+
+            if (isWalletRecharge && string.IsNullOrWhiteSpace(order.UserId))
+            {
+                await transaction.RollbackAsync();
+                TempData["ErrorMessage"] = "حساب کاربری این شارژ مشخص نیست؛ پرداخت را دستی پیگیری کنید.";
+                return RedirectToAction("OrderDetails", new { id = orderId });
+            }
+
+            if (order.Items.Count > 0 && currentPricing is { HasUnfinalizedBoxes: false }
+                && order.InventoryDeductedAt == null)
+            {
+                if (!ReferenceEquals(_catalogDb.Database.GetDbConnection(), _salesDb.Database.GetDbConnection()))
+                    throw new InvalidOperationException("Sales and Catalog DbContexts are not sharing a connection; inventory resolution aborted.");
+
+                _catalogDb.Database.UseTransaction(transaction.GetDbTransaction());
+                var reservationTime = DateTime.UtcNow;
+                var claimedInventory = await _salesDb.Orders
+                    .Where(o => o.Id == orderId && o.InventoryDeductedAt == null)
+                    .ExecuteUpdateAsync(s => s.SetProperty(o => o.InventoryDeductedAt, reservationTime));
+                if (claimedInventory != 1 || !await _inventoryService.TryDecreaseInventoryAsync(order.Items))
+                {
+                    await transaction.RollbackAsync();
+                    TempData["ErrorMessage"] = "موجودی سفارش کافی نیست؛ پرداخت را مسترد یا برای تأمین کالا پیگیری کنید.";
+                    return RedirectToAction("OrderDetails", new { id = orderId });
+                }
+                order.InventoryDeductedAt = reservationTime;
+            }
+
+            var now = DateTime.UtcNow;
+            var adminId = _userManager.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(adminId))
+            {
+                await transaction.RollbackAsync();
+                return Forbid();
+            }
+            var paymentClaimed = await _salesDb.Payments
+                .Where(p => p.Id == paymentId && p.PaymentStatus == PaymentStatus.RefundRequired)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(p => p.PaymentStatus, PaymentStatus.Succeeded)
+                    .SetProperty(p => p.ReconciliationNote, note)
+                    .SetProperty(p => p.ReconciledAt, now)
+                    .SetProperty(p => p.ReconciledByUserId, adminId));
+            if (paymentClaimed != 1)
+            {
+                await transaction.RollbackAsync();
+                TempData["ErrorMessage"] = "این پرداخت هم‌زمان تغییر کرده است؛ صفحه را تازه‌سازی کنید.";
+                return RedirectToAction("OrderDetails", new { id = orderId });
+            }
+            payment.PaymentStatus = PaymentStatus.Succeeded;
+            payment.ReconciliationNote = note;
+            payment.ReconciledAt = now;
+            payment.ReconciledByUserId = adminId;
+
+            if (cakeOrder != null)
+            {
+                cakeOrder.IsPaid = true;
+                cakeOrder.UpdatedAt = now;
+            }
+
+            if (isWalletRecharge)
+            {
+                var priorRecharge = await _salesDb.WalletTransactions
+                    .SingleOrDefaultAsync(t => t.OrderId == orderId && t.Type == "DirectRecharge");
+                if (priorRecharge != null)
+                {
+                    await transaction.RollbackAsync();
+                    TempData["ErrorMessage"] = "این شارژ قبلاً به کیف پول واریز شده است؛ پرداخت انتخاب‌شده را مسترد کنید.";
+                    return RedirectToAction("OrderDetails", new { id = orderId });
+                }
+
+                var wallet = await WalletBalanceLock.GetOrCreateForUpdateAsync(_salesDb, order.UserId!);
+                wallet.Balance += order.TotalAmountSnapshot;
+                wallet.UpdatedAt = now;
+                _salesDb.WalletTransactions.Add(new WalletTransaction
+                {
+                    UserId = order.UserId!,
+                    Amount = order.TotalAmountSnapshot,
+                    Type = "DirectRecharge",
+                    Description = "شارژ کیف پول پس از تطبیق دستی پرداخت زیبال",
+                    OrderId = order.Id,
+                    CreatedAt = now
+                });
+            }
+
+            var anotherCapturedPaymentNeedsReview = await _salesDb.Payments.AnyAsync(p =>
+                p.OrderId == orderId && p.Id != paymentId && p.PaymentStatus == PaymentStatus.RefundRequired);
+            if (anotherCapturedPaymentNeedsReview)
+            {
+                order.PaymentStatus = PaymentStatus.RefundRequired;
+                order.OrderStatus = OrderStatus.PaymentReview;
+            }
+            else
+            {
+                if (isWalletRecharge || cakeOrder != null)
+                {
+                    order.PaymentStatus = PaymentStatus.Succeeded;
+                    order.OrderStatus = OrderStatus.Paid;
+                    order.IsPaymentEnabled = false;
+                }
+                else
+                {
+                    var finalPricing = await _pricingService.ComputeAsync(order);
+                    var fullyPaid = !finalPricing.HasUnfinalizedBoxes && finalPricing.GrandTotal > 0
+                        && finalPricing.PaidTotal >= finalPricing.GrandTotal;
+                    order.PaymentStatus = fullyPaid ? PaymentStatus.Succeeded : PaymentStatus.Unpaid;
+                    order.OrderStatus = fullyPaid ? OrderStatus.Paid
+                        : finalPricing.HasUnfinalizedBoxes ? OrderStatus.AwaitingReview : OrderStatus.PendingPayment;
+                    order.IsPaymentEnabled = !fullyPaid;
+                }
+            }
+            order.UpdatedAt = now;
+            await _salesDb.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            TempData["SuccessMessage"] = anotherCapturedPaymentNeedsReview
+                ? "پرداخت انتخاب‌شده اعمال شد؛ پرداخت‌های تکراری دیگر هنوز باید مسترد یا تعیین‌تکلیف شوند."
+                : "پرداخت پس از تطبیق ثبت شد.";
+            return RedirectToAction("OrderDetails", new { id = orderId });
+        }
+
+        [Authorize(Roles = "Admin,Owner")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RecordExternalRefund(int orderId, int paymentId, bool refundConfirmed,
+            string? refundReference, string? refundNote)
+        {
+            var reference = refundReference?.Trim();
+            var note = refundNote?.Trim();
+            if (!refundConfirmed || string.IsNullOrWhiteSpace(reference) || reference.Length > 200
+                || string.IsNullOrWhiteSpace(note) || note.Length < 5 || note.Length > 1000)
+            {
+                TempData["ErrorMessage"] = "تأیید استرداد، شناسه استرداد و یادداشت (حداقل ۵ نویسه) الزامی است.";
+                return RedirectToAction("OrderDetails", new { id = orderId });
+            }
+
+            await using var transaction = await _salesDb.Database.BeginTransactionAsync();
+            var lockTime = DateTime.UtcNow;
+            var locked = await _salesDb.Orders
+                .Where(o => o.Id == orderId && o.OrderStatus == OrderStatus.PaymentReview
+                    && o.PaymentStatus == PaymentStatus.RefundRequired)
+                .ExecuteUpdateAsync(s => s.SetProperty(o => o.UpdatedAt, lockTime));
+            if (locked != 1)
+            {
+                await transaction.RollbackAsync();
+                TempData["ErrorMessage"] = "این سفارش دیگر در صف بررسی پرداخت نیست؛ صفحه را تازه‌سازی کنید.";
+                return RedirectToAction("OrderDetails", new { id = orderId });
+            }
+
+            var order = await _salesDb.Orders.Include(o => o.Items).SingleAsync(o => o.Id == orderId);
+            var payment = await _salesDb.Payments.SingleOrDefaultAsync(p => p.Id == paymentId && p.OrderId == orderId);
+            if (payment == null || payment.PaymentStatus != PaymentStatus.RefundRequired)
+            {
+                await transaction.RollbackAsync();
+                TempData["ErrorMessage"] = "پرداخت انتخاب‌شده دیگر در انتظار استرداد نیست.";
+                return RedirectToAction("OrderDetails", new { id = orderId });
+            }
+
+            await _salesDb.Payments
+                .Where(p => p.OrderId == orderId && p.Id != paymentId && p.PaymentStatus == PaymentStatus.Initiated)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.PaymentStatus, PaymentStatus.Failed));
+
+            var now = DateTime.UtcNow;
+            var adminId = _userManager.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(adminId))
+            {
+                await transaction.RollbackAsync();
+                return Forbid();
+            }
+            var refundClaimed = await _salesDb.Payments
+                .Where(p => p.Id == paymentId && p.PaymentStatus == PaymentStatus.RefundRequired)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(p => p.PaymentStatus, PaymentStatus.Refunded)
+                    .SetProperty(p => p.ExternalRefundReference, reference)
+                    .SetProperty(p => p.ExternalRefundNote, note)
+                    .SetProperty(p => p.ExternalRefundedAt, now)
+                    .SetProperty(p => p.ExternalRefundedByUserId, adminId));
+            if (refundClaimed != 1)
+            {
+                await transaction.RollbackAsync();
+                TempData["ErrorMessage"] = "این پرداخت هم‌زمان تغییر کرده است؛ صفحه را تازه‌سازی کنید.";
+                return RedirectToAction("OrderDetails", new { id = orderId });
+            }
+            payment.PaymentStatus = PaymentStatus.Refunded;
+            payment.ExternalRefundReference = reference;
+            payment.ExternalRefundNote = note;
+            payment.ExternalRefundedAt = now;
+            payment.ExternalRefundedByUserId = adminId;
+
+            var unresolvedCaptures = await _salesDb.Payments.AnyAsync(p =>
+                p.OrderId == orderId && p.PaymentStatus == PaymentStatus.RefundRequired);
+            if (!unresolvedCaptures)
+            {
+                var appliedCaptureExists = await _salesDb.Payments.AnyAsync(p =>
+                    p.OrderId == orderId && p.PaymentStatus == PaymentStatus.Succeeded);
+                if (appliedCaptureExists)
+                {
+                    if (order.Notes == OrderNotes.WalletRecharge
+                        || OrderNotes.TryParseCustomCakeOrderId(order.Notes).HasValue)
+                    {
+                        order.PaymentStatus = PaymentStatus.Succeeded;
+                        order.OrderStatus = OrderStatus.Paid;
+                        order.IsPaymentEnabled = false;
+                    }
+                    else
+                    {
+                        var pricing = await _pricingService.ComputeAsync(order);
+                        var fullyPaid = !pricing.HasUnfinalizedBoxes && pricing.GrandTotal > 0
+                            && pricing.PaidTotal >= pricing.GrandTotal;
+                        order.PaymentStatus = fullyPaid ? PaymentStatus.Succeeded : PaymentStatus.Unpaid;
+                        order.OrderStatus = fullyPaid ? OrderStatus.Paid
+                            : pricing.HasUnfinalizedBoxes ? OrderStatus.AwaitingReview : OrderStatus.PendingPayment;
+                        order.IsPaymentEnabled = !fullyPaid;
+                    }
+                }
+                else
+                {
+                    order.PaymentStatus = PaymentStatus.Refunded;
+                    order.OrderStatus = OrderStatus.Cancelled;
+                    order.IsPaymentEnabled = false;
+                }
+            }
+            order.UpdatedAt = now;
+            await _salesDb.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            TempData["SuccessMessage"] = unresolvedCaptures
+                ? "استرداد ثبت شد؛ پرداخت‌های نامشخص دیگر همچنان نیازمند پیگیری هستند."
+                : order.PaymentStatus == PaymentStatus.Succeeded
+                    ? "استرداد پرداخت اضافی ثبت شد و پرداخت اعمال‌شده حفظ شد."
+                    : "استرداد ثبت شد و سفارش بسته شد.";
+            return RedirectToAction("OrderDetails", new { id = orderId });
         }
 
         [Authorize(Roles = "Admin,OrderManager,Owner")]

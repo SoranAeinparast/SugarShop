@@ -2,10 +2,7 @@ package ir.soransoftpro.pastry;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.webkit.JavascriptInterface;
-import android.os.Handler;
-import android.os.Looper;
 
 /**
  * پل کوچک JS ↔ اپ: صفحه می‌تواند وضعیت اپ را ببیند (مثلاً برای مخفی کردن بنر نصب)،
@@ -15,7 +12,6 @@ import android.os.Looper;
 public class BackHandler {
     private final Activity activity;
     private final SmsOtpReceiver otpReceiver;
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     public BackHandler(Activity a) { this(a, null); }
 
@@ -26,7 +22,7 @@ public class BackHandler {
 
     @JavascriptInterface
     public boolean isAndroidApp() {
-        return true;
+        return isTrustedPage();
     }
 
     @JavascriptInterface
@@ -38,31 +34,19 @@ public class BackHandler {
 
     @JavascriptInterface
     public boolean isBiometricAvailable() {
-        // بررسی چندلایه — برخی سازندگان (شیائومی، هواوی و...) از BiometricManager
-        // به‌اشتباه «ثبت‌نشده» برمی‌گردانند حتی وقتی اثر انگشت ثبت شده است؛
-        // لایه‌ی FingerprintManager حکم نهایی را می‌دهد.
-        try {
-            if (android.os.Build.VERSION.SDK_INT >= 30) {
-                android.hardware.biometrics.BiometricManager bm =
-                        (android.hardware.biometrics.BiometricManager) activity.getSystemService(Context.BIOMETRIC_SERVICE);
-                if (bm != null && bm.canAuthenticate(
-                        android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_WEAK)
-                        == android.hardware.biometrics.BiometricManager.BIOMETRIC_SUCCESS) {
-                    return true;
-                }
-            }
-        } catch (Throwable ignored) { }
+        if (!isTrustedPage()) return false;
         try {
             if (android.os.Build.VERSION.SDK_INT >= 28) {
                 android.hardware.biometrics.BiometricManager bm =
                         (android.hardware.biometrics.BiometricManager) activity.getSystemService(Context.BIOMETRIC_SERVICE);
-                if (bm != null && bm.canAuthenticate()
-                        == android.hardware.biometrics.BiometricManager.BIOMETRIC_SUCCESS) {
-                    return true;
+                if (bm != null) {
+                    int result = android.os.Build.VERSION.SDK_INT >= 30
+                            ? bm.canAuthenticate(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                            : bm.canAuthenticate();
+                    if (result == android.hardware.biometrics.BiometricManager.BIOMETRIC_SUCCESS) return true;
                 }
             }
         } catch (Throwable ignored) { }
-        // ── لایه‌ی تعیین‌کننده: خود سنسور اثر انگشت ──
         try {
             if (android.os.Build.VERSION.SDK_INT >= 23) {
                 android.hardware.fingerprint.FingerprintManager fm =
@@ -72,32 +56,33 @@ public class BackHandler {
                 }
             }
         } catch (Throwable ignored) { }
-        // ── آخرین لایه: صفحه‌قفل امن (اثر انگورتا/چهره/PIN) ──
-        try {
-            android.app.KeyguardManager km =
-                    (android.app.KeyguardManager) activity.getSystemService(Context.KEYGUARD_SERVICE);
-            if (km != null && km.isKeyguardSecure()) return true;
-        } catch (Throwable ignored) { }
         return false;
     }
 
     @JavascriptInterface
     public boolean isBiometricLockEnabled() {
-        SharedPreferences p = activity.getSharedPreferences("app_lock", Activity.MODE_PRIVATE);
-        return p.getBoolean("biometric_enabled", false);
+        return isTrustedPage() && ((MainActivity) activity).isBiometricLockEnabled();
     }
 
-    /** سایت این را صدا می‌زند تا قفل اپ فعال شود (پس از تأیید کاربر در صفحه‌ی سایت) */
+    /** Called after the authenticated profile page receives a cookie-only biometric session. */
     @JavascriptInterface
-    public void enableBiometricLock() {
-        activity.getSharedPreferences("app_lock", Activity.MODE_PRIVATE)
-                .edit().putBoolean("biometric_enabled", true).apply();
+    public void enableBiometricLock(String expiresAtMillis) {
+        if (!isTrustedPage()) return;
+        long expiry = 0L;
+        try {
+            expiry = Long.parseLong(expiresAtMillis);
+        } catch (Exception ignored) { }
+        ((MainActivity) activity).beginBiometricEnrollment(expiry);
     }
 
     @JavascriptInterface
     public void disableBiometricLock() {
-        activity.getSharedPreferences("app_lock", Activity.MODE_PRIVATE)
-                .edit().putBoolean("biometric_enabled", false).apply();
+        if (!isTrustedPage()) return;
+        ((MainActivity) activity).disableBiometricLockFromProfile();
+    }
+
+    private boolean isTrustedPage() {
+        return activity instanceof MainActivity && ((MainActivity) activity).isBridgePageTrusted();
     }
 
     // ── کد OTP خودکار از پیامک ──
@@ -105,15 +90,16 @@ public class BackHandler {
     /** شروع گوش‌دادن به پیامک‌ها — فقط صفحه‌ی ورود صدا می‌زند */
     @JavascriptInterface
     public void startOtpListener() {
-        if (otpReceiver == null) return;
-        otpReceiver.start(activity);
+        if (otpReceiver == null || !isOtpPageTrusted()) return;
+        if (activity instanceof MainActivity) ((MainActivity) activity).runOnUiThread(
+                () -> ((MainActivity) activity).startOtpListener());
     }
 
     /** پایان گوش‌دادن */
     @JavascriptInterface
     public void stopOtpListener() {
-        if (otpReceiver == null) return;
-        otpReceiver.stop(activity);
+        if (otpReceiver == null || !(activity instanceof MainActivity)) return;
+        ((MainActivity) activity).runOnUiThread(() -> ((MainActivity) activity).stopOtpListener());
     }
 
     /**
@@ -122,8 +108,12 @@ public class BackHandler {
      */
     @JavascriptInterface
     public String pollOtpCode() {
-        if (otpReceiver == null) return "";
+        if (otpReceiver == null || !isOtpPageTrusted()) return "";
         String c = otpReceiver.take();
         return c == null ? "" : c;
+    }
+
+    private boolean isOtpPageTrusted() {
+        return activity instanceof MainActivity && ((MainActivity) activity).isOtpPageTrusted();
     }
 }

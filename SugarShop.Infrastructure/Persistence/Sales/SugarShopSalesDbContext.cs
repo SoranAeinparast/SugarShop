@@ -112,6 +112,7 @@ namespace SugarShop.Infrastructure.Persistence.Sales
                 e.Property(x => x.CreatedAt).HasColumnType("datetime2");
                 e.Property(x => x.UpdatedAt).HasColumnType("datetime2");
                 e.Property(x => x.InventoryDeductedAt).HasColumnType("datetime2");
+                e.Property(x => x.CashbackAppliedAt).HasColumnType("datetime2");
                 e.HasOne(x => x.DiscountCode)
                     .WithMany()
                     .HasForeignKey(x => x.DiscountCodeId)
@@ -120,7 +121,7 @@ namespace SugarShop.Infrastructure.Persistence.Sales
             modelBuilder.Entity<Wallet>(e =>
             {
                 e.HasKey(x => x.Id);
-                e.HasIndex(x => x.UserId);
+                e.HasIndex(x => x.UserId).IsUnique().HasDatabaseName("UX_Wallets_UserId");
                 e.Property(x => x.Balance).HasPrecision(18, 2);
             });
             modelBuilder.Entity<WalletTransaction>(e =>
@@ -163,8 +164,20 @@ namespace SugarShop.Infrastructure.Persistence.Sales
             {
                 e.HasKey(x => x.Id);
                 e.Property(x => x.Amount).HasPrecision(18, 2);
+                e.Property(x => x.Provider).HasMaxLength(32).IsRequired();
                 e.HasIndex(x => x.Authority);
                 e.HasIndex(x => x.OrderId);
+                e.HasIndex(x => x.OrderId)
+                    .IsUnique()
+                    .HasDatabaseName("UX_Payments_OneActiveZibalAttemptPerOrder")
+                    .HasFilter("[PaymentStatus] = 2 AND [Provider] = N'Zibal'");
+                e.Property(x => x.ReconciliationNote).HasMaxLength(1000);
+                e.Property(x => x.ReconciledAt).HasColumnType("datetime2");
+                e.Property(x => x.ReconciledByUserId).HasMaxLength(450);
+                e.Property(x => x.ExternalRefundReference).HasMaxLength(200);
+                e.Property(x => x.ExternalRefundNote).HasMaxLength(1000);
+                e.Property(x => x.ExternalRefundedAt).HasColumnType("datetime2");
+                e.Property(x => x.ExternalRefundedByUserId).HasMaxLength(450);
                 e.Property(x => x.CreatedAt).HasColumnType("datetime2");
             });
             modelBuilder.Entity<DiscountCode>(e =>

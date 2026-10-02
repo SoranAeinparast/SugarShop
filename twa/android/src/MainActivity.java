@@ -1,6 +1,7 @@
 package ir.soransoftpro.pastry;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -33,12 +34,17 @@ import android.webkit.ValueCallback;
 import android.content.ActivityNotFoundException;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.util.Locale;
+import java.util.Collections;
+
+import javax.crypto.Cipher;
 
 /**
  * TWA-سبک شل اندروید برای فروشگاه شیرینی‌سرا
@@ -54,6 +60,7 @@ import java.io.PrintWriter;
 public class MainActivity extends Activity {
 
     private WebView webView;
+    private volatile String currentTopLevelUrl;
     private String startUrl;
     private String expectedHost;
     private ValueCallback<Uri[]> filePathCallback;
@@ -87,11 +94,27 @@ public class MainActivity extends Activity {
     // ── قفل بیومتریک اپ ──
     private LinearLayout lockGate;
     private TextView txtLockHint;
-    private android.content.SharedPreferences lockPrefs;
+    private BiometricTokenStore biometricTokenStore;
+    private BackHandler appBridge;
+    private boolean bridgeAttached = false;
     private boolean lockEnabled = false;
     private boolean unlockPending = false; // در حال نمایش پرامپت بیومتریک
     private boolean unlockedOnce = false;  // در این اجرای اپ، حداقل یک‌بار باز شده — پرامپت دوم خودکار ممنوع
-    private static final int BIOMETRIC_CONFIRM_REQ = 1002; // fallback/API 23–27
+    private boolean automaticPromptShown = false;
+    private volatile boolean restorationPending = false;
+    private boolean verifyingRestoredSession = false;
+    private String biometricSessionLanding;
+    private boolean accountLoginPending = false;
+    private String pendingDestination;
+    private long pendingEnrollmentExpiry;
+    private android.os.CancellationSignal activeAuthSignal;
+    private AlertDialog legacyBiometricDialog;
+    private int authGeneration = 0;
+    private final Runnable restorationTimeout = () -> failSessionRestore(false);
+    private static final long SESSION_RESTORE_TIMEOUT_MS = 30000;
+    private static final int SMS_PERMISSION_REQUEST = 1204;
+
+    private enum BiometricAction { ENROLL, RESTORE }
 
     // ── دریافت خودکار کد OTP از پیامک ──
     private SmsOtpReceiver smsOtpReceiver;
@@ -114,11 +137,12 @@ public class MainActivity extends Activity {
             if (m.find()) cfgUrl = m.group(1);
         } catch (Exception ignored) { }
 
-        try {
-            java.net.URI u = java.net.URI.create(cfgUrl);
-            expectedHost = u.getHost();
-        } catch (Exception e) {
-            expectedHost = "sweets.soransoftpro.ir";
+        Uri configuredUri = Uri.parse(cfgUrl);
+        expectedHost = "sweets.soransoftpro.ir";
+        if (isSecureHttpUri(configuredUri)) {
+            expectedHost = configuredUri.getHost().toLowerCase(Locale.US);
+        } else {
+            cfgUrl = "https://" + expectedHost;
         }
         startUrl = cfgUrl;
 
@@ -176,7 +200,7 @@ public class MainActivity extends Activity {
                     .inflate(R.layout.lock_gate, container, false);
             txtLockHint = lockGate.findViewById(R.id.txtLockHint);
             lockGate.findViewById(R.id.btnLockUnlock).setOnClickListener(v -> showBiometricPrompt());
-            lockGate.findViewById(R.id.btnLockDisable).setOnClickListener(v -> disableAppLock());
+            lockGate.findViewById(R.id.btnLockAccountLogin).setOnClickListener(v -> beginAccountLogin());
             container.addView(lockGate, new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT));
@@ -242,22 +266,55 @@ public class MainActivity extends Activity {
             webView.setWebViewClient(new WebViewClient() {
                 @Override
                 public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                    Uri uri = Uri.parse(url);
-                    String host = uri.getHost() == null ? "" : uri.getHost();
-                    if (expectedHost != null && expectedHost.equals(host)) {
-                        return false; // load in-app
+                    if (isBiometricSessionUrl(url) && !restorationPending) return true;
+                    return routeNavigation(url);
+                }
+
+                @Override
+                public boolean shouldOverrideUrlLoading(WebView view, android.webkit.WebResourceRequest request) {
+                    String url = request.getUrl().toString();
+                    if (isBiometricSessionUrl(url)
+                            && (!request.isForMainFrame() || !restorationPending)) return true;
+                    if (!request.isForMainFrame()) return false;
+                    return routeNavigation(url);
+                }
+
+                @Override
+                public android.webkit.WebResourceResponse shouldInterceptRequest(
+                        WebView view, android.webkit.WebResourceRequest request) {
+                    Uri uri = request.getUrl();
+                    if (isBiometricSessionUrl(uri.toString())
+                            && (!request.isForMainFrame() || !restorationPending)) {
+                        return new android.webkit.WebResourceResponse("text/plain", "UTF-8", 403,
+                                "Biometric restoration must be initiated by the app", Collections.emptyMap(),
+                                new ByteArrayInputStream(new byte[0]));
                     }
-                    // ═══ درگاه‌های پرداخت داخل اپ باز می‌شوند ═══
-                    // اگر درگاه به مرورگر بیرونی دستیاری شود، پس از پرداخت، کاربر به اپ
-                    // برنمی‌گردد و صفحه‌ی نتیجه در مرورگر باز می‌شود. با باز نگه داشتن درگاه
-                    // در همین WebView، مسیر کامل پرداخت ← تأیید ← بازگشت به سفارش‌ها در اپ می‌ماند.
-                    if (isPaymentGatewayHost(host)) {
-                        return false; // load in-app
+                    boolean firstParty = isFirstPartyUri(uri);
+                    boolean paymentGateway = isPaymentGatewayUri(uri);
+                    boolean externalMainFrame = request.isForMainFrame() && !firstParty && !paymentGateway;
+                    boolean paymentFrame = !request.isForMainFrame()
+                            && isPaymentGatewayPage() && isSecureHttpUri(uri);
+                    boolean externalHtmlFrame = !request.isForMainFrame() && !firstParty
+                            && !paymentGateway && !paymentFrame && isHtmlDocumentRequest(request);
+                    if (externalMainFrame || externalHtmlFrame) {
+                        if (externalMainFrame) {
+                            runOnUiThread(() -> {
+                                if (restorationPending) failSessionRestore(true);
+                                if (!accountLoginPending && isSafeExternalUri(uri)) openExternal(uri);
+                            });
+                        }
+                        return new android.webkit.WebResourceResponse("text/plain", "UTF-8", 403,
+                                "Blocked navigation", Collections.emptyMap(), new ByteArrayInputStream(new byte[0]));
                     }
-                    try {
-                        startActivity(new Intent(Intent.ACTION_VIEW, uri)); // browser
-                    } catch (ActivityNotFoundException ignored) { }
-                    return true;
+                    return null;
+                }
+
+                @Override
+                public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                    currentTopLevelUrl = url;
+                    if (isOurUrl(url)) attachBridge(); else detachBridge();
+                    if (!isOtpPageTrusted() && smsOtpReceiver != null) smsOtpReceiver.stop(MainActivity.this);
+                    if (restorationPending && !isOurUrl(url)) failSessionRestore(true);
                 }
 
                 @Override
@@ -265,6 +322,8 @@ public class MainActivity extends Activity {
                     // اولین فریم سایت رندر شد — اسپلش کنار می‌رود و خطای ثبت‌شده‌ی قبلی پاک می‌شود
                     dismissSplash();
                     hideDiag();
+                    if (restorationPending) onSessionRestorePageCommitted(url);
+                    if (accountLoginPending && isAuthenticatedProfileUrl(url)) finishAccountLogin();
                 }
 
                 @Override
@@ -274,6 +333,7 @@ public class MainActivity extends Activity {
                             && isNetworkRelated(errorCode)) {
                         dismissSplash();
                         showOffline(describeError(errorCode, description));
+                        if (restorationPending) failSessionRestore(false);
                     }
                 }
 
@@ -285,6 +345,16 @@ public class MainActivity extends Activity {
                         dismissSplash();
                         showOffline(describeError(error.getErrorCode(),
                                 error.getDescription() != null ? error.getDescription().toString() : ""));
+                        if (restorationPending) failSessionRestore(false);
+                    }
+                }
+
+                @Override
+                public void onReceivedHttpError(WebView view, android.webkit.WebResourceRequest request,
+                                                android.webkit.WebResourceResponse response) {
+                    if (restorationPending && request.isForMainFrame()) {
+                        int status = response.getStatusCode();
+                        failSessionRestore(status == 401 || status == 403);
                     }
                 }
 
@@ -294,12 +364,14 @@ public class MainActivity extends Activity {
                     handler.cancel();
                     dismissSplash();
                     showOffline(getString(R.string.offline_ssl_title));
+                    if (restorationPending) failSessionRestore(false);
                 }
             });
 
             // پل JS + نشانه UA تا سایت بفهمد داخل اپ است (بنر نصب مخفی شود)
             smsOtpReceiver = new SmsOtpReceiver();
-            webView.addJavascriptInterface(new BackHandler(MainActivity.this, smsOtpReceiver), "SugarShopApp");
+            appBridge = new BackHandler(MainActivity.this, smsOtpReceiver);
+            attachBridge();
             String ua = s.getUserAgentString();
             if (ua != null && !ua.contains("SugarShopApp/")) {
                 s.setUserAgentString(ua + " SugarShopApp/1.4");
@@ -330,20 +402,27 @@ public class MainActivity extends Activity {
         }
 
         if (initOk) {
-            // ═══ بازگشت از درگاه پرداخت: اگر با intent حاوی url باز شده باشد، همان صفحه در اپ لود می‌شود ═══
-            String intentUrl = (getIntent() != null) ? getIntent().getStringExtra("url") : null;
+            biometricTokenStore = new BiometricTokenStore(this);
+            lockEnabled = biometricTokenStore.isEnabled();
+            pendingDestination = getIncomingUrl(getIntent());
 
-            if (savedInstanceState != null) {
-                webView.restoreState(savedInstanceState);
-                // بازیابی فوری محتوا؛ اسپلش تا اولین commit دیده می‌شود
-                if (intentUrl != null && isOurUrl(intentUrl)) webView.loadUrl(intentUrl);
-            } else if (intentUrl != null && isOurUrl(intentUrl)) {
-                webView.loadUrl(intentUrl);
-            } else if (isOnline()) {
-                webView.loadUrl(startUrl);
-            } else {
-                dismissSplash();
-                showOffline(null);
+            boolean restoredPage = !lockEnabled && savedInstanceState != null
+                    && webView.restoreState(savedInstanceState) != null;
+            if (restoredPage) {
+                currentTopLevelUrl = webView.getUrl();
+                if (isOurUrl(currentTopLevelUrl)) attachBridge();
+            }
+            if (lockEnabled) {
+                applyLockGate(true);
+            } else if (pendingDestination != null) {
+                webView.loadUrl(pendingDestination);
+            } else if (!restoredPage) {
+                if (isOnline()) {
+                    webView.loadUrl(startUrl);
+                } else {
+                    dismissSplash();
+                    showOffline(null);
+                }
             }
 
             // اگر اجرای قبلی خطای ثبت‌شده داشت، تا اولین رندر موفق همین اجرا نشان داده و پاک می‌شود
@@ -355,146 +434,407 @@ public class MainActivity extends Activity {
             // ═══ بازگشت خودکار: به محض وصل شدن اینترنت، صفحه دوباره بارگذاری می‌شود ═══
             registerNetworkWatchers();
 
-            // ═══ قفل بیومتریک: اگر فعال باشد، اول ورود با اثر انگشت ═══
-            lockPrefs = getSharedPreferences(getString(R.string.biometric_prefs), Context.MODE_PRIVATE);
-            lockEnabled = lockPrefs.getBoolean(getString(R.string.biometric_prefs_key), false);
-            if (lockEnabled) {
-                applyLockGate(true);
-            }
         }
     }
 
-    // ─────────────────── قفل بیومتریک اپ ───────────────────
+    // ─────────────────── قفل بیومتریک و نشست حساب ───────────────────
 
-    /** آیا دستگاه قابلیت قفل بیومتریک دارد؟ — همان چندلایه‌ی پل JS (سنسور اثر انگشت حکم نهایی) */
     private boolean deviceHasBiometric() {
-        if (Build.VERSION.SDK_INT >= 30) {
-            try {
-                android.hardware.biometrics.BiometricManager bm =
-                        (android.hardware.biometrics.BiometricManager) getSystemService(Context.BIOMETRIC_SERVICE);
-                if (bm != null && bm.canAuthenticate(
-                        android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_WEAK)
-                        == android.hardware.biometrics.BiometricManager.BIOMETRIC_SUCCESS) return true;
-            } catch (Throwable ignored) { }
-        }
         try {
             if (Build.VERSION.SDK_INT >= 28) {
-                android.hardware.biometrics.BiometricManager bm =
+            android.hardware.biometrics.BiometricManager manager =
                         (android.hardware.biometrics.BiometricManager) getSystemService(Context.BIOMETRIC_SERVICE);
-                if (bm != null && bm.canAuthenticate() == android.hardware.biometrics.BiometricManager.BIOMETRIC_SUCCESS)
-                    return true;
+                if (manager != null) {
+                    int result = Build.VERSION.SDK_INT >= 30
+                            ? manager.canAuthenticate(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                            : manager.canAuthenticate();
+                    if (result == android.hardware.biometrics.BiometricManager.BIOMETRIC_SUCCESS) return true;
+                }
             }
         } catch (Throwable ignored) { }
         try {
-            if (Build.VERSION.SDK_INT >= 23) {
-                android.hardware.fingerprint.FingerprintManager fm =
-                        (android.hardware.fingerprint.FingerprintManager) getSystemService(Context.FINGERPRINT_SERVICE);
-                if (fm != null && fm.isHardwareDetected() && fm.hasEnrolledFingerprints()) return true;
-            }
-        } catch (Throwable ignored) { }
-        try {
-            android.app.KeyguardManager km = (android.app.KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
-            return km != null && km.isKeyguardSecure();
+            android.hardware.fingerprint.FingerprintManager manager =
+                    (android.hardware.fingerprint.FingerprintManager) getSystemService(Context.FINGERPRINT_SERVICE);
+            return manager != null && manager.isHardwareDetected() && manager.hasEnrolledFingerprints();
         } catch (Throwable ignored) { }
         return false;
     }
 
-    /** نمایش/پنهان کردن دروازه‌ی قفل روی همه‌ی لایه‌ها */
     private void applyLockGate(boolean locked) {
         if (lockGate == null) return;
         lockGate.setVisibility(locked ? View.VISIBLE : View.GONE);
-        if (locked) {
-            // اسپلش بلافاصله کنار برود؛ قفل جایش را می‌گیرد
-            dismissSplash();
-            if (!unlockedOnce) showBiometricPrompt(); // فقط بار اول؛ اگر قبلاً در همین اجرا باز شده، دوباره نپرس
-        }
+        if (!locked) return;
+        dismissSplash();
+        if (!unlockedOnce && !automaticPromptShown) showBiometricPrompt();
     }
 
-    /** پرامپت بیومتریک — API 28+ بیومتریک‌پرامپت سیستمی، قدیمی‌تر KeyguardManager */
     private void showBiometricPrompt() {
-        if (!deviceHasBiometric()) {
-            txtLockHint.setText(R.string.biometric_fail);
+        automaticPromptShown = true;
+        if (unlockPending) return;
+        if (biometricTokenStore == null || !biometricTokenStore.hasUsableToken()) {
+            txtLockHint.setText(R.string.biometric_token_unavailable);
             return;
         }
+        if (!deviceHasBiometric()) {
+            txtLockHint.setText(R.string.biometric_token_unavailable);
+            return;
+        }
+        try {
+            startBiometricAuthentication(BiometricAction.RESTORE,
+                    biometricTokenStore.newDecryptionCipher());
+        } catch (Exception e) {
+            cancelPendingAuthentication();
+            biometricTokenStore.clearTokenKeepEnabled();
+            txtLockHint.setText(R.string.biometric_token_unavailable);
+        }
+    }
+
+    void beginBiometricEnrollment(long expiresAtMillis) {
+        runOnUiThread(() -> {
+            if (!isProfileSettingsPage() || expiresAtMillis <= System.currentTimeMillis()) {
+                notifyProfileBiometricResult("enable", false);
+                return;
+            }
+            if (!deviceHasBiometric()) {
+                notifyProfileBiometricResult("enable", false);
+                return;
+            }
+            if (unlockPending) {
+                notifyProfileBiometricResult("enable", false);
+                return;
+            }
+            try {
+                pendingEnrollmentExpiry = expiresAtMillis;
+                startBiometricAuthentication(BiometricAction.ENROLL,
+                        biometricTokenStore.newEncryptionCipher());
+            } catch (Exception e) {
+                cancelPendingAuthentication();
+                notifyProfileBiometricResult("enable", false);
+            }
+        });
+    }
+
+    private void startBiometricAuthentication(BiometricAction action, Cipher cipher) throws Exception {
+        if (Build.VERSION.SDK_INT < 23 || cipher == null) throw new IllegalStateException("Biometric crypto unavailable");
         if (unlockPending) return;
         unlockPending = true;
+        final int generation = ++authGeneration;
+        activeAuthSignal = new android.os.CancellationSignal();
 
         if (Build.VERSION.SDK_INT >= 28) {
-            try {
-                android.hardware.biometrics.BiometricPrompt.Builder b =
-                        new android.hardware.biometrics.BiometricPrompt.Builder(this)
-                                .setTitle(getString(R.string.biometric_title))
-                                .setSubtitle(getString(R.string.biometric_hint));
-                if (Build.VERSION.SDK_INT >= 29) {
-                    // API 29+: اثر انگشت (یا credential دستگاه) — دستگاه‌های OEM که پرامپت را می‌شناسند
-                    b.setAllowedAuthenticators(
-                            android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_WEAK
-                          | android.hardware.biometrics.BiometricManager.Authenticators.DEVICE_CREDENTIAL);
-                } else {
-                    // API 28: فقط setDeviceCredentialAllowed مجاز است (setAllowedAuthenticators ندارد)
-                    b.setDeviceCredentialAllowed(true);
-                }
-                android.hardware.biometrics.BiometricPrompt prompt = b.build();
-                java.util.concurrent.Executor ex = ContextCompat_main();
-                prompt.authenticate(new android.os.CancellationSignal(), ex,
-                        new android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
-                            @Override
-                            public void onAuthenticationSucceeded(
-                                    android.hardware.biometrics.BiometricPrompt.AuthenticationResult result) {
-                                unlockPending = false;
-                                runOnUiThread(() -> onUnlockSuccess());
-                            }
-                            @Override
-                            public void onAuthenticationError(int code, CharSequence errString) {
-                                unlockPending = false;
-                                runOnUiThread(() -> {
-                                    if (code == 1 /* USER_CANCELED */ || code == 2 /* NEGATIVE_BUTTON */) {
-                                        txtLockHint.setText(R.string.biometric_hint); // بماند تا دکمه بزند
-                                    } else {
-                                        txtLockHint.setText(errString != null ? errString.toString() : getString(R.string.biometric_fail));
-                                    }
-                                });
-                            }
-                            @Override
-                            public void onAuthenticationFailed() {
-                                runOnUiThread(() -> txtLockHint.setText(R.string.biometric_fail));
-                            }
-                        });
-                return;
-            } catch (Throwable t) {
-                unlockPending = false; // به fallback می‌رود
+            android.hardware.biometrics.BiometricPrompt.Builder builder =
+                    new android.hardware.biometrics.BiometricPrompt.Builder(this)
+                            .setTitle(getString(R.string.biometric_title))
+                            .setSubtitle(action == BiometricAction.ENROLL
+                                    ? getString(R.string.biometric_prompt_enroll)
+                                    : getString(R.string.biometric_hint))
+                            .setNegativeButton(getString(R.string.biometric_cancel),
+                                    command -> mainHandler.post(command), (dialog, which) -> { });
+            if (Build.VERSION.SDK_INT >= 30) {
+                builder.setAllowedAuthenticators(
+                        android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG);
             }
+            android.hardware.biometrics.BiometricPrompt prompt = builder.build();
+            prompt.authenticate(new android.hardware.biometrics.BiometricPrompt.CryptoObject(cipher),
+                    activeAuthSignal, command -> mainHandler.post(command),
+                    new android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
+                        @Override
+                        public void onAuthenticationSucceeded(
+                                android.hardware.biometrics.BiometricPrompt.AuthenticationResult result) {
+                            android.hardware.biometrics.BiometricPrompt.CryptoObject crypto = result.getCryptoObject();
+                            onBiometricAuthenticated(generation, action,
+                                    crypto == null ? null : crypto.getCipher());
+                        }
+
+                        @Override
+                        public void onAuthenticationError(int code, CharSequence message) {
+                            onBiometricError(generation, action, message);
+                        }
+
+                        @Override
+                        public void onAuthenticationFailed() {
+                            runOnUiThread(() -> {
+                                if (generation == authGeneration && txtLockHint != null)
+                                    txtLockHint.setText(R.string.biometric_fail);
+                            });
+                        }
+                    });
+            return;
         }
 
-        // API 23 تا 27: تأیید صفحه‌قفل دستگاه (اثر انگورتا/الگو/PIN)
-        try {
-            android.app.KeyguardManager km = (android.app.KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
-            Intent i = km.createConfirmDeviceCredentialIntent(
-                    getString(R.string.biometric_title), getString(R.string.biometric_hint));
-            startActivityForResult(i, BIOMETRIC_CONFIRM_REQ);
-        } catch (Exception e) {
+        android.hardware.fingerprint.FingerprintManager manager =
+                (android.hardware.fingerprint.FingerprintManager) getSystemService(Context.FINGERPRINT_SERVICE);
+        if (manager == null || !manager.isHardwareDetected() || !manager.hasEnrolledFingerprints()) {
+            throw new IllegalStateException("Fingerprint authentication unavailable");
+        }
+        legacyBiometricDialog = new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.biometric_title))
+                .setMessage(getString(action == BiometricAction.ENROLL
+                        ? R.string.biometric_prompt_enroll : R.string.biometric_hint))
+                .setNegativeButton(getString(R.string.biometric_cancel),
+                        (dialog, which) -> { if (activeAuthSignal != null) activeAuthSignal.cancel(); })
+                .setOnCancelListener(dialog -> { if (activeAuthSignal != null) activeAuthSignal.cancel(); })
+                .show();
+        manager.authenticate(new android.hardware.fingerprint.FingerprintManager.CryptoObject(cipher),
+                activeAuthSignal, 0,
+                new android.hardware.fingerprint.FingerprintManager.AuthenticationCallback() {
+                    @Override
+                    public void onAuthenticationSucceeded(
+                            android.hardware.fingerprint.FingerprintManager.AuthenticationResult result) {
+                        android.hardware.fingerprint.FingerprintManager.CryptoObject crypto = result.getCryptoObject();
+                        onBiometricAuthenticated(generation, action,
+                                crypto == null ? null : crypto.getCipher());
+                    }
+
+                    @Override
+                    public void onAuthenticationError(int code, CharSequence message) {
+                        onBiometricError(generation, action, message);
+                    }
+
+                    @Override
+                    public void onAuthenticationFailed() {
+                        runOnUiThread(() -> {
+                            if (generation == authGeneration && txtLockHint != null)
+                                txtLockHint.setText(R.string.biometric_fail);
+                        });
+                    }
+                }, new Handler(Looper.getMainLooper()));
+    }
+
+    private void onBiometricAuthenticated(int generation, BiometricAction action, Cipher cipher) {
+        runOnUiThread(() -> {
+            if (generation != authGeneration || isFinishing()) return;
             unlockPending = false;
-            txtLockHint.setText(R.string.biometric_fail);
+            activeAuthSignal = null;
+            dismissLegacyBiometricDialog();
+            if (cipher == null) {
+                onBiometricError(generation, action, getString(R.string.biometric_fail));
+                return;
+            }
+            if (action == BiometricAction.ENROLL) {
+                boolean saved = false;
+                try {
+                    saved = biometricTokenStore.encryptAndEnable(
+                            pendingEnrollmentExpiry, cipher);
+                } catch (Exception ignored) { }
+                pendingEnrollmentExpiry = 0L;
+                if (saved) {
+                    lockEnabled = true;
+                    unlockedOnce = true;
+                }
+                notifyProfileBiometricResult("enable", saved);
+                return;
+            }
+
+            try {
+                if (!biometricTokenStore.hasUsableToken()) throw new IllegalStateException("Token expired");
+                String storedValue = biometricTokenStore.decrypt(cipher);
+                if (BiometricTokenStore.isSessionMarker(storedValue)) {
+                    beginSessionRestore();
+                } else {
+                    throw new IllegalArgumentException("Invalid biometric session marker");
+                }
+            } catch (Exception e) {
+                biometricTokenStore.clearTokenKeepEnabled();
+                txtLockHint.setText(R.string.biometric_token_unavailable);
+            }
+        });
+    }
+
+    private void onBiometricError(int generation, BiometricAction action, CharSequence message) {
+        runOnUiThread(() -> {
+            if (generation != authGeneration) return;
+            unlockPending = false;
+            activeAuthSignal = null;
+            dismissLegacyBiometricDialog();
+            pendingEnrollmentExpiry = 0L;
+            if (action == BiometricAction.ENROLL) {
+                notifyProfileBiometricResult("enable", false);
+            } else if (txtLockHint != null) {
+                if (message == null || message.length() == 0) txtLockHint.setText(R.string.biometric_fail);
+                else txtLockHint.setText(message);
+            }
+        });
+    }
+
+    private void beginSessionRestore() {
+        if (!isOurUrl(startUrl) || webView == null) {
+            failSessionRestore(false);
+            return;
+        }
+        restorationPending = true;
+        verifyingRestoredSession = false;
+        biometricSessionLanding = null;
+        txtLockHint.setText(R.string.biometric_ok);
+        mainHandler.removeCallbacks(restorationTimeout);
+        mainHandler.postDelayed(restorationTimeout, SESSION_RESTORE_TIMEOUT_MS);
+        webView.loadUrl("https://" + expectedHost + "/api/v1/auth/biometric-session");
+    }
+
+    private void onSessionRestorePageCommitted(String url) {
+        if (!isOurUrl(url) || isLoginUrl(url) || isBiometricSessionUrl(url)) {
+            failSessionRestore(true);
+            return;
+        }
+        if (isProfileConfirmationUrl(url)) {
+            if (!verifyingRestoredSession) biometricSessionLanding = url;
+            completeSessionRestore();
+            return;
+        }
+        if (!verifyingRestoredSession) {
+            verifyingRestoredSession = true;
+            biometricSessionLanding = url;
+            webView.loadUrl("https://" + expectedHost + "/Profile/Index");
+            return;
+        }
+        failSessionRestore(true);
+    }
+
+    private void completeSessionRestore() {
+        restorationPending = false;
+        verifyingRestoredSession = false;
+        mainHandler.removeCallbacks(restorationTimeout);
+        android.webkit.CookieManager.getInstance().flush();
+        unlockedOnce = true;
+        String destination = pendingDestination;
+        pendingDestination = null;
+        if (destination == null) destination = biometricSessionLanding;
+        biometricSessionLanding = null;
+        if (destination != null && isOurUrl(destination) && !destination.equals(currentTopLevelUrl)) {
+            webView.loadUrl(destination);
+        }
+        mainHandler.postDelayed(() -> applyLockGate(false), 180);
+    }
+
+    private void failSessionRestore(boolean discardToken) {
+        if (!restorationPending && !lockEnabled) return;
+        restorationPending = false;
+        verifyingRestoredSession = false;
+        biometricSessionLanding = null;
+        mainHandler.removeCallbacks(restorationTimeout);
+        if (discardToken && biometricTokenStore != null) biometricTokenStore.clearTokenKeepEnabled();
+        if (txtLockHint != null) txtLockHint.setText(R.string.biometric_session_failed);
+    }
+
+    private void beginAccountLogin() {
+        cancelPendingAuthentication();
+        restorationPending = false;
+        verifyingRestoredSession = false;
+        mainHandler.removeCallbacks(restorationTimeout);
+        if (biometricTokenStore == null || webView == null) return;
+        try { biometricTokenStore.disable(); } catch (Exception ignored) { }
+        lockEnabled = false;
+        accountLoginPending = true;
+        lockGate.setVisibility(View.GONE);
+        hideOffline();
+        webView.setVisibility(View.VISIBLE);
+        webView.loadUrl("https://" + expectedHost + "/Account/Login?returnUrl=%2FProfile%2FIndex");
+    }
+
+    private void finishAccountLogin() {
+        accountLoginPending = false;
+        unlockedOnce = true;
+        String destination = pendingDestination;
+        pendingDestination = null;
+        applyLockGate(false);
+        if (destination != null && isOurUrl(destination)) webView.loadUrl(destination);
+    }
+
+    private void cancelPendingAuthentication() {
+        authGeneration++;
+        if (activeAuthSignal != null) {
+            try { activeAuthSignal.cancel(); } catch (Exception ignored) { }
+        }
+        activeAuthSignal = null;
+        dismissLegacyBiometricDialog();
+        unlockPending = false;
+        pendingEnrollmentExpiry = 0L;
+    }
+
+    private void dismissLegacyBiometricDialog() {
+        if (legacyBiometricDialog != null) {
+            legacyBiometricDialog.dismiss();
+            legacyBiometricDialog = null;
         }
     }
 
-    private java.util.concurrent.Executor ContextCompat_main() {
-        // اجرا روی main thread — بدون androidx
-        return java.util.concurrent.Executors.newSingleThreadExecutor();
+    private void notifyProfileBiometricResult(String action, boolean success) {
+        if (webView == null || !isProfileSettingsPage()) return;
+        String js = "window.SugarShopBiometric&&window.SugarShopBiometric.onResult('"
+                + action + "'," + (success ? "true" : "false") + ");";
+        webView.evaluateJavascript(js, null);
     }
 
-    private void onUnlockSuccess() {
-        unlockedOnce = true; // دیگر در این اجرا پرامپت خودکار تکرار نمی‌شود
-        txtLockHint.setText(R.string.biometric_ok);
-        mainHandler.postDelayed(() -> applyLockGate(false), 350);
+    boolean isBiometricLockEnabled() {
+        return biometricTokenStore != null && biometricTokenStore.isEnabled();
     }
 
-    private void disableAppLock() {
-        lockPrefs.edit().putBoolean(getString(R.string.biometric_prefs_key), false).apply();
-        lockEnabled = false;
-        applyLockGate(false);
-        android.widget.Toast.makeText(this, getString(R.string.biometric_disabled_by_user),
-                android.widget.Toast.LENGTH_LONG).show();
+    boolean isBridgePageTrusted() {
+        return isOurUrl(currentTopLevelUrl);
+    }
+
+    boolean isOtpPageTrusted() {
+        return isBridgePageTrusted() && isLoginUrl(currentTopLevelUrl);
+    }
+
+    void startOtpListener() {
+        if (!isOtpPageTrusted() || smsOtpReceiver == null) return;
+        if (checkSelfPermission(android.Manifest.permission.RECEIVE_SMS)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            smsOtpReceiver.start(this);
+        } else {
+            requestPermissions(new String[] { android.Manifest.permission.RECEIVE_SMS }, SMS_PERMISSION_REQUEST);
+        }
+    }
+
+    void stopOtpListener() {
+        if (smsOtpReceiver != null) smsOtpReceiver.stop(this);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == SMS_PERMISSION_REQUEST && grantResults.length > 0
+                && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED
+                && isOtpPageTrusted() && smsOtpReceiver != null) {
+            smsOtpReceiver.start(this);
+        }
+    }
+
+    private boolean isProfileSettingsPage() {
+        if (!isBridgePageTrusted()) return false;
+        String path = Uri.parse(currentTopLevelUrl).getPath();
+        return path != null && ("/Profile".equalsIgnoreCase(path)
+                || "/Profile/Index".equalsIgnoreCase(path));
+    }
+
+    void disableBiometricLockFromProfile() {
+        runOnUiThread(() -> {
+            if (!isProfileSettingsPage() || biometricTokenStore == null) {
+                notifyProfileBiometricResult("disable", false);
+                return;
+            }
+            boolean success = false;
+            try { success = biometricTokenStore.disable(); } catch (Exception ignored) { }
+            if (success) {
+                lockEnabled = false;
+                unlockedOnce = true;
+                applyLockGate(false);
+            }
+            notifyProfileBiometricResult("disable", success);
+        });
+    }
+
+    private void attachBridge() {
+        if (webView == null || appBridge == null || bridgeAttached) return;
+        webView.addJavascriptInterface(appBridge, "SugarShopApp");
+        bridgeAttached = true;
+    }
+
+    private void detachBridge() {
+        if (webView == null || !bridgeAttached) return;
+        webView.removeJavascriptInterface("SugarShopApp");
+        bridgeAttached = false;
     }
 
     // ─────────────────────── اسپلش ───────────────────────
@@ -706,15 +1046,6 @@ public class MainActivity extends Activity {
             }
             return;
         }
-        if (requestCode == BIOMETRIC_CONFIRM_REQ) {
-            unlockPending = false;
-            if (resultCode == RESULT_OK) {
-                onUnlockSuccess();
-            } else {
-                txtLockHint.setText(R.string.biometric_hint);
-            }
-            return;
-        }
         super.onActivityResult(requestCode, resultCode, data);
     }
 
@@ -729,42 +1060,148 @@ public class MainActivity extends Activity {
         super.onResume();
         // اگر کاربر از تنظیمات وای‌فای برگشت، تلاش مجدد خودکار
         if (isOfflineShown && isOnline()) retryLoad();
-        // قفل فعال باشد و هنوز باز نشده → دوباره بپرس (فقط تا اولین باز شدن موفق همین اجرا)
-        if (lockEnabled && !unlockedOnce && lockGate != null
-                && lockGate.getVisibility() == View.VISIBLE && !unlockPending) {
-            showBiometricPrompt();
+        if (isOtpPageTrusted() && smsOtpReceiver != null
+                && checkSelfPermission(android.Manifest.permission.RECEIVE_SMS)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            smsOtpReceiver.start(this);
         }
+    }
+
+    @Override
+    protected void onPause() {
+        if (smsOtpReceiver != null) smsOtpReceiver.stop(this);
+        super.onPause();
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        // بازگشت از درگاه پرداخت: اپ همین حالا باز است؛ فقط صفحه‌ی مقصد را لود کن
+        setIntent(intent);
         if (intent != null && webView != null) {
-            String url = intent.getStringExtra("url");
-            if (url != null && isOurUrl(url)) {
-                runOnUiThread(() -> webView.loadUrl(url));
+            String url = getIncomingUrl(intent);
+            if (url != null) {
+                if (lockEnabled && ((lockGate != null && lockGate.getVisibility() == View.VISIBLE)
+                        || accountLoginPending || restorationPending)) {
+                    pendingDestination = url;
+                } else {
+                    runOnUiThread(() -> webView.loadUrl(url));
+                }
             }
         }
     }
 
     private boolean isOurUrl(String url) {
         try {
-            Uri u = Uri.parse(url);
-            return expectedHost != null && expectedHost.equals(u.getHost()) && "https".equals(u.getScheme());
+            return url != null && isFirstPartyUri(Uri.parse(url));
         } catch (Exception e) {
             return false;
         }
     }
 
-    /** آیا این هاست، درگاه پرداخت است؟ (درگاه‌ها داخل اپ باز می‌شوند تا بازگشت به اپ ممکن باشد) */
-    private static boolean isPaymentGatewayHost(String host) {
-        if (host == null) return false;
-        String h = host.toLowerCase();
-        return h.equals("gateway.zibal.ir") || h.endsWith(".zibal.ir")
-            || h.equals("www.zarinpal.com") || h.equals("zarinpal.com")
-            || h.endsWith(".zarinpal.com")
-            || h.equals("sandbox.zarinpal.com");
+    private boolean isFirstPartyUri(Uri uri) {
+        return expectedHost != null && uri != null && !uri.isOpaque()
+                && "https".equalsIgnoreCase(uri.getScheme())
+                && uri.getHost() != null && expectedHost.equalsIgnoreCase(uri.getHost())
+                && uri.getUserInfo() == null && (uri.getPort() == -1 || uri.getPort() == 443);
+    }
+
+    private static boolean isSecureHttpUri(Uri uri) {
+        return uri != null && !uri.isOpaque() && "https".equalsIgnoreCase(uri.getScheme())
+                && uri.getHost() != null && uri.getUserInfo() == null
+                && (uri.getPort() == -1 || uri.getPort() == 443);
+    }
+
+    private static boolean isPaymentGatewayUri(Uri uri) {
+        if (!isSecureHttpUri(uri)) return false;
+        String host = uri.getHost().toLowerCase(Locale.US);
+        return host.equals("zibal.ir") || host.endsWith(".zibal.ir");
+    }
+
+    private boolean isPaymentGatewayPage() {
+        try { return currentTopLevelUrl != null && isPaymentGatewayUri(Uri.parse(currentTopLevelUrl)); }
+        catch (Exception ignored) { return false; }
+    }
+
+    private boolean routeNavigation(String rawUrl) {
+        Uri uri;
+        try { uri = Uri.parse(rawUrl); } catch (Exception ignored) { return true; }
+        if (restorationPending && !isFirstPartyUri(uri)) failSessionRestore(true);
+        if (accountLoginPending) {
+            if (isFirstPartyUri(uri) && isAccountLoginFlowUrl(uri)) return false;
+            return true;
+        }
+        if (isFirstPartyUri(uri) || isPaymentGatewayUri(uri)) return false;
+        if (!isSafeExternalUri(uri)) return true;
+        openExternal(uri);
+        return true;
+    }
+
+    private void openExternal(Uri uri) {
+        try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); }
+        catch (ActivityNotFoundException ignored) { }
+    }
+
+    private boolean isSafeExternalUri(Uri uri) {
+        if (uri == null || uri.isOpaque() || uri.getHost() == null || uri.getUserInfo() != null) return false;
+        String scheme = uri.getScheme();
+        return "https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme);
+    }
+
+    private boolean isHtmlDocumentRequest(android.webkit.WebResourceRequest request) {
+        String accept = request.getRequestHeaders().get("Accept");
+        return accept != null && accept.toLowerCase(Locale.US).contains("text/html");
+    }
+
+    private String getIncomingUrl(Intent intent) {
+        if (intent == null) return null;
+        Uri data = intent.getData();
+        if (data != null && isFirstPartyUri(data)) return data.toString();
+        String extra = intent.getStringExtra("url");
+        return isOurUrl(extra) ? extra : null;
+    }
+
+    private boolean isLoginUrl(String url) {
+        if (!isOurUrl(url)) return false;
+        String path = Uri.parse(url).getPath();
+        return path != null && ("/Account/Login".equalsIgnoreCase(path)
+                || "/Identity/Account/Login".equalsIgnoreCase(path));
+    }
+
+    private boolean isBiometricSessionUrl(String url) {
+        if (!isOurUrl(url)) return false;
+        return "/api/v1/auth/biometric-session".equalsIgnoreCase(Uri.parse(url).getPath());
+    }
+
+    private boolean isAuthenticatedProfileUrl(String url) {
+        if (!isOurUrl(url)) return false;
+        String path = Uri.parse(url).getPath();
+        return path != null && ("/Profile".equalsIgnoreCase(path)
+                || "/Profile/Index".equalsIgnoreCase(path)
+                || isPathOrChild(path, "/Admin")
+                || isPathOrChild(path, "/Chef"));
+    }
+
+    private boolean isProfileConfirmationUrl(String url) {
+        if (!isOurUrl(url)) return false;
+        String path = Uri.parse(url).getPath();
+        return path != null && ("/Profile".equalsIgnoreCase(path)
+                || "/Profile/Index".equalsIgnoreCase(path));
+    }
+
+    private boolean isAccountLoginFlowUrl(Uri uri) {
+        String path = uri.getPath();
+        if (path == null) return false;
+        return "/Account/Login".equalsIgnoreCase(path)
+                || "/Profile".equalsIgnoreCase(path)
+                || "/Profile/Index".equalsIgnoreCase(path)
+                || isPathOrChild(path, "/Admin")
+                || isPathOrChild(path, "/Chef");
+    }
+
+    private static boolean isPathOrChild(String path, String root) {
+        return root.equalsIgnoreCase(path)
+                || (path.length() > root.length()
+                && path.regionMatches(true, 0, root + "/", 0, root.length() + 1));
     }
 
     @Override
@@ -789,6 +1226,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         mainHandler.removeCallbacks(splashTimeout);
+        mainHandler.removeCallbacks(restorationTimeout);
+        cancelPendingAuthentication();
         if (smsOtpReceiver != null) smsOtpReceiver.stop(this);
         try {
             if (networkCallback != null && connectivityManager != null) {
@@ -799,6 +1238,7 @@ public class MainActivity extends Activity {
             }
         } catch (Exception ignored) { }
         if (webView != null) {
+            detachBridge();
             webView.destroy();
         }
         super.onDestroy();

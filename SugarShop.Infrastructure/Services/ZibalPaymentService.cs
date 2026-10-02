@@ -43,7 +43,7 @@ namespace SugarShop.Infrastructure.Services
             var response = await _httpClient.PostAsync(_requestUrl, content);
             var responseString = await response.Content.ReadAsStringAsync();
 
-            _logger.LogInformation("Zibal RequestPayment response: {Response}", responseString);
+            _logger.LogInformation("Zibal payment-session request returned HTTP {StatusCode}.", (int)response.StatusCode);
 
             try
             {
@@ -88,7 +88,7 @@ namespace SugarShop.Infrastructure.Services
             var response = await _httpClient.PostAsync(_verifyUrl, content);
             var responseString = await response.Content.ReadAsStringAsync();
 
-            _logger.LogInformation("Zibal Verify response: {Response}", responseString);
+            _logger.LogInformation("Zibal payment verification returned HTTP {StatusCode}.", (int)response.StatusCode);
 
             try
             {

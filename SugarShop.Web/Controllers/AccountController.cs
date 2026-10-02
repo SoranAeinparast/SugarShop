@@ -372,6 +372,14 @@ namespace SugarShop.Web.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Logout()
         {
+            Response.Cookies.Delete("SugarShopBiometric", new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Strict,
+                IsEssential = true,
+                Path = "/api/v1/auth/biometric-session"
+            });
             await _signInManager.SignOutAsync();
             HttpContext.Session.Clear();
             return RedirectToAction("Index", "Home");

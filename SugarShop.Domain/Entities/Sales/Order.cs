@@ -11,7 +11,8 @@ namespace SugarShop.Domain.Entities.Sales
         Preparing = 4,
         Shipped = 5,
         Delivered = 6,
-        Cancelled = 7
+        Cancelled = 7,
+        PaymentReview = 8
     }
 
     public enum PaymentStatus
@@ -19,7 +20,9 @@ namespace SugarShop.Domain.Entities.Sales
         Unpaid = 1,
         Initiated = 2,
         Succeeded = 3,
-        Failed = 4
+        Failed = 4,
+        RefundRequired = 5,
+        Refunded = 6
     }
 
     // ✅ enum جدید برای روش تحویل
@@ -58,6 +61,9 @@ namespace SugarShop.Domain.Entities.Sales
         /// جلوی کسر دوباره را می‌گیرد.
         /// </summary>
         public DateTime? InventoryDeductedAt { get; set; }
+
+        /// <summary>زمان اعمال یک‌بارهٔ کش‌بک تحویل این سفارش.</summary>
+        public DateTime? CashbackAppliedAt { get; set; }
         public string CustomerName { get; set; } = "";
         public string CustomerPhone { get; set; } = "";
         public int? DiscountCodeId { get; set; }

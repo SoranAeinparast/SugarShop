@@ -157,6 +157,7 @@
                                                 OrderStatus.Preparing => "primary",
                                                 OrderStatus.Delivered => "success",
                                                 OrderStatus.Cancelled => "danger",
+                                                OrderStatus.PaymentReview => "danger",
                                                 _ => "secondary"
                                             })">@Model.LastOrder.OrderStatus.ToFarsi()</span>
                                         </div>
@@ -228,10 +229,10 @@
         <div>
             <b>ورود با اثر انگشت</b>
             <small class="d-block text-muted mt-1">
-                با فعال کردن این گزینه، هر بار باز کردن اپلیکیشن با اثر انگشت (یا قفل صفحه‌ی گوشی) باز می‌شود.
+                با فعال کردن این گزینه، برای باز کردن اپلیکیشن باید هر بار احراز هویت بیومتریک انجام دهید.
             </small>
             <small class="d-block text-danger mt-1" id="bioLockUnavailable" style="display:none">
-                ابتدا در تنظیمات گوشی، اثر انگشت (یا قفل صفحه) را ثبت کنید.
+                ابتدا در تنظیمات گوشی، اثر انگشت یا روش بیومتریک پشتیبانی‌شده را ثبت کنید.
             </small>
         </div>
         <div class="form-check form-switch" style="transform:scale(1.4)">
@@ -249,46 +250,112 @@
         var card = document.getElementById('bioLockCard');
         var sw = document.getElementById('bioLockSwitch');
         var unavailable = document.getElementById('bioLockUnavailable');
-
-        if (!bridge.isBiometricAvailable()) {
-            card.style.display = '';
-            sw.disabled = true;
-            unavailable.style.display = '';
-            return;
-        }
+        var pending = false;
+        var biometricAvailable = bridge.isBiometricAvailable();
 
         card.style.display = '';
         sw.checked = bridge.isBiometricLockEnabled();
+        if (!biometricAvailable) {
+            unavailable.style.display = '';
+            sw.disabled = !sw.checked;
+        }
+
+        function showResult(success, enabled) {
+            pending = false;
+            sw.disabled = !biometricAvailable && !bridge.isBiometricLockEnabled();
+            sw.checked = success ? enabled : bridge.isBiometricLockEnabled();
+            if (window.Swal) {
+                Swal.fire({
+                    icon: success ? 'success' : 'error',
+                    title: success ? (enabled ? 'ورود بیومتریک فعال شد' : 'ورود بیومتریک غیرفعال شد') : 'تغییر انجام نشد',
+                    text: success ? '' : 'لطفاً دوباره تلاش کنید.',
+                    confirmButtonColor: '#d4a056',
+                    timer: success ? 2200 : undefined,
+                    showConfirmButton: !success
+                });
+            }
+        }
+
+        window.SugarShopBiometric = {
+            onResult: function (action, success) {
+                showResult(success === true, action === 'enable');
+            }
+        };
+
+        function enroll() {
+            pending = true;
+            sw.disabled = true;
+            fetch('/api/v1/auth/biometric-token', {
+                method: 'POST',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: { 'Accept': 'application/json' }
+            }).then(function (response) {
+                if (!response.ok) throw new Error('Token request failed');
+                return response.json();
+            }).then(function (data) {
+                var expiry = Number(data.expiresAtUnixMs);
+                if (data.success !== true || !isFinite(expiry) || expiry <= Date.now()) {
+                    throw new Error('Invalid biometric session response');
+                }
+                bridge.enableBiometricLock(String(expiry));
+            }).catch(function () {
+                showResult(false, false);
+            });
+        }
 
         sw.addEventListener('change', function () {
+            if (pending) return;
             var on = sw.checked;
-            function apply() {
-                if (on) bridge.enableBiometricLock(); else bridge.disableBiometricLock();
-                if (window.Swal) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: on ? 'قفل فعال شد 🔒' : 'قفل خاموش شد',
-                        text: on ? 'از این پس باز کردن اپلیکیشن نیاز به اثر انگشت دارد.' : 'اپلیکیشن بدون اثر انگشت باز می‌شود.',
-                        confirmButtonColor: '#d4a056',
-                        timer: 2500,
-                        showConfirmButton: false
-                    });
-                }
-            }
-            if (window.Swal && on) {
-                Swal.fire({
-                    icon: 'question',
-                    title: 'فعال‌سازی قفل اثر انگشت؟',
-                    text: 'هر بار باز کردن اپلیکیشن باید اثر انگشت (یا قفل صفحه‌ی گوشی) را تأیید کنید.',
-                    showCancelButton: true,
-                    confirmButtonText: 'بله، فعال کن',
-                    cancelButtonText: 'انصراف',
-                    confirmButtonColor: '#d4a056'
-                }).then(function (r) {
-                    if (r.isConfirmed) apply(); else sw.checked = false;
+            var wasEnabled = bridge.isBiometricLockEnabled();
+            if (on) {
+                sw.checked = wasEnabled;
+                if (!biometricAvailable) return;
+                var confirmEnable = window.Swal
+                    ? Swal.fire({
+                        icon: 'question',
+                        title: 'فعال‌سازی ورود بیومتریک؟',
+                        text: 'برای فعال‌سازی، نشست امن حساب روی همین دستگاه ثبت و قفل بیومتریک راه‌اندازی می‌شود.',
+                        showCancelButton: true,
+                        confirmButtonText: 'بله، فعال کن',
+                        cancelButtonText: 'انصراف',
+                        confirmButtonColor: '#d4a056'
+                    }).then(function (r) { return r.isConfirmed; })
+                    : Promise.resolve(window.confirm('ورود بیومتریک فعال شود؟'));
+                confirmEnable.then(function (confirmed) {
+                    if (confirmed) enroll(); else sw.checked = wasEnabled;
                 });
             } else {
-                apply();
+                sw.checked = true;
+                var confirmDisable = window.Swal
+                    ? Swal.fire({
+                        icon: 'question',
+                        title: 'غیرفعال‌سازی ورود بیومتریک؟',
+                        showCancelButton: true,
+                        confirmButtonText: 'غیرفعال کن',
+                        cancelButtonText: 'انصراف',
+                        confirmButtonColor: '#d4a056'
+                    }).then(function (r) { return r.isConfirmed; })
+                    : Promise.resolve(window.confirm('ورود بیومتریک غیرفعال شود؟'));
+                confirmDisable.then(function (confirmed) {
+                    if (!confirmed) {
+                        sw.checked = wasEnabled;
+                        return;
+                    }
+                    pending = true;
+                    sw.disabled = true;
+                    fetch('/api/v1/auth/biometric-token', {
+                        method: 'DELETE',
+                        credentials: 'same-origin',
+                        cache: 'no-store',
+                        headers: { 'Accept': 'application/json' }
+                    }).then(function (response) {
+                        if (!response.ok) throw new Error('Could not clear biometric session');
+                        bridge.disableBiometricLock();
+                    }).catch(function () {
+                        showResult(false, true);
+                    });
+                });
             }
         });
     })();

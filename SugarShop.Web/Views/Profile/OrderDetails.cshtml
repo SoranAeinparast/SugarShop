@@ -158,6 +158,7 @@
                         OrderStatus.Shipped => "ارسال شده",
                         OrderStatus.Delivered => "تحویل شده",
                         OrderStatus.Cancelled => "لغو شده",
+                        OrderStatus.PaymentReview => "نیازمند بررسی پرداخت",
                         _ => "نامشخص"
                     })
                 </span>
@@ -169,10 +170,18 @@
                         PaymentStatus.Initiated => "در حال پرداخت",
                         PaymentStatus.Succeeded => "پرداخت موفق",
                         PaymentStatus.Failed => "پرداخت ناموفق",
+                        PaymentStatus.RefundRequired => "نیازمند پیگیری/استرداد",
+                        PaymentStatus.Refunded => "مسترد شده",
                         _ => "نامشخص"
                     })
                 </span>
             </p>
+            @if (Model.OrderStatus == OrderStatus.PaymentReview || Model.PaymentStatus == PaymentStatus.RefundRequired)
+            {
+                <div class="alert alert-danger mt-3" role="alert">
+                    پرداخت بانکی دریافت شده اما سفارش هنوز تأیید نشده است. لطفاً دوباره پرداخت نکنید؛ پشتیبانی برای تأمین کالا یا استرداد وجه پیگیری می‌کند.
+                </div>
+            }
         </div>
     </div>
 </div>    @if (productItems.Any())

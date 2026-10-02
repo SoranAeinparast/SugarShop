@@ -76,6 +76,7 @@ public class SmsOtpReceiver {
         if (receiver == null) return;
         try { context.unregisterReceiver(receiver); } catch (Exception ignored) { }
         receiver = null;
+        lastCode = null;
     }
 
     /** آخرین کد استخراج‌شده (فقط وقتی receiver فعال است مقدار دارد) */

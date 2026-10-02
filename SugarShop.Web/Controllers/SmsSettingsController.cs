@@ -257,8 +257,8 @@ namespace SugarShop.Web.Controllers
             if (status.HasValue) query = query.Where(l => (int)l.Status == status.Value);
             if (!string.IsNullOrWhiteSpace(phone))
             {
-                var p = SmsService.NormalizePhone(phone);
-                query = query.Where(l => l.PhoneNumber.Contains(p));
+                var p = SmsService.MaskPhone(phone);
+                query = query.Where(l => l.PhoneNumber == p);
             }
 
             var total = await query.CountAsync();

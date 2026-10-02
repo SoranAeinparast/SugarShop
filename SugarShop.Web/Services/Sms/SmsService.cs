@@ -162,6 +162,12 @@ namespace SugarShop.Web.Services.Sms
         public static bool IsValidIranMobile(string phone)
             => NormalizePhone(phone).Length == 11 && NormalizePhone(phone).StartsWith("09");
 
+        public static string MaskPhone(string? phone)
+        {
+            var normalized = NormalizePhone(phone);
+            return normalized.Length >= 4 ? "******" + normalized[^4..] : "******";
+        }
+
         /// <summary>جایگذاری متغیرها در متن قالب: {CustomerName} {OrderCode} {SiteName} ...</summary>
         public static string Render(string template, Dictionary<string, string>? vars)
         {
@@ -235,8 +241,9 @@ namespace SugarShop.Web.Services.Sms
                 {
                     // مرز «امروز» به وقت ایران محاسبه می‌شود تا سقف روزانه در نیمه‌شب ایران صفر شود
                     var midnightUtc = IranClock.DayStartUtc;
+                    var maskedPhone = MaskPhone(normalized);
                     var todayCount = await _db.SmsLogs.CountAsync(l =>
-                        l.PhoneNumber == normalized && l.SentAt >= midnightUtc &&
+                        l.PhoneNumber == maskedPhone && l.SentAt >= midnightUtc &&
                         (l.Status == SmsSendStatus.Sent || l.Status == SmsSendStatus.Pending));
                     if (todayCount >= settings.MaxSmsPerPhonePerDay)
                     {
@@ -268,7 +275,7 @@ namespace SugarShop.Web.Services.Sms
         }
 
         /// <summary>ارسال فوری (صف پردازنده این متد را صدا می‌زند). لاگ و خطا ذخیره می‌شود.</summary>
-        public async Task SendNowAsync(string phone, string message, SmsScenario scenario,
+        public async Task<SmsSendResult> SendNowAsync(string phone, string message, SmsScenario scenario,
             SmsRecipientType recipientType = SmsRecipientType.Customer, string? refKey = null)
         {
             var settings = await GetSettingsAsync();
@@ -277,30 +284,25 @@ namespace SugarShop.Web.Services.Sms
             if (!settings.IsEnabled)
             {
                 await WriteLogAsync(settings, normalized, message, SmsSendStatus.BlockedDisabled, "سامانه غیرفعال", recipientType, scenario);
-                return;
+                return SmsSendResult.Fail("سامانه پیامکی غیرفعال است.");
             }
 
             SmsSendResult result;
             if (settings.SandboxMode || string.IsNullOrWhiteSpace(settings.ApiKey))
             {
-                // حالت آزمایشی: هیچ پیامکی واقعاً ارسال نمی‌شود ولی لاگ کامل ثبت می‌گردد
-                _logger.LogInformation("[SMS SANDBOX] to {Phone} ({Scenario}): {Message}", normalized, scenario, message);
+                // حالت آزمایشی بدون ثبت شماره، متن یا کد حساس در لاگ.
+                _logger.LogInformation("[SMS SANDBOX] simulated delivery for {Phone} ({Scenario})", MaskPhone(normalized), scenario);
                 result = SmsSendResult.Ok(0, "sandbox");
             }
             else
             {
                 result = await _smsIr.SendBulkAsync(settings.ApiKey, settings.SenderNumber, new[] { normalized }, message);
-                if (!result.Success)
-                {
-                    // یک تلاش مجدد پس از ۳ ثانیه (خطای گذرا / قطعی موقت سرویس)
-                    await Task.Delay(3000);
-                    result = await _smsIr.SendBulkAsync(settings.ApiKey, settings.SenderNumber, new[] { normalized }, message);
-                }
             }
 
             await WriteLogAsync(settings, normalized, message,
                 result.Success ? SmsSendStatus.Sent : SmsSendStatus.Failed,
                 result.ErrorMessage, recipientType, scenario, result.Cost, result.ProviderMessageId);
+            return result;
         }
 
         private async Task WriteLogAsync(SmsSystemSetting settings, string phone, string message,
@@ -311,8 +313,8 @@ namespace SugarShop.Web.Services.Sms
             {
                 _db.SmsLogs.Add(new SmsLog
                 {
-                    PhoneNumber = phone,
-                    MessageText = message,
+                    PhoneNumber = MaskPhone(phone),
+                    MessageText = "[REDACTED]",
                     ProviderUsed = SmsProviderType.SmsIr,
                     Status = status,
                     ErrorMessage = error,
@@ -326,7 +328,7 @@ namespace SugarShop.Web.Services.Sms
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to write SMS log for {Phone}", phone);
+                _logger.LogError(ex, "Failed to write SMS log for {Phone}", MaskPhone(phone));
             }
         }
 
@@ -459,7 +461,7 @@ namespace SugarShop.Web.Services.Sms
 
             if (settings.SandboxMode || string.IsNullOrWhiteSpace(settings.ApiKey))
             {
-                _logger.LogInformation("[SMS SANDBOX] OTP to {Phone}: {Code}", normalized, code);
+                _logger.LogInformation("[SMS SANDBOX] OTP delivery simulated for {Phone}", MaskPhone(normalized));
                 await WriteLogAsync(settings, normalized, message, SmsSendStatus.Sent, null, SmsRecipientType.Customer,
                     purpose == "Login" ? SmsScenario.Otp : SmsScenario.PasswordResetOtp);
                 return (true, "کد تأیید ثبت شد (حالت آزمایشی — در پنل لاگ ببینید).");
@@ -468,7 +470,7 @@ namespace SugarShop.Web.Services.Sms
             var result = await _smsIr.SendBulkAsync(settings.ApiKey, settings.SenderNumber, new[] { normalized }, message);
             if (!result.Success)
             {
-                _logger.LogError("OTP send failed for {Phone}: {Error}", normalized, result.ErrorMessage);
+                _logger.LogError("OTP send failed for {Phone}: {Error}", MaskPhone(normalized), result.ErrorMessage);
                 await WriteLogAsync(settings, normalized, message, SmsSendStatus.Failed, result.ErrorMessage,
                     SmsRecipientType.Customer, purpose == "Login" ? SmsScenario.Otp : SmsScenario.PasswordResetOtp);
                 return (false, "ارسال پیامک با خطا مواجه شد. لطفاً چند لحظه بعد دوباره تلاش کنید.");

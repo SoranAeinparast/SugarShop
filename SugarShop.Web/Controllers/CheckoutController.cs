@@ -173,17 +173,36 @@ namespace SugarShop.Web.Controllers
                 ? await _catalogDb.Products.Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id)
                 : new Dictionary<int, Product>();
 
-            // Verify stock availability for products
-            foreach (var cartProduct in cartState.Products)
+            // Verify the aggregate demand (including duplicate lines) for both item types.
+            foreach (var demand in cartState.Products
+                .GroupBy(p => p.ProductId)
+                .Select(g => new { ProductId = g.Key, Quantity = g.Sum(p => p.Quantity) }))
             {
-                if (!productsDb.TryGetValue(cartProduct.ProductId, out var product) || !product.IsActive)
+                if (!productsDb.TryGetValue(demand.ProductId, out var product) || !product.IsActive)
                 {
-                    ModelState.AddModelError("", $"محصول «{cartProduct.Title}» دیگر موجود نیست.");
+                    ModelState.AddModelError("", "یکی از محصولات سبد خرید دیگر موجود نیست.");
                     return await PrepareFailedCheckoutView(vm);
                 }
-                if (product.Inventory < cartProduct.Quantity)
+                if (product.Inventory < demand.Quantity)
                 {
                     ModelState.AddModelError("", $"موجودی محصول «{product.TitleFa}» کافی نیست. موجودی فعلی: {product.Inventory}");
+                    return await PrepareFailedCheckoutView(vm);
+                }
+            }
+
+            foreach (var demand in cartState.Items
+                .SelectMany(box => box.Items)
+                .GroupBy(item => item.SweetItemId)
+                .Select(group => new { SweetItemId = group.Key, Quantity = group.Count() }))
+            {
+                if (!sweetItemsDb.TryGetValue(demand.SweetItemId, out var sweetItem) || !sweetItem.IsActive)
+                {
+                    ModelState.AddModelError("", "یکی از شیرینی‌های انتخاب‌شده دیگر در دسترس نیست.");
+                    return await PrepareFailedCheckoutView(vm);
+                }
+                if (sweetItem.InventoryCount < demand.Quantity)
+                {
+                    ModelState.AddModelError("", $"موجودی شیرینی «{sweetItem.TitleFa}» کافی نیست. موجودی فعلی: {sweetItem.InventoryCount}");
                     return await PrepareFailedCheckoutView(vm);
                 }
             }
@@ -404,7 +423,10 @@ namespace SugarShop.Web.Controllers
                 // بخش قیمت‌ثابت که همین حالا کامل تسویه شده (کیف پول/تخفیف) باید موجودی‌اش همین لحظه کم شود؛
                 // در غیر این صورت کسر هنگام پرداخت موفق در PaymentController.Callback انجام می‌شود.
                 if (fixedPortionFullySettled)
-                    await DeductInventoryOnceAsync(order, orderItems);
+                {
+                    if (!await DeductInventoryOnceAsync(order, orderItems))
+                        throw new InvalidOperationException("InventoryNoLongerAvailable");
+                }
 
                 await _salesDb.SaveChangesAsync();
                 await salesTx.CommitAsync();
@@ -452,6 +474,13 @@ namespace SugarShop.Web.Controllers
                 await salesTx.RollbackAsync();
                 _logger.LogWarning("Wallet balance of user {UserId} changed concurrently; order rolled back.", userId);
                 ModelState.AddModelError("", "موجودی کیف پول شما تغییر کرده است. لطفاً صفحه را بازخوانی کنید و دوباره ثبت کنید.");
+                return await PrepareFailedCheckoutView(vm);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "InventoryNoLongerAvailable")
+            {
+                await salesTx.RollbackAsync();
+                _logger.LogWarning("Inventory changed concurrently while placing a fully settled order for user {UserId}; order rolled back.", userId);
+                ModelState.AddModelError("", "موجودی یکی از کالاها هم‌زمان تغییر کرد؛ مبلغی از کیف پول کسر نشده است. لطفاً سبد خرید را بازخوانی کنید.");
                 return await PrepareFailedCheckoutView(vm);
             }
             catch (Exception ex)
@@ -524,9 +553,9 @@ namespace SugarShop.Web.Controllers
         /// نشانه InventoryDeductedAt در همان تراکنش ذخیره می‌شود، پس در پرداخت مرحله‌ای
         /// (پیش‌پرداخت + تسویه پس از وزن‌کشی) موجودی دو بار کم نمی‌شود.
         /// </summary>
-        private async Task DeductInventoryOnceAsync(Order order, IEnumerable<OrderItem> items)
+        private async Task<bool> DeductInventoryOnceAsync(Order order, IEnumerable<OrderItem> items)
         {
-            if (order.InventoryDeductedAt != null) return;
+            if (order.InventoryDeductedAt != null) return true;
 
             if (!ReferenceEquals(_catalogDb.Database.GetDbConnection(), _salesDb.Database.GetDbConnection()))
                 throw new InvalidOperationException("Sales and Catalog DbContexts are not sharing a connection; inventory deduction aborted.");
@@ -535,9 +564,10 @@ namespace SugarShop.Web.Controllers
                 ?? throw new InvalidOperationException("Inventory deduction requires an active transaction.");
             _catalogDb.Database.UseTransaction(tx.GetDbTransaction());
 
-            // ابتدا نشانه‌گذاری و سپس کسر؛ اگر کسر خطا بدهد، تراکنش جاری کل عملیات را برمی‌گرداند
+            // کسر فقط در صورت کافی‌بودن همه اقلام موفق است؛ کمبود باعث rollback تراکنش سفارش می‌شود.
+            if (!await _inventoryService.TryDecreaseInventoryAsync(items)) return false;
             order.InventoryDeductedAt = DateTime.UtcNow;
-            await _inventoryService.DecreaseInventoryAsync(items);
+            return true;
         }
     }
 }

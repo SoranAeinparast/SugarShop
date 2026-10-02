@@ -13,12 +13,14 @@ using SugarShop.Web.Helpers;
 using SugarShop.Web.Extensions;
 using MD.PersianDateTime;
 using SugarShop.Infrastructure.Services;
+using SugarShop.Web.Services;
 
 namespace SugarShop.Web.Controllers
 {
     [Authorize]
     public class PaymentController : Controller
     {
+        private const string PendingAuthorityPrefix = "pending:";
         private readonly ZibalPaymentService _zibalPaymentService;
         private readonly SugarShopSalesDbContext _context;
         private readonly SugarShopCatalogDbContext _catalogDb;
@@ -618,6 +620,15 @@ namespace SugarShop.Web.Controllers
             }
             long amountInRials = amountInTomans * 10;
 
+            // درگاه فعال سایت باید همان درگاهی باشد که به این نسخه متصل است.
+            var activeGateway = await ResolveActiveGatewayTypeAsync();
+            if (!string.Equals(activeGateway, "Zibal", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogError("Payment blocked: active gateway '{Gateway}' is not wired in this build (only Zibal is).", activeGateway);
+                TempData["Error"] = $"درگاه فعال «{activeGateway}» در این نسخه به پرداخت متصل نیست. لطفاً از پنل مدیریت، درگاه زیبال را فعال کنید.";
+                return failureRedirect();
+            }
+
             // ── اگر همین سفارش یک پرداخت در جریان دارد، همان ادامه داده میشود ──
             // (جلوگیری از ساخت پرداخت تکراری وقتی کاربر دکمه پرداخت را دوبار میزند یا صفحه را رفرش میکند)
             var inFlightPayment = await _context.Payments
@@ -632,22 +643,54 @@ namespace SugarShop.Web.Controllers
                 if ((long)inFlightPayment.Amount == amountInTomans &&
                     (DateTime.UtcNow - inFlightPayment.CreatedAt).TotalHours < 6)
                 {
+                    if (inFlightPayment.Authority.StartsWith(PendingAuthorityPrefix, StringComparison.Ordinal))
+                    {
+                        TempData["Info"] = "درخواست پرداخت شما در حال آماده‌سازی است. لطفاً چند لحظه دیگر وضعیت سفارش را بررسی کنید و دوباره درخواست نسازید.";
+                        return failureRedirect();
+                    }
                     return Redirect(ZibalPaymentService.StartPaymentUrl + inFlightPayment.Authority);
                 }
 
                 // مبلغ یا عمر پرداخت قبلی معتبر نیست → آن پرداخت باطل و پرداخت تازه ساخته میشود
-                inFlightPayment.PaymentStatus = PaymentStatus.Failed;
-                await _context.SaveChangesAsync();
+                var expiredAttempt = await _context.Payments
+                    .Where(p => p.Id == inFlightPayment.Id && p.PaymentStatus == PaymentStatus.Initiated)
+                    .ExecuteUpdateAsync(s => s.SetProperty(p => p.PaymentStatus, PaymentStatus.Failed));
+                if (expiredAttempt != 1)
+                {
+                    TempData["Info"] = "وضعیت پرداخت هم‌زمان تغییر کرده است؛ سفارش را دوباره بررسی کنید و پرداخت تازه نسازید.";
+                    return failureRedirect();
+                }
             }
 
-            // ── درگاه فعال سایت باید همان درگاهی باشد که به این نسخه متصل است ──
-            // اگر ادمین درگاهی فعال کند که در این نسخه پیادهسازی نشده، به‌جای هدایت خاموش مشتری
-            // به درگاه دیگر، با پیام روشن متوقف میشویم (شفافیت حسابداری).
-            var activeGateway = await ResolveActiveGatewayTypeAsync();
-            if (!string.Equals(activeGateway, "Zibal", StringComparison.OrdinalIgnoreCase))
+            // ثبت claim در دیتابیس پیش از فراخوانی شبکه؛ ایندکس یکتای filtered در SQL Server
+            // تضمین می‌کند دو درخواست هم‌زمان برای یک سفارش هرگز دو نشست درگاه نسازند.
+            var attempt = new Payment
             {
-                _logger.LogError("Payment blocked: active gateway '{Gateway}' is not wired in this build (only Zibal is).", activeGateway);
-                TempData["Error"] = $"درگاه فعال «{activeGateway}» در این نسخه به پرداخت متصل نیست. لطفاً از پنل مدیریت، درگاه زیبال را فعال کنید.";
+                OrderId = order.Id,
+                Authority = PendingAuthorityPrefix + Guid.NewGuid().ToString("N"),
+                Amount = amountInTomans,
+                Provider = "Zibal",
+                PaymentStatus = PaymentStatus.Initiated,
+                CreatedAt = DateTime.UtcNow,
+                TransactionCode = string.Empty
+            };
+            _context.Payments.Add(attempt);
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex)
+            {
+                var active = await _context.Payments.AsNoTracking()
+                    .Where(p => p.OrderId == order.Id && p.Provider == "Zibal" && p.PaymentStatus == PaymentStatus.Initiated)
+                    .OrderByDescending(p => p.Id)
+                    .FirstOrDefaultAsync();
+                if (active == null) throw;
+
+                _logger.LogInformation(ex, "Concurrent payment-attempt claim rejected for order {OrderId}.", order.Id);
+                if (!active.Authority.StartsWith(PendingAuthorityPrefix, StringComparison.Ordinal))
+                    return Redirect(ZibalPaymentService.StartPaymentUrl + active.Authority);
+                TempData["Info"] = "درخواست پرداخت دیگری برای این سفارش در حال آماده‌سازی است. چند لحظه دیگر دوباره بررسی کنید.";
                 return failureRedirect();
             }
 
@@ -655,26 +698,33 @@ namespace SugarShop.Web.Controllers
             string description = isWalletRecharge ? "شارژ کیف پول" : $"پرداخت سفارش {order.OrderCode}";
 
             var zibalMerchant = await ResolveActiveZibalMerchantAsync();
-            var result = await _zibalPaymentService.RequestPayment(amountInRials, description, callbackUrl, merchant: zibalMerchant);
-
-            if (result.Success)
+            (bool Success, string TrackId, string PaymentUrl, string ErrorMessage) result;
+            try
             {
-                var payment = new Payment
-                {
-                    OrderId = order.Id,
-                    Authority = result.TrackId,
-                    Amount = amountInTomans,  // مبلغ این مرحله از پرداخت (نه لزوماً کل سفارش)
-                    Provider = "Zibal",
-                    PaymentStatus = PaymentStatus.Initiated,
-                    CreatedAt = DateTime.UtcNow,
-                    TransactionCode = result.TrackId
-                };
-                _context.Payments.Add(payment);
+                result = await _zibalPaymentService.RequestPayment(amountInRials, description, callbackUrl, merchant: zibalMerchant);
+            }
+            catch (Exception ex)
+            {
+                // نتیجهٔ timeout/قطع ارتباط مبهم است؛ claim را باز نگه می‌داریم تا درخواست دوم
+                // نشست بانکی تکراری نسازد. رکورد پس از شش ساعت منقضی می‌شود.
+                _logger.LogError(ex, "Could not determine the result of Zibal payment-session creation for order {OrderId}.", order.Id);
+                TempData["Error"] = "نتیجهٔ اتصال به درگاه مشخص نشد. برای جلوگیری از پرداخت تکراری، چند دقیقه صبر کنید و دوباره بررسی کنید.";
+                return failureRedirect();
+            }
+
+            if (result.Success && !string.IsNullOrWhiteSpace(result.TrackId) &&
+                result.PaymentUrl.StartsWith(ZibalPaymentService.StartPaymentUrl, StringComparison.Ordinal) &&
+                result.PaymentUrl.Length > ZibalPaymentService.StartPaymentUrl.Length)
+            {
+                attempt.Authority = result.TrackId;
+                attempt.TransactionCode = result.TrackId;
                 await _context.SaveChangesAsync();
                 return Redirect(result.PaymentUrl);
             }
             else
             {
+                attempt.PaymentStatus = PaymentStatus.Failed;
+                await _context.SaveChangesAsync();
                 TempData["Error"] = result.ErrorMessage;
                 return failureRedirect();
             }
@@ -707,6 +757,18 @@ namespace SugarShop.Web.Controllers
 
             bool isWalletRecharge = order.Notes == OrderNotes.WalletRecharge;
 
+            if (payment.PaymentStatus == PaymentStatus.Refunded)
+            {
+                TempData["Info"] = "این پرداخت قبلاً مسترد شده است.";
+                return await RedirectAfterCallback(order, isWalletRecharge, success: false);
+            }
+
+            if (payment.PaymentStatus == PaymentStatus.RefundRequired)
+            {
+                TempData["Error"] = "پرداخت بانکی دریافت شده اما نیازمند بررسی پشتیبانی است. لطفاً دوباره پرداخت نکنید.";
+                return await RedirectAfterCallback(order, isWalletRecharge, success: false);
+            }
+
             if (payment.PaymentStatus == PaymentStatus.Succeeded)
             {
                 TempData["Info"] = "این پرداخت قبلاً پردازش شده است.";
@@ -727,11 +789,26 @@ namespace SugarShop.Web.Controllers
 
             if (!gatewayReportsSuccess)
             {
-                // فقط پرداخت «در جریان» را ناموفق می‌کنیم؛ پرداخت ناموفقِ قبلی اینجا دوباره دست‌کاری نمیشود
-                if (payment.PaymentStatus == PaymentStatus.Initiated)
+                // A cancellation callback must not overwrite a concurrent successful verification.
+                var markedFailed = await _context.Payments
+                    .Where(p => p.Id == payment.Id && p.PaymentStatus == PaymentStatus.Initiated)
+                    .ExecuteUpdateAsync(s => s.SetProperty(p => p.PaymentStatus, PaymentStatus.Failed));
+                if (markedFailed == 0)
                 {
-                    payment.PaymentStatus = PaymentStatus.Failed;
-                    await _context.SaveChangesAsync();
+                    var currentStatus = await _context.Payments.AsNoTracking()
+                        .Where(p => p.Id == payment.Id)
+                        .Select(p => p.PaymentStatus)
+                        .SingleAsync();
+                    if (currentStatus == PaymentStatus.Succeeded)
+                    {
+                        TempData["Info"] = "این پرداخت قبلاً پردازش شده است.";
+                        return await RedirectAfterCallback(order, isWalletRecharge, success: true);
+                    }
+                    if (currentStatus == PaymentStatus.RefundRequired)
+                    {
+                        TempData["Error"] = "این پرداخت نیازمند بررسی پشتیبانی است؛ لطفاً دوباره پرداخت نکنید.";
+                        return await RedirectAfterCallback(order, isWalletRecharge, success: false);
+                    }
                 }
                 TempData["Error"] = "پرداخت توسط کاربر لغو شد یا ناموفق بود.";
                 return await RedirectAfterCallback(order, isWalletRecharge, success: false);
@@ -741,14 +818,67 @@ namespace SugarShop.Web.Controllers
             var verifyResult = await _zibalPaymentService.VerifyPayment(reference, zibalMerchant);
             if (!verifyResult.Success)
             {
-                // اگر تراکنش واقعاً پرداخت نشده باشد درگاه آن را تأیید نمیکند؛ پس ثبت ناموفق درست است
-                // و چون پرداخت‌های ناموفق هم در ادامه قابل تأیید مجدد هستند، پرداخت واقعی کاربر از دست نمیرود.
-                if (payment.PaymentStatus != PaymentStatus.Succeeded)
+                // Keep a concurrent success or review state intact when verification calls race.
+                var markedFailed = await _context.Payments
+                    .Where(p => p.Id == payment.Id && p.PaymentStatus == PaymentStatus.Initiated)
+                    .ExecuteUpdateAsync(s => s.SetProperty(p => p.PaymentStatus, PaymentStatus.Failed));
+                if (markedFailed == 0)
                 {
-                    payment.PaymentStatus = PaymentStatus.Failed;
-                    await _context.SaveChangesAsync();
+                    var currentStatus = await _context.Payments.AsNoTracking()
+                        .Where(p => p.Id == payment.Id)
+                        .Select(p => p.PaymentStatus)
+                        .SingleAsync();
+                    if (currentStatus == PaymentStatus.Succeeded)
+                    {
+                        TempData["Info"] = "این پرداخت قبلاً پردازش شده است.";
+                        return await RedirectAfterCallback(order, isWalletRecharge, success: true);
+                    }
+                    if (currentStatus == PaymentStatus.RefundRequired)
+                    {
+                        TempData["Error"] = "این پرداخت نیازمند بررسی پشتیبانی است؛ لطفاً دوباره پرداخت نکنید.";
+                        return await RedirectAfterCallback(order, isWalletRecharge, success: false);
+                    }
                 }
                 TempData["Error"] = verifyResult.ErrorMessage;
+                return await RedirectAfterCallback(order, isWalletRecharge, success: false);
+            }
+
+            payment.TransactionCode = verifyResult.RefNumber.ToString();
+
+            // A captured callback from another attempt must not clear an already open review.
+            // Record each additional capture for reconciliation while keeping the order blocked.
+            var anotherCapturedPaymentNeedsReview = await _context.Payments.AnyAsync(p =>
+                p.OrderId == order.Id && p.Id != payment.Id && p.PaymentStatus == PaymentStatus.RefundRequired);
+            if (order.PaymentStatus == PaymentStatus.RefundRequired
+                || order.OrderStatus == OrderStatus.PaymentReview
+                || anotherCapturedPaymentNeedsReview)
+            {
+                payment.PaymentStatus = PaymentStatus.RefundRequired;
+                order.OrderStatus = OrderStatus.PaymentReview;
+                order.PaymentStatus = PaymentStatus.RefundRequired;
+                order.IsPaymentEnabled = false;
+                order.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                _logger.LogCritical("Verified payment {PaymentId} for order {OrderId} arrived while another payment review was unresolved.", payment.Id, order.Id);
+                TempData["Error"] = "پرداخت بانکی دریافت شده اما این سفارش پرداخت نیازمند بررسی دیگری دارد. پرداخت دوباره انجام ندهید؛ پشتیبانی همه تراکنش‌ها را بررسی می‌کند.";
+                return await RedirectAfterCallback(order, isWalletRecharge, success: false);
+            }
+
+            // پرداختی که با تلاش جدیدتری جایگزین شده، هرگز نباید دوباره به سفارش اعمال شود.
+            // اگر درگاه آن را با وجود supersede شدن دریافت کرده باشد، ثبت برای استرداد/رسیدگی لازم است.
+            var latestPaymentId = await _context.Payments
+                .Where(p => p.OrderId == order.Id && p.Provider == "Zibal")
+                .MaxAsync(p => (int?)p.Id) ?? payment.Id;
+            if (payment.Id != latestPaymentId)
+            {
+                payment.PaymentStatus = PaymentStatus.RefundRequired;
+                order.OrderStatus = OrderStatus.PaymentReview;
+                order.PaymentStatus = PaymentStatus.RefundRequired;
+                order.IsPaymentEnabled = false;
+                order.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                _logger.LogCritical("Verified payment {PaymentId} for order {OrderId} belongs to a superseded attempt and requires reconciliation.", payment.Id, order.Id);
+                TempData["Error"] = "پرداخت بانکی دریافت شده اما این نشست پرداخت قدیمی بوده است. پرداخت دوباره انجام ندهید؛ پشتیبانی سفارش را بررسی می‌کند.";
                 return await RedirectAfterCallback(order, isWalletRecharge, success: false);
             }
 
@@ -761,9 +891,14 @@ namespace SugarShop.Web.Controllers
                 if (payment.Amount != stageAmount)
                 {
                     _logger.LogError("Amount mismatch for order {OrderId}. Expected: {Expected}, Payment: {Actual}", order.Id, stageAmount, payment.Amount);
-                    payment.PaymentStatus = PaymentStatus.Failed;
+                    payment.PaymentStatus = PaymentStatus.RefundRequired;
+                    order.OrderStatus = OrderStatus.PaymentReview;
+                    order.PaymentStatus = PaymentStatus.RefundRequired;
+                    order.IsPaymentEnabled = false;
+                    order.UpdatedAt = DateTime.UtcNow;
                     await _context.SaveChangesAsync();
-                    TempData["Error"] = "مغایرت در مبلغ پرداخت. لطفاً با پشتیبانی تماس بگیرید.";
+                    _logger.LogCritical("Verified payment {PaymentId} for order {OrderId} has an amount mismatch and requires reconciliation.", payment.Id, order.Id);
+                    TempData["Error"] = "پرداخت بانکی دریافت شده اما مبلغ با سفارش مغایرت دارد. لطفاً دوباره پرداخت نکنید؛ پشتیبانی پیگیری می‌کند.";
                     return await RedirectAfterCallback(order, isWalletRecharge, success: false);
                 }
             }
@@ -784,22 +919,142 @@ namespace SugarShop.Web.Controllers
 
                 _catalogDb.Database.UseTransaction(tx.GetDbTransaction());
 
-                // «Initiated» یا «Failed» قابل تبدیل به Succeeded است: پرداخت ناموفق ممکن است فقط یک
-                // کاللبک زودهنگام (مثلاً success=0) بوده باشد، در حالی که درگاه بعداً همین تراکنش را تأیید
-                // میکند. پرداخت Succeeded هیچگاه دوباره پردازش نمیشود، پس اعتبار/انبار دوبار اضافه/کم نمیشود.
+                // Serialize verified callbacks for this order, then re-read its state after
+                // waiting for any earlier callback's transaction to finish.
+                var callbackLockTime = DateTime.UtcNow;
+                var lockedOrder = await _context.Orders
+                    .Where(o => o.Id == order.Id)
+                    .ExecuteUpdateAsync(s => s.SetProperty(o => o.UpdatedAt, callbackLockTime));
+                if (lockedOrder != 1)
+                {
+                    await tx.RollbackAsync();
+                    return NotFound();
+                }
+                await _context.Entry(order).ReloadAsync();
+
+                var currentAttemptStatus = await _context.Payments.AsNoTracking()
+                    .Where(p => p.Id == payment.Id)
+                    .Select(p => p.PaymentStatus)
+                    .SingleAsync();
+                if (currentAttemptStatus == PaymentStatus.Succeeded)
+                {
+                    await tx.RollbackAsync();
+                    TempData["Info"] = "این پرداخت قبلاً پردازش شده است.";
+                    return await RedirectAfterCallback(order, isWalletRecharge, success: true);
+                }
+                if (currentAttemptStatus == PaymentStatus.RefundRequired)
+                {
+                    await tx.RollbackAsync();
+                    TempData["Error"] = "این پرداخت قبلاً برای بررسی ثبت شده است؛ لطفاً دوباره پرداخت نکنید.";
+                    return await RedirectAfterCallback(order, isWalletRecharge, success: false);
+                }
+
+                string? reviewReason = null;
+                var anotherPaymentNeedsReview = await _context.Payments.AnyAsync(p =>
+                    p.OrderId == order.Id && p.Id != payment.Id && p.PaymentStatus == PaymentStatus.RefundRequired);
+                if (order.PaymentStatus == PaymentStatus.Refunded || order.OrderStatus == OrderStatus.Cancelled)
+                {
+                    reviewReason = "the order was closed or refunded before this payment was verified";
+                }
+                else if (order.PaymentStatus == PaymentStatus.RefundRequired
+                    || order.OrderStatus == OrderStatus.PaymentReview
+                    || anotherPaymentNeedsReview)
+                {
+                    reviewReason = "an earlier payment review is unresolved";
+                }
+                else
+                {
+                    var currentLatestPaymentId = await _context.Payments
+                        .Where(p => p.OrderId == order.Id && p.Provider == "Zibal")
+                        .MaxAsync(p => (int?)p.Id) ?? payment.Id;
+                    if (payment.Id != currentLatestPaymentId)
+                        reviewReason = "the verified payment attempt was superseded";
+                    else if (currentAttemptStatus == PaymentStatus.Failed)
+                        reviewReason = "the verified payment attempt was already marked failed";
+                    else if (!isWalletRecharge)
+                    {
+                        var currentPricing = await GetPricingAsync(order);
+                        if (payment.Amount != (long)Math.Ceiling(currentPricing.PayableNow))
+                            reviewReason = "the order amount changed during payment verification";
+                    }
+                }
+
+                if (reviewReason != null)
+                {
+                    payment.PaymentStatus = PaymentStatus.RefundRequired;
+                    order.OrderStatus = OrderStatus.PaymentReview;
+                    order.PaymentStatus = PaymentStatus.RefundRequired;
+                    order.IsPaymentEnabled = false;
+                    order.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                    await tx.CommitAsync();
+                    _logger.LogCritical("Verified payment {PaymentId} for order {OrderId} requires review: {Reason}.", payment.Id, order.Id, reviewReason);
+                    TempData["Error"] = "پرداخت بانکی دریافت شده اما سفارش نیازمند بررسی است. پرداخت دوباره انجام ندهید؛ پشتیبانی تراکنش را بررسی می‌کند.";
+                    return await RedirectAfterCallback(order, isWalletRecharge, success: false);
+                }
+
+                // Only a still-active attempt can be applied. A late success for a failed or
+                // superseded attempt is retained for manual reconciliation instead.
                 var claimed = await _context.Payments
-                    .Where(p => p.Id == payment.Id
-                        && (p.PaymentStatus == PaymentStatus.Initiated || p.PaymentStatus == PaymentStatus.Failed))
+                    .Where(p => p.Id == payment.Id && p.PaymentStatus == PaymentStatus.Initiated)
                     .ExecuteUpdateAsync(s => s
                         .SetProperty(p => p.PaymentStatus, PaymentStatus.Succeeded)
                         .SetProperty(p => p.TransactionCode, verifyResult.RefNumber.ToString()));
 
                 if (claimed == 0)
                 {
-                    // درخواست دیگری همین پرداخت را قبلاً پردازش کرده است
+                    var statusAfterClaim = await _context.Payments.AsNoTracking()
+                        .Where(p => p.Id == payment.Id)
+                        .Select(p => p.PaymentStatus)
+                        .SingleAsync();
+                    if (statusAfterClaim == PaymentStatus.Failed)
+                    {
+                        payment.PaymentStatus = PaymentStatus.RefundRequired;
+                        order.OrderStatus = OrderStatus.PaymentReview;
+                        order.PaymentStatus = PaymentStatus.RefundRequired;
+                        order.IsPaymentEnabled = false;
+                        order.UpdatedAt = DateTime.UtcNow;
+                        await _context.SaveChangesAsync();
+                        await tx.CommitAsync();
+                        _logger.LogCritical("Verified payment {PaymentId} for order {OrderId} changed state while being verified; it requires reconciliation.", payment.Id, order.Id);
+                        TempData["Error"] = "پرداخت بانکی دریافت شده اما وضعیت نشست پرداخت هم‌زمان تغییر کرده است. پرداخت دوباره انجام ندهید؛ پشتیبانی پیگیری می‌کند.";
+                        return await RedirectAfterCallback(order, isWalletRecharge, success: false);
+                    }
+
                     await tx.RollbackAsync();
                     TempData["Info"] = "این پرداخت قبلاً پردازش شده است.";
-                    return await RedirectAfterCallback(order, isWalletRecharge, success: true);
+                    return await RedirectAfterCallback(order, isWalletRecharge,
+                        success: statusAfterClaim == PaymentStatus.Succeeded);
+                }
+
+                // ثبت اتمیک claim سفارش و کسر شرطی همه اقلام. اگر فقط یکی از کالاها کمبود داشته
+                // باشد، savepoint کل کسرهای جزئی را rollback می‌کند ولی پرداخت دریافت‌شده برای پیگیری ثبت می‌شود.
+                if (!isWalletRecharge && order.Items.Any() && order.InventoryDeductedAt == null)
+                {
+                    await tx.CreateSavepointAsync("BeforeInventoryClaim");
+                    var reservationTime = DateTime.UtcNow;
+                    var orderClaimed = await _context.Orders
+                        .Where(o => o.Id == order.Id && o.InventoryDeductedAt == null)
+                        .ExecuteUpdateAsync(s => s.SetProperty(o => o.InventoryDeductedAt, reservationTime));
+
+                    var inventoryAvailable = orderClaimed == 1
+                        && await _inventoryService.TryDecreaseInventoryAsync(order.Items);
+                    if (!inventoryAvailable)
+                    {
+                        await tx.RollbackToSavepointAsync("BeforeInventoryClaim");
+                        payment.PaymentStatus = PaymentStatus.RefundRequired;
+                        order.OrderStatus = OrderStatus.PaymentReview;
+                        order.PaymentStatus = PaymentStatus.RefundRequired;
+                        order.IsPaymentEnabled = false;
+                        order.UpdatedAt = DateTime.UtcNow;
+                        await _context.SaveChangesAsync();
+                        await tx.CommitAsync();
+                        _logger.LogCritical("Payment {PaymentId} for order {OrderId} was verified but inventory was unavailable; order requires manual fulfillment or refund.", payment.Id, order.Id);
+                        TempData["Error"] = "پرداخت بانکی دریافت شده اما موجودی سفارش کافی نیست. لطفاً دوباره پرداخت نکنید؛ پشتیبانی برای تأمین کالا یا استرداد پیگیری می‌کند.";
+                        return await RedirectAfterCallback(order, isWalletRecharge, success: false);
+                    }
+
+                    order.InventoryDeductedAt = reservationTime;
                 }
 
                 if (isWalletRecharge)
@@ -833,15 +1088,6 @@ namespace SugarShop.Web.Controllers
                     order.IsPaymentEnabled = !fullyPaid;      // مرحله بعد فعال بماند؛ پس از تسویه کامل خاموش
                     order.OrderStatus = fullyPaid ? OrderStatus.Paid : OrderStatus.AwaitingReview;
                     await _context.SaveChangesAsync();
-                }
-
-                // کسر موجودی انبار — کاتالوگ و فروش روی یک اتصال مشترک‌اند؛ پس داخل همین تراکنش است.
-                // نشانه InventoryDeductedAt تضمین می‌کند در پرداخت مرحله‌ای (پیش‌پرداخت + تسویه پس از
-                // وزن‌کشی) موجودی فقط یک‌بار کم شود.
-                if (!isWalletRecharge && order.InventoryDeductedAt == null)
-                {
-                    order.InventoryDeductedAt = DateTime.UtcNow;
-                    await _inventoryService.DecreaseInventoryAsync(order);
                 }
 
                 // ── تسویه سفارش کیک سفارشی ──
@@ -879,12 +1125,7 @@ namespace SugarShop.Web.Controllers
 
                 if (isWalletRecharge)
                 {
-                    var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == order.UserId);
-                    if (wallet == null)
-                    {
-                        wallet = new Wallet { UserId = order.UserId!, Balance = 0 };
-                        _context.Wallets.Add(wallet);
-                    }
+                    var wallet = await WalletBalanceLock.GetOrCreateForUpdateAsync(_context, order.UserId!);
                     wallet.Balance += order.TotalAmountSnapshot;
                     wallet.UpdatedAt = DateTime.UtcNow;
                     _context.WalletTransactions.Add(new WalletTransaction

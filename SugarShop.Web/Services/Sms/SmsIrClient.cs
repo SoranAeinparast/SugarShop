@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
@@ -61,33 +60,23 @@ namespace SugarShop.Web.Services.Sms
         {
             try
             {
-                // ثبت درخواست برای عیب‌یابی (بدون هدر کلید API)
-                // ⚠️ ReadAsStringAsync مصرف‌کننده است؛ پس محتوا را بافر و دوباره ست می‌کنیم تا ارسال واقعی خراب نشود
-                if (req.Content != null)
-                {
-                    var reqBody = await req.Content.ReadAsStringAsync();
-                    req.Content = new StringContent(reqBody, Encoding.UTF8, "application/json");
-                    _logger.LogInformation("sms.ir request {Method} {Url}: {Body}", req.Method, req.RequestUri, Truncate(reqBody, 500));
-                }
-
                 var res = await _http.SendAsync(req);
                 var body = await res.Content.ReadAsStringAsync();
-                _logger.LogInformation("sms.ir response {Status}: {Body}", (int)res.StatusCode, Truncate(body, 800));
+                _logger.LogDebug("sms.ir returned HTTP {Status}.", (int)res.StatusCode);
 
                 using var doc = JsonDocument.Parse(body);
                 var root = doc.RootElement;
                 // پاسخ استاندارد sms.ir: { "status": 1, "message": "موفق", "data": {...} }
                 int status = root.TryGetProperty("status", out var st) ? st.GetInt32() : (res.IsSuccessStatusCode ? 1 : 0);
-                string? message = root.TryGetProperty("message", out var msg) ? msg.GetString() : null;
                 var data = root.TryGetProperty("data", out var d) && d.ValueKind != JsonValueKind.Null ? d.Clone() : default;
 
                 if (status == 1 && res.IsSuccessStatusCode) return (true, data, null);
-                return (false, default, $"کد {(int)res.StatusCode}/{status}: {message ?? Truncate(body)}");
+                return (false, default, $"sms.ir rejected the request (HTTP {(int)res.StatusCode}, provider status {status}).");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "sms.ir request failed");
-                return (false, default, ex.Message);
+                _logger.LogWarning("sms.ir request failed ({ExceptionType}).", ex.GetType().Name);
+                return (false, default, "sms.ir request failed.");
             }
         }
 

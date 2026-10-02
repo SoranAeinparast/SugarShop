@@ -30,19 +30,13 @@ namespace SugarShop.Web.Services
             var walletUsed = await GetWalletUsedAsync(db, order.Id);
             if (walletUsed <= 0) return;
 
-            // جلوگیری از بازگشت تکراری
+            if (string.IsNullOrEmpty(order.UserId)) return;
+
+            var wallet = await WalletBalanceLock.GetOrCreateForUpdateAsync(db, order.UserId);
+            // Check after acquiring the per-user lock so concurrent deletions cannot refund twice.
             var alreadyRefunded = await db.WalletTransactions
                 .AnyAsync(t => t.OrderId == order.Id && t.Type == "OrderRefund");
             if (alreadyRefunded) return;
-
-            if (string.IsNullOrEmpty(order.UserId)) return;
-
-            var wallet = await db.Wallets.FirstOrDefaultAsync(w => w.UserId == order.UserId);
-            if (wallet == null)
-            {
-                wallet = new Wallet { UserId = order.UserId, Balance = 0 };
-                db.Wallets.Add(wallet);
-            }
 
             wallet.Balance += walletUsed;
             wallet.UpdatedAt = System.DateTime.UtcNow;

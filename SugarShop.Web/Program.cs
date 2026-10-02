@@ -48,6 +48,11 @@ if (string.IsNullOrWhiteSpace(connectionString))
     throw new InvalidOperationException("Connection string 'DefaultConnection' is either null, empty, or contains only whitespace. Please check your appsettings.json.");
 }
 
+if (builder.Environment.IsProduction() && !ApiAuthKeyHolder.IsPersistentlyConfigured(builder.Configuration))
+{
+    throw new InvalidOperationException("ApiAuth:SecretKey must be configured with at least 32 characters in production.");
+}
+
 // ✅ تغییر از MemoryCache به SqlServerCache برای Session
 builder.Services.AddDistributedSqlServerCache(options =>
 {
@@ -68,6 +73,8 @@ builder.Services.AddSession(options =>
 });
 
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("SafeScraper")
+    .ConfigurePrimaryHttpMessageHandler(WebScraperService.CreateSafeHandler);
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 // ── Web API داخلی (اتصال اپلیکیشن موبایل) ──
@@ -81,6 +88,16 @@ var apiSecret = ApiAuthKeyHolder.GetKey(builder.Configuration); // یک کلید
 builder.Services.AddAuthentication()
     .AddJwtBearer("ApiJwt", options =>
     {
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                if (context.Request.Path == "/api/v1/auth/biometric-session"
+                    && context.Request.Cookies.TryGetValue("SugarShopBiometric", out var biometricToken))
+                    context.Token = biometricToken;
+                return Task.CompletedTask;
+            }
+        };
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -298,7 +315,8 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Error creating session table.");
+        logger.LogCritical(ex, "Could not initialize the SQL Server session table; startup is aborted.");
+        throw new InvalidOperationException("Could not initialize the SQL Server session table.", ex);
     }
 }
 
@@ -333,7 +351,8 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Error during database migration or seeding.");
+        logger.LogCritical(ex, "Database migration or seeding failed; startup is aborted.");
+        throw new InvalidOperationException("Database migration or seeding failed.", ex);
     }
 }
 

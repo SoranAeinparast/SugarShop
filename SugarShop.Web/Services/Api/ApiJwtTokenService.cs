@@ -7,9 +7,8 @@ namespace SugarShop.Web.Services.Api
 {
     /// <summary>
     /// کلید امضای JWT — یک منبع واحد برای هم تولیدکنندهٔ توکن و هم اعتبارسنج.
-    /// اگر ApiAuth:SecretKey در appsettings تنظیم نشده باشد، در هر اجرای برنامه یک کلید
-    /// تصادفی ساخته می‌شود؛ هر دو سمت از همین کلید استفاده می‌کنند (امن اما مخصوص یک پروسه).
-    /// برای ماندگاری توکن‌ها بین restartها، کلید را در appsettings تنظیم کنید.
+    /// کلید تصادفی فقط برای اعتبارسنجی بی‌اثر محیط توسعه/آزمون ساخته می‌شود؛ صدور توکن
+    /// تا زمان تنظیم کلید ماندگار و باکیفیت غیرفعال است.
     /// </summary>
     public static class ApiAuthKeyHolder
     {
@@ -45,10 +44,15 @@ namespace SugarShop.Web.Services.Api
             _config = config;
         }
 
-        public bool IsConfigured => ApiAuthKeyHolder.GetKey(_config).Length >= 32;
+        public bool IsConfigured => ApiAuthKeyHolder.IsPersistentlyConfigured(_config);
 
-        public (string token, DateTime expiresAt) CreateToken(string userId, string userName, string phone, IEnumerable<string> roles)
+        public (string token, DateTime expiresAt) CreateToken(
+            string userId, string userName, string phone, IEnumerable<string> roles,
+            string tokenUse = "api_access", string? securityStamp = null)
         {
+            if (!IsConfigured)
+                throw new InvalidOperationException("ApiAuth:SecretKey is not configured with at least 32 characters.");
+
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(ApiAuthKeyHolder.GetKey(_config)));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
             var days = double.TryParse(_config["ApiAuth:TokenDays"], out var d) && d > 0 ? d : 30;
@@ -59,8 +63,11 @@ namespace SugarShop.Web.Services.Api
                 new(JwtRegisteredClaimNames.Sub, userId),
                 new(JwtRegisteredClaimNames.UniqueName, userName),
                 new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
-                new("phone", phone ?? "")
+                new("phone", phone ?? ""),
+                new("token_use", tokenUse)
             };
+            if (!string.IsNullOrWhiteSpace(securityStamp))
+                claims.Add(new Claim("security_stamp", securityStamp));
             claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
 
             var token = new JwtSecurityToken(

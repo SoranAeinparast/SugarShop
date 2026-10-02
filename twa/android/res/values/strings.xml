@@ -19,12 +19,13 @@
 
     <!-- قفل بیومتریک اپ -->
     <string name="biometric_title">ورود با اثر انگشت</string>
-    <string name="biometric_hint">برای باز کردن فروشگاه، اثر انگشت خود را لمس کنید</string>
+    <string name="biometric_hint">برای ورود امن به حساب، اثر انگشت خود را لمس کنید</string>
     <string name="biometric_button">🔓 باز کردن با اثر انگشت</string>
-    <string name="biometric_disable">غیرفعال کردن قفل اثر انگشت</string>
-    <string name="biometric_ok">✅ تأیید شد</string>
+    <string name="biometric_account_login">ورود با رمز یا کد یکبارمصرف</string>
+    <string name="biometric_cancel">لغو</string>
+    <string name="biometric_prompt_enroll">برای ذخیره امن ورود، اثر انگشت خود را تأیید کنید</string>
+    <string name="biometric_ok">در حال تأیید نشست امن…</string>
     <string name="biometric_fail">اثر انگشت شناخته نشد؛ دوباره تلاش کنید</string>
-    <string name="biometric_disabled_by_user">قفل اثر انگشت خاموش شد — هر زمان خواستید از تنظیمات اپ فعالش کنید</string>
-    <string name="biometric_prefs">app_lock</string>
-    <string name="biometric_prefs_key">biometric_enabled</string>
+    <string name="biometric_token_unavailable">ورود بیومتریک در دسترس نیست. با رمز یا کد یکبارمصرف وارد حساب شوید.</string>
+    <string name="biometric_session_failed">نشست امن تأیید نشد. دوباره تلاش کنید یا با رمز/کد وارد شوید.</string>
 </resources>

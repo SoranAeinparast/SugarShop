@@ -565,6 +565,7 @@ namespace SugarShop.Web.Controllers
                 return RedirectToAction(nameof(Orders));
             }
 
+            await using var transaction = await _salesDb.Database.BeginTransactionAsync();
             // بازگشت وجه کیف پول (سفارش در انتظار بررسی = پرداخت‌نشده) — idempotent
             await OrderWalletHelper.RefundWalletAsync(_salesDb, order);
 
@@ -573,6 +574,7 @@ namespace SugarShop.Web.Controllers
             _salesDb.OrderItems.RemoveRange(order.Items);
             _salesDb.Orders.Remove(order);
             await _salesDb.SaveChangesAsync();
+            await transaction.CommitAsync();
 
             TempData["SuccessMessage"] = "سفارش با موفقیت حذف شد.";
             return RedirectToAction(nameof(Orders));
@@ -928,13 +930,10 @@ namespace SugarShop.Web.Controllers
         public async Task<IActionResult> Wallet()
         {
             var userId = _userManager.GetUserId(User);
-            var wallet = await _salesDb.Set<Wallet>().FirstOrDefaultAsync(w => w.UserId == userId);
-            if (wallet == null)
-            {
-                wallet = new Wallet { UserId = userId!, Balance = 0 };
-                _salesDb.Set<Wallet>().Add(wallet);
-                await _salesDb.SaveChangesAsync();
-            }
+            await using var transaction = await _salesDb.Database.BeginTransactionAsync();
+            var wallet = await WalletBalanceLock.GetOrCreateForUpdateAsync(_salesDb, userId!);
+            await _salesDb.SaveChangesAsync();
+            await transaction.CommitAsync();
             var transactions = await _salesDb.Set<WalletTransaction>()
                 .Where(t => t.UserId == userId)
                 .OrderByDescending(t => t.CreatedAt)

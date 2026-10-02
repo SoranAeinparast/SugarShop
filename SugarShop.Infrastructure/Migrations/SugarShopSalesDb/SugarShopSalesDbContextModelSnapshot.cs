@@ -1053,6 +1053,9 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                     b.Property<string>("AdminNotes")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("CashbackAppliedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1245,6 +1248,21 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ExternalRefundNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ExternalRefundReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("ExternalRefundedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ExternalRefundedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<string>("MerchantRefId")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -1257,13 +1275,25 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
 
                     b.Property<string>("Provider")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<string>("RawRequest")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("RawResponse")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReconciliationNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("ReconciledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReconciledByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("TransactionCode")
                         .IsRequired()
@@ -1273,7 +1303,10 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
 
                     b.HasIndex("Authority");
 
-                    b.HasIndex("OrderId");
+                    b.HasIndex("OrderId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Payments_OneActiveZibalAttemptPerOrder")
+                        .HasFilter("[PaymentStatus] = 2 AND [Provider] = N'Zibal'");
 
                     b.ToTable("Payments");
                 });
@@ -2399,7 +2432,9 @@ namespace SugarShop.Infrastructure.Migrations.SugarShopSalesDb
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Wallets_UserId");
 
                     b.ToTable("Wallets");
                 });

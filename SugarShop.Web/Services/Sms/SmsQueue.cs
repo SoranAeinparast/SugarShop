@@ -100,15 +100,15 @@ namespace SugarShop.Web.Services.Sms
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation("SMS outbox processor started (DB-backed).");
-            var staleCutoff = DateTime.UtcNow.AddMinutes(-10);
 
             // بازیابی آیتم‌های نیمه‌کارهٔ اجرای قبلی (کرش/ری‌استارت)
             try
             {
                 using var scope = _scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<SugarShopSalesDbContext>();
+                var staleCutoff = DateTime.UtcNow.AddMinutes(-10);
                 await db.SmsOutboxItems
-                    .Where(x => x.Status == SmsSendStatus.Processing)
+                    .Where(x => x.Status == SmsSendStatus.Processing && x.CreatedAt < staleCutoff)
                     .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, SmsSendStatus.Pending));
             }
             catch (Exception ex)
@@ -120,6 +120,7 @@ namespace SugarShop.Web.Services.Sms
             {
                 try
                 {
+                    var staleCutoff = DateTime.UtcNow.AddMinutes(-10);
                     var batch = ClaimBatchAsync(staleCutoff);
                     if (batch.Count == 0)
                     {
@@ -168,7 +169,8 @@ namespace SugarShop.Web.Services.Sms
             {
                 // UPDATE شرطی = قفل بهینه‌ستیک؛ فقط همین پردازنده مالکیت این آیتم را می‌گیرد
                 var ok = db.SmsOutboxItems
-                    .Where(x => x.Id == id && x.Status == SmsSendStatus.Pending)
+                    .Where(x => x.Id == id && (x.Status == SmsSendStatus.Pending
+                        || (x.Status == SmsSendStatus.Processing && x.CreatedAt < staleCutoff)))
                     .ExecuteUpdate(s => s
                         .SetProperty(x => x.Status, SmsSendStatus.Processing)
                         .SetProperty(x => x.CreatedAt, now));
@@ -188,7 +190,9 @@ namespace SugarShop.Web.Services.Sms
             {
                 using var scope = _scopeFactory.CreateScope();
                 var sender = scope.ServiceProvider.GetRequiredService<SmsService>();
-                await sender.SendNowAsync(item.Phone, item.Message, item.Scenario, item.RecipientType, item.RefKey);
+                var result = await sender.SendNowAsync(item.Phone, item.Message, item.Scenario, item.RecipientType, item.RefKey);
+                if (!result.Success)
+                    throw new InvalidOperationException(result.ErrorMessage ?? "SMS delivery failed.");
 
                 using var doneScope = _scopeFactory.CreateScope();
                 var db = doneScope.ServiceProvider.GetRequiredService<SugarShopSalesDbContext>();
@@ -196,17 +200,18 @@ namespace SugarShop.Web.Services.Sms
                     .Where(x => x.Id == item.Id)
                     .ExecuteUpdateAsync(s => s
                         .SetProperty(x => x.Status, SmsSendStatus.Sent)
-                        .SetProperty(x => x.SentAt, DateTime.UtcNow));
+                        .SetProperty(x => x.SentAt, DateTime.UtcNow)
+                        .SetProperty(x => x.ErrorMessage, (string?)null));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "SMS outbox: send failed for item {Id} to {Phone}", item.Id, item.Phone);
+                _logger.LogError(ex, "SMS outbox: send failed for item {Id} to {Phone}", item.Id, SmsService.MaskPhone(item.Phone));
                 try
                 {
                     using var scope = _scopeFactory.CreateScope();
                     var db = scope.ServiceProvider.GetRequiredService<SugarShopSalesDbContext>();
                     var attempts = item.Attempts + 1;
-                    var errText = ex.Message.Length > 900 ? ex.Message[..900] : ex.Message;
+                    const string errText = "SMS delivery failed; see provider status without recipient/message content.";
                     if (attempts >= MaxAttempts)
                     {
                         await db.SmsOutboxItems.Where(x => x.Id == item.Id).ExecuteUpdateAsync(s => s

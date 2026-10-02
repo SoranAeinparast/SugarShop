@@ -88,6 +88,16 @@ public class ModeSourceContractTests
     }
 
     [Fact]
+    public void A_server_rendered_mode_cannot_be_overridden_by_the_client_user_agent()
+    {
+        var script = File.ReadAllText(Path.Combine(RepositoryLayout.WebProjectDir, "wwwroot", "js", "app-mode.js"));
+
+        Assert.Contains("var hasServerMode = serverMode === 'inapp' || serverMode === 'browser';", script);
+        Assert.Contains("var inApp = hasServerMode ? serverSaysApp : androidShell;", script);
+        Assert.DoesNotContain("var inApp = androidShell;", script);
+    }
+
+    [Fact]
     public void Separation_contract_markers_exist_in_the_views()
     {
         var webScoped = 0;

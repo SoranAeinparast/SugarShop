@@ -56,13 +56,13 @@
         android:textStyle="bold"
         android:background="@drawable/btn_retry_bg" />
 
-    <TextView
-        android:id="@+id/btnLockDisable"
+    <Button
+        android:id="@+id/btnLockAccountLogin"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/biometric_disable"
-        android:textColor="#8D6E63"
-        android:textSize="13sp"
-        android:padding="10dp"
-        android:layout_marginTop="10dp" />
+        android:text="@string/biometric_account_login"
+        android:textColor="#6D3410"
+        android:textSize="14sp"
+        android:layout_marginTop="10dp"
+        style="?android:attr/borderlessButtonStyle" />
 </LinearLayout>

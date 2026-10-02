@@ -36,8 +36,10 @@
     var standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
         || window.navigator.standalone === true;
 
-    // تنها منبع «اپ»: نشانه‌ی UA. محاسبه در همان لحظه و مخصوص همین درخواست.
-    var inApp = androidShell;
+    // هر صفحه‌ی برنامه حالت را سمت سرور تعیین می‌کند؛ UA فقط برای صفحه‌های مستقلی که
+    // هنوز data-app-mode ندارند fallback است و نمی‌تواند حالت رندرشده را عوض کند.
+    var hasServerMode = serverMode === 'inapp' || serverMode === 'browser';
+    var inApp = hasServerMode ? serverSaysApp : androidShell;
     var isAndroid = /Android/i.test(ua);
 
     if (serverMode && serverSaysApp !== inApp && window.console) {
@@ -50,14 +52,9 @@
     var chromeAndroid = !inApp && isAndroid && /Chrome\//.test(ua) && !/;\s*wv\)/.test(ua);
 
     // 🏳️ تصمیم نهایی:
-    // اگر سرور همین درخواست را «inapp» رندر کرده باشد، همان منبع حقیقت است — سرور و این
-    // اسکریپت هر دو از یک User-Agent خوانده‌اند، پس اگر اختلافی بود (حالت‌های لبه‌ای/خطا در
-    // خواندن UA) اعمال تغییر کلاینت به «browser» باعث می‌شد صفحه‌ای که داخل اپ لود شده به
-    // چیدمان وب برود و «روی هر دکمه از حالت اپ خارج شویم». تصمیم سرور را حفظ می‌کنیم.
-    // در غیر این صورت همان قاعده‌ی قبل: UA پوسته اندروید، سپس مرورگر کروم، وگرنه وب.
-    var mode = serverSaysApp
-        ? 'inapp'
-        : (inApp ? 'inapp' : (chromeAndroid ? 'android-browser' : 'browser'));
+    // حالت سرور مرجع کامل است: اختلاف UA سمت کلاینت نباید چیدمان صفحه را در هیچ جهتی
+    // عوض کند. صفحات بدون حالت سروری از UA استفاده می‌کنند؛ کروم اندروید فقط یک نوع مرورگر است.
+    var mode = inApp ? 'inapp' : (chromeAndroid ? 'android-browser' : 'browser');
     if (root.getAttribute('data-app-mode') !== mode) {
         root.setAttribute('data-app-mode', mode);
     }
